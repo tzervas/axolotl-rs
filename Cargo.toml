@@ -1,0 +1,60 @@
+[package]
+name = "axolotl-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "YAML-driven configurable fine-tuning toolkit for LLMs in Rust"
+repository = "https://github.com/youruser/axolotl-rs"
+keywords = ["llm", "fine-tuning", "training", "configuration", "yaml"]
+categories = ["science", "machine-learning", "command-line-utilities"]
+
+[dependencies]
+candle-core.workspace = true
+candle-nn.workspace = true
+candle-transformers.workspace = true
+tokenizers.workspace = true
+safetensors.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+# Local workspace dependencies
+peft-rs = { path = "../peft-rs" }
+qlora-rs = { path = "../qlora-rs" }
+unsloth-rs = { path = "../unsloth-rs", optional = true }
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# Progress bars
+indicatif = "0.17"
+
+# HTTP for model downloads
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"], optional = true }
+
+[dev-dependencies]
+criterion.workspace = true
+tempfile = "3.10"
+
+[features]
+default = ["download"]
+download = ["reqwest"]
+cuda = ["candle-core/cuda", "peft-rs/cuda", "qlora-rs/cuda"]
+optimized = ["unsloth-rs"]
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "axolotl"
+path = "src/main.rs"
+
+[[bench]]
+name = "config_parsing"
+harness = false
