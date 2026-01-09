@@ -18,9 +18,13 @@ pub struct Trainer {
 
 impl Trainer {
     /// Create a new trainer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid.
     pub fn new(config: AxolotlConfig) -> Result<Self> {
         config.validate()?;
-        
+
         Ok(Self {
             config,
             step: 0,
@@ -29,18 +33,28 @@ impl Trainer {
     }
 
     /// Resume training from a checkpoint.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the checkpoint cannot be loaded.
     pub fn resume_from(&mut self, _checkpoint_path: &str) -> Result<()> {
         // TODO: Load checkpoint state
-        Err(AxolotlError::Checkpoint("Resume not yet implemented".into()))
+        Err(AxolotlError::Checkpoint(
+            "Resume not yet implemented".into(),
+        ))
     }
 
     /// Run the training loop.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if training fails.
     pub fn train(&mut self) -> Result<()> {
         tracing::info!("Starting training");
         tracing::info!("  Base model: {}", self.config.base_model);
         tracing::info!("  Adapter: {:?}", self.config.adapter);
         tracing::info!("  Epochs: {}", self.config.training.epochs);
-        
+
         // Load dataset
         let dataset = Dataset::load(&self.config.dataset)?;
         tracing::info!("Loaded {} training examples", dataset.len());
@@ -49,19 +63,25 @@ impl Trainer {
         std::fs::create_dir_all(&self.config.output_dir)?;
 
         // Setup progress bar
-        let total_steps = dataset.len() * self.config.training.epochs 
-            / self.config.training.batch_size;
+        let total_steps =
+            dataset.len() * self.config.training.epochs / self.config.training.batch_size;
         let pb = ProgressBar::new(total_steps as u64);
         pb.set_style(
             ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")?
+                .template(
+                    "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
+                )?
                 .progress_chars("#>-"),
         );
 
         // Training loop
         for epoch in 0..self.config.training.epochs {
             self.epoch = epoch;
-            tracing::info!("Starting epoch {}/{}", epoch + 1, self.config.training.epochs);
+            tracing::info!(
+                "Starting epoch {}/{}",
+                epoch + 1,
+                self.config.training.epochs
+            );
 
             for _batch in dataset.train.chunks(self.config.training.batch_size) {
                 self.step += 1;
@@ -97,10 +117,7 @@ impl Trainer {
 
     /// Save a checkpoint.
     fn save_checkpoint(&self) -> Result<()> {
-        let checkpoint_dir = format!(
-            "{}/checkpoint-{}",
-            self.config.output_dir, self.step
-        );
+        let checkpoint_dir = format!("{}/checkpoint-{}", self.config.output_dir, self.step);
         std::fs::create_dir_all(&checkpoint_dir)?;
 
         // TODO: Save model weights

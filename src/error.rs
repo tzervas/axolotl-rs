@@ -37,14 +37,14 @@ pub enum AxolotlError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// PEFT error.
-    #[error("PEFT error: {0}")]
-    Peft(#[from] peft_rs::PeftError),
+    // Commented out due to missing dependencies
+    // /// PEFT error.
+    // #[error("PEFT error: {0}")]
+    // Peft(#[from] peft_rs::PeftError),
 
-    /// QLoRA error.
-    #[error("QLoRA error: {0}")]
-    Qlora(#[from] qlora_rs::QLoraError),
-
+    // /// QLoRA error.
+    // #[error("QLoRA error: {0}")]
+    // Qlora(#[from] qlora_rs::QLoraError),
     /// Candle error.
     #[error("candle error: {0}")]
     Candle(#[from] candle_core::Error),
@@ -52,4 +52,11 @@ pub enum AxolotlError {
     /// Tokenizer error.
     #[error("tokenizer error: {0}")]
     Tokenizer(#[from] tokenizers::Error),
+}
+
+/// Custom From implementation for `indicatif::style::TemplateError`
+impl From<indicatif::style::TemplateError> for AxolotlError {
+    fn from(e: indicatif::style::TemplateError) -> Self {
+        AxolotlError::Training(e.to_string())
+    }
 }

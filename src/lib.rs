@@ -8,7 +8,7 @@
 //! ## Features
 //!
 //! - **YAML Configuration** - Define entire training runs in simple config files
-//! - **Multiple Adapters** - Support for LoRA, QLoRA, full fine-tuning
+//! - **Multiple Adapters** - Support for `LoRA`, `QLoRA`, full fine-tuning
 //! - **Dataset Handling** - Automatic loading and preprocessing
 //! - **Multi-GPU** - Distributed training support (planned)
 //!
