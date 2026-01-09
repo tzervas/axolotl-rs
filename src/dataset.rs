@@ -32,7 +32,7 @@ impl Dataset {
     /// Load dataset from configuration.
     pub fn load(config: &DatasetConfig) -> Result<Self> {
         let path = Path::new(&config.path);
-        
+
         if !path.exists() {
             return Err(AxolotlError::Dataset(format!(
                 "Dataset not found: {}",
@@ -88,7 +88,7 @@ fn load_alpaca(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
         if line.trim().is_empty() {
             continue;
         }
-        
+
         let alpaca: AlpacaExample = serde_json::from_str(line)
             .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {}", e)))?;
 
@@ -133,7 +133,7 @@ fn load_sharegpt(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
         if line.trim().is_empty() {
             continue;
         }
-        
+
         let sharegpt: ShareGptExample = serde_json::from_str(line)
             .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {}", e)))?;
 
@@ -156,7 +156,11 @@ fn load_sharegpt(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
         }
 
         if !output.is_empty() {
-            examples.push(Example { input, output, text });
+            examples.push(Example {
+                input,
+                output,
+                text,
+            });
         }
     }
 
@@ -177,7 +181,7 @@ fn load_completion(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>>
         struct CompletionExample {
             text: String,
         }
-        
+
         let completion: CompletionExample = serde_json::from_str(line)
             .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {}", e)))?;
 
@@ -200,23 +204,29 @@ fn load_custom(path: &Path, config: &DatasetConfig) -> Result<Vec<Example>> {
         if line.trim().is_empty() {
             continue;
         }
-        
+
         let obj: serde_json::Value = serde_json::from_str(line)
             .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {}", e)))?;
 
-        let input = obj.get(&config.input_field)
+        let input = obj
+            .get(&config.input_field)
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
 
-        let output = obj.get(&config.output_field)
+        let output = obj
+            .get(&config.output_field)
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
 
         let text = format!("### Input:\n{}\n\n### Output:\n{}", input, output);
 
-        examples.push(Example { input, output, text });
+        examples.push(Example {
+            input,
+            output,
+            text,
+        });
     }
 
     Ok(examples)
@@ -231,14 +241,18 @@ mod tests {
     #[test]
     fn test_load_alpaca() {
         let mut file = NamedTempFile::new().unwrap();
-        writeln!(file, r#"{{"instruction": "Test", "input": "", "output": "Response"}}"#).unwrap();
-        
+        writeln!(
+            file,
+            r#"{{"instruction": "Test", "input": "", "output": "Response"}}"#
+        )
+        .unwrap();
+
         let config = DatasetConfig {
             path: file.path().to_string_lossy().into(),
             format: DatasetFormat::Alpaca,
             ..Default::default()
         };
-        
+
         let dataset = Dataset::load(&config).unwrap();
         assert_eq!(dataset.train.len(), 1);
         assert_eq!(dataset.train[0].output, "Response");
