@@ -1,28 +1,28 @@
 [package]
 name = "axolotl-rs"
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT"
 description = "YAML-driven configurable fine-tuning toolkit for LLMs in Rust"
 repository = "https://github.com/youruser/axolotl-rs"
 keywords = ["llm", "fine-tuning", "training", "configuration", "yaml"]
 categories = ["science", "machine-learning", "command-line-utilities"]
 
 [dependencies]
-candle-core.workspace = true
-candle-nn.workspace = true
-candle-transformers.workspace = true
-tokenizers.workspace = true
-safetensors.workspace = true
-serde.workspace = true
-serde_yaml.workspace = true
-serde_json.workspace = true
-tokio.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-anyhow.workspace = true
+candle-core = "0.9"
+candle-nn = "0.9"
+candle-transformers = "0.9"
+tokenizers = "0.19"
+safetensors = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+tokio = { version = "1.35", features = ["full"] }
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
 
 # Local workspace dependencies
 peft-rs = { path = "../peft-rs" }
@@ -39,7 +39,7 @@ indicatif = "0.17"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"], optional = true }
 
 [dev-dependencies]
-criterion.workspace = true
+criterion = "0.5"
 tempfile = "3.10"
 
 [features]
@@ -48,8 +48,14 @@ download = ["reqwest"]
 cuda = ["candle-core/cuda", "peft-rs/cuda", "qlora-rs/cuda"]
 optimized = ["unsloth-rs"]
 
-[lints]
-workspace = true
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+enum_glob_use = "deny"
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+unwrap_used = "warn"
 
 [[bin]]
 name = "axolotl"

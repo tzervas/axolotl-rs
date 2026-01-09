@@ -41,7 +41,7 @@ pub enum AxolotlError {
     #[error("PEFT error: {0}")]
     Peft(#[from] peft_rs::PeftError),
 
-    /// QLoRA error.
+    /// `QLoRA` error.
     #[error("QLoRA error: {0}")]
     Qlora(#[from] qlora_rs::QLoraError),
 
