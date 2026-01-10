@@ -1,28 +1,35 @@
 # axolotl-rs
 
+> ⚠️ **Early Development**: This project is a framework scaffold under active development. Core training functionality is not yet implemented. The configuration system, CLI interface, and dataset loaders are functional, but actual model training, adapter management, and checkpoint handling are planned for future releases.
+
 YAML-driven configurable fine-tuning toolkit for LLMs in Rust.
 
-[![Crates.io](https://img.shields.io/crates/v/axolotl-rs.svg)](https://crates.io/crates/axolotl-rs)
-[![Documentation](https://docs.rs/axolotl-rs/badge.svg)](https://docs.rs/axolotl-rs)
-[![License](https://img.shields.io/crates/l/axolotl-rs.svg)](LICENSE-MIT)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
 
 ## Overview
 
-`axolotl-rs` provides a user-friendly interface for fine-tuning language models, inspired by the Python [Axolotl](https://github.com/OpenAccess-AI-Collective/axolotl) project:
+`axolotl-rs` is a Rust port of the Python [Axolotl](https://github.com/OpenAccess-AI-Collective/axolotl) project, providing a framework for fine-tuning language models.
 
-- **YAML Configuration** - Define entire training runs in simple config files
-- **Multiple Adapters** - Support for LoRA, QLoRA, and full fine-tuning
-- **Dataset Handling** - Automatic loading and preprocessing (Alpaca, ShareGPT, custom)
-- **CLI Interface** - Simple commands for training, validation, and merging
+**Currently Implemented:**
+- ✅ **YAML Configuration** - Parse and validate training configuration files
+- ✅ **Dataset Handling** - Load datasets in Alpaca, ShareGPT, completion, and custom formats
+- ✅ **CLI Interface** - Commands for `validate`, `train`, `merge`, `init` (validation works)
+- ✅ **Configuration Presets** - Templates for LLaMA-2, Mistral, and Phi-3 models
+
+**Planned (Not Yet Implemented):**
+- 🚧 Model loading and adapter management (LoRA, QLoRA)
+- 🚧 Actual training loop with forward/backward passes
+- 🚧 Checkpoint saving and loading
+- 🚧 Adapter merging
+- 🚧 Multi-GPU distributed training
 
 ## Installation
 
 ```bash
-# From crates.io
-cargo install axolotl-rs
-
-# From source
-cargo install --path axolotl-rs
+# From source (not yet published to crates.io)
+git clone https://github.com/tzervas/axolotl-rs
+cd axolotl-rs
+cargo build --release
 ```
 
 ## Quick Start
@@ -52,12 +59,15 @@ axolotl validate config.yaml
 ### 4. Start Training
 
 ```bash
+# Note: Training loop is not yet implemented
+# Currently validates config and creates output directories
 axolotl train config.yaml
 ```
 
 ### 5. Merge Adapters (Optional)
 
 ```bash
+# Note: Adapter merging is not yet implemented
 axolotl merge --config config.yaml --output ./merged-model
 ```
 
@@ -145,29 +155,34 @@ axolotl init <output.yaml> --preset <preset>
 
 ```
 axolotl-rs
-├── config     - YAML parsing & validation
-├── dataset    - Data loading & preprocessing
-├── model      - Model loading & adapter management
-└── trainer    - Training loop & optimization
+├── config     - YAML parsing & validation (✅ implemented)
+├── dataset    - Data loading & preprocessing (✅ implemented)
+├── model      - Model loading & adapter management (🚧 stub/planned)
+└── trainer    - Training loop & optimization (🚧 stub/planned)
 
 Dependencies:
-├── peft-rs    - PEFT adapter implementations
-├── qlora-rs   - 4-bit quantization
-└── unsloth-rs - Optimized kernels (optional)
+├── candle-*   - Tensor operations and transformer models
+├── tokenizers - HuggingFace tokenizer bindings
+└── Mock impls - Temporary mocks for peft-rs, qlora-rs, unsloth-rs
 ```
 
 ## Feature Flags
 
-| Flag | Description |
-|------|-------------|
-| `download` | Enable model downloading from HF Hub |
-| `cuda` | Enable CUDA GPU support |
-| `optimized` | Use unsloth-rs optimized kernels |
+| Flag | Description | Status |
+|------|-------------|--------|
+| `download` | Enable model downloading from HF Hub | Planned |
+| `mock-peft` | Use mock PEFT implementation | Active |
+| `mock-qlora` | Use mock QLoRA implementation | Active |
+| `mock-unsloth` | Use mock Unsloth implementation | Active |
+
+## Development Status
+
+See [TEST_COVERAGE_PLAN.md](TEST_COVERAGE_PLAN.md) for detailed development roadmap and test coverage goals (target: 80% coverage).
 
 ## Contributing
 
-See workspace [AGENTS.md](../AGENTS.md) for coding conventions.
+Contributions welcome! This is an early-stage project. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-Licensed under MIT or Apache-2.0 at your option.
+Licensed under the [MIT License](LICENSE-MIT).
