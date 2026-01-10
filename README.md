@@ -179,6 +179,8 @@ Dependencies:
 
 See [TEST_COVERAGE_PLAN.md](TEST_COVERAGE_PLAN.md) for detailed development roadmap and test coverage goals (target: 80% coverage).
 
+**Porting from Python:** This is a Rust port of the Python [Axolotl](https://github.com/OpenAccess-AI-Collective/axolotl) project, designed for better performance and efficiency. See [PORTING_PLAN.md](PORTING_PLAN.md) for the complete porting roadmap and [ARCHITECTURE.md](ARCHITECTURE.md) for technical architecture details.
+
 ## Contributing
 
 Contributions welcome! This is an early-stage project. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
