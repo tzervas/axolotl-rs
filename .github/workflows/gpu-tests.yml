@@ -2,9 +2,9 @@ name: GPU Tests
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, dev]
   pull_request:
-    branches: [main, develop]
+    branches: [main, dev]
   schedule:
     # Run GPU tests daily at 2 AM UTC
     - cron: '0 2 * * *'
@@ -18,7 +18,7 @@ jobs:
   gpu-cuda:
     name: GPU Tests (CUDA)
     runs-on: self-hosted
-    if: github.repository == 'youruser/axolotl-rs' # Adjust to your repo
+    if: github.repository == 'tzervas/axolotl-rs' # Adjust to your repo
     
     steps:
       - name: Checkout repository
