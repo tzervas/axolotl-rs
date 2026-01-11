@@ -47,11 +47,10 @@
 //! use axolotl_rs::AxolotlConfig;
 //!
 //! # fn main() -> axolotl_rs::Result<()> {
-//! // Create config from preset
-//! let config = AxolotlConfig::from_preset("llama2-7b")?;
+//! // Create mutable config from preset
+//! let mut config = AxolotlConfig::from_preset("llama2-7b")?;
 //!
 //! // Customize as needed
-//! let mut config = config;
 //! config.training.epochs = 5;
 //! config.training.learning_rate = 1e-4;
 //! # Ok(())
