@@ -1,5 +1,6 @@
 //! Dataset loading and preprocessing.
 
+use std::fmt::Write;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -141,8 +142,6 @@ struct ShareGptMessage {
 }
 
 fn load_sharegpt(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
-    use std::fmt::Write;
-    
     let content = std::fs::read_to_string(path)?;
     let mut examples = Vec::new();
 
