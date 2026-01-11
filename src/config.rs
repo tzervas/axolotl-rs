@@ -473,6 +473,29 @@ impl AxolotlConfig {
             ));
         }
 
+        // Validate training config
+        if self.training.batch_size == 0 {
+            return Err(AxolotlError::Config(
+                "training.batch_size must be > 0".into(),
+            ));
+        }
+
+        if self.training.gradient_accumulation_steps == 0 {
+            return Err(AxolotlError::Config(
+                "training.gradient_accumulation_steps must be > 0".into(),
+            ));
+        }
+
+        if self.training.learning_rate <= 0.0 {
+            return Err(AxolotlError::Config(
+                "training.learning_rate must be > 0".into(),
+            ));
+        }
+
+        if self.training.epochs == 0 {
+            return Err(AxolotlError::Config("training.epochs must be > 0".into()));
+        }
+
         Ok(())
     }
 }
@@ -689,50 +712,132 @@ mod tests {
     // TrainingConfig tests
     #[test]
     fn test_training_config_batch_size_validation() {
-        let training = TrainingConfig {
-            batch_size: 1,
-            gradient_accumulation_steps: 1,
+        // Valid batch size should pass validation
+        let valid_config = AxolotlConfig {
+            base_model: "test/model".into(),
+            dataset: DatasetConfig {
+                path: "./data/train.jsonl".into(),
+                ..Default::default()
+            },
+            training: TrainingConfig {
+                batch_size: 32,
+                gradient_accumulation_steps: 4,
+                ..Default::default()
+            },
             ..Default::default()
         };
-        assert_eq!(training.batch_size, 1);
+        assert!(valid_config.validate().is_ok());
 
-        let training2 = TrainingConfig {
-            batch_size: 32,
-            gradient_accumulation_steps: 4,
+        // Zero batch size should fail validation
+        let invalid_batch_size = AxolotlConfig {
+            base_model: "test/model".into(),
+            dataset: DatasetConfig {
+                path: "./data/train.jsonl".into(),
+                ..Default::default()
+            },
+            training: TrainingConfig {
+                batch_size: 0,
+                ..Default::default()
+            },
             ..Default::default()
         };
-        assert_eq!(training2.batch_size, 32);
-        assert_eq!(training2.gradient_accumulation_steps, 4);
+        assert!(invalid_batch_size.validate().is_err());
+
+        // Zero gradient accumulation steps should fail validation
+        let invalid_grad_accum = AxolotlConfig {
+            base_model: "test/model".into(),
+            dataset: DatasetConfig {
+                path: "./data/train.jsonl".into(),
+                ..Default::default()
+            },
+            training: TrainingConfig {
+                gradient_accumulation_steps: 0,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(invalid_grad_accum.validate().is_err());
     }
 
     #[test]
     fn test_training_config_learning_rate() {
-        let training = TrainingConfig {
-            learning_rate: 1e-5,
+        // Valid learning rate should pass validation
+        let valid_config = AxolotlConfig {
+            base_model: "test/model".into(),
+            dataset: DatasetConfig {
+                path: "./data/train.jsonl".into(),
+                ..Default::default()
+            },
+            training: TrainingConfig {
+                learning_rate: 1e-5,
+                ..Default::default()
+            },
             ..Default::default()
         };
-        assert_eq!(training.learning_rate, 1e-5);
+        assert!(valid_config.validate().is_ok());
 
-        let training2 = TrainingConfig {
-            learning_rate: 5e-4,
+        // Zero learning rate should fail validation
+        let zero_lr = AxolotlConfig {
+            base_model: "test/model".into(),
+            dataset: DatasetConfig {
+                path: "./data/train.jsonl".into(),
+                ..Default::default()
+            },
+            training: TrainingConfig {
+                learning_rate: 0.0,
+                ..Default::default()
+            },
             ..Default::default()
         };
-        assert_eq!(training2.learning_rate, 5e-4);
+        assert!(zero_lr.validate().is_err());
+
+        // Negative learning rate should fail validation
+        let negative_lr = AxolotlConfig {
+            base_model: "test/model".into(),
+            dataset: DatasetConfig {
+                path: "./data/train.jsonl".into(),
+                ..Default::default()
+            },
+            training: TrainingConfig {
+                learning_rate: -0.001,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(negative_lr.validate().is_err());
     }
 
     #[test]
     fn test_training_config_epochs() {
-        let training = TrainingConfig {
-            epochs: 1,
+        // Valid epochs should pass validation
+        let valid_config = AxolotlConfig {
+            base_model: "test/model".into(),
+            dataset: DatasetConfig {
+                path: "./data/train.jsonl".into(),
+                ..Default::default()
+            },
+            training: TrainingConfig {
+                epochs: 10,
+                ..Default::default()
+            },
             ..Default::default()
         };
-        assert_eq!(training.epochs, 1);
+        assert!(valid_config.validate().is_ok());
 
-        let training2 = TrainingConfig {
-            epochs: 10,
+        // Zero epochs should fail validation
+        let zero_epochs = AxolotlConfig {
+            base_model: "test/model".into(),
+            dataset: DatasetConfig {
+                path: "./data/train.jsonl".into(),
+                ..Default::default()
+            },
+            training: TrainingConfig {
+                epochs: 0,
+                ..Default::default()
+            },
             ..Default::default()
         };
-        assert_eq!(training2.epochs, 10);
+        assert!(zero_epochs.validate().is_err());
     }
 
     // File I/O tests
