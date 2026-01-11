@@ -18,7 +18,6 @@ jobs:
   gpu-cuda:
     name: GPU Tests (CUDA)
     runs-on: self-hosted
-    if: github.repository == 'youruser/axolotl-rs' # Adjust to your repo
     
     steps:
       - name: Checkout repository
