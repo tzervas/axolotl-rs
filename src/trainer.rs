@@ -7,6 +7,24 @@ use crate::dataset::Dataset;
 use crate::error::{AxolotlError, Result};
 
 /// Training orchestrator.
+///
+/// # Example
+///
+/// ```no_run
+/// use axolotl_rs::{AxolotlConfig, Trainer};
+///
+/// # fn main() -> axolotl_rs::Result<()> {
+/// // Create configuration
+/// let config = AxolotlConfig::from_preset("llama2-7b")?;
+///
+/// // Create trainer
+/// let mut trainer = Trainer::new(config)?;
+///
+/// // Run training
+/// trainer.train()?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct Trainer {
     /// Configuration
     config: AxolotlConfig,
@@ -18,6 +36,20 @@ pub struct Trainer {
 
 impl Trainer {
     /// Create a new trainer.
+    ///
+    /// Validates the configuration before creating the trainer.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use axolotl_rs::{AxolotlConfig, Trainer};
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let config = AxolotlConfig::from_preset("llama2-7b")?;
+    /// let trainer = Trainer::new(config)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     ///
     /// # Errors
     ///
@@ -34,10 +66,25 @@ impl Trainer {
 
     /// Resume training from a checkpoint.
     ///
-    /// # Errors
+    /// # Example
     ///
-    /// Returns an error as resume functionality is not yet implemented.
-    #[allow(clippy::unused_self)]
+    /// ```no_run
+    /// use axolotl_rs::{AxolotlConfig, Trainer};
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let config = AxolotlConfig::from_file("config.yaml")?;
+    /// let mut trainer = Trainer::new(config)?;
+    ///
+    /// // Resume from a previous checkpoint
+    /// trainer.resume_from("./outputs/checkpoint-1000")?;
+    /// trainer.train()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Note
+    ///
+    /// This feature is not yet implemented.
     pub fn resume_from(&mut self, _checkpoint_path: &str) -> Result<()> {
         // TODO: Load checkpoint state
         Err(AxolotlError::Checkpoint(
@@ -47,9 +94,38 @@ impl Trainer {
 
     /// Run the training loop.
     ///
+    /// This performs the following steps:
+    /// 1. Loads the dataset
+    /// 2. Iterates over epochs and batches
+    /// 3. Logs metrics periodically
+    /// 4. Saves checkpoints periodically
+    /// 5. Saves final checkpoint
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use axolotl_rs::{AxolotlConfig, Trainer};
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// // Load configuration
+    /// let config = AxolotlConfig::from_file("config.yaml")?;
+    ///
+    /// // Create and run trainer
+    /// let mut trainer = Trainer::new(config)?;
+    /// trainer.train()?;
+    ///
+    /// println!("Training complete!");
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Errors
     ///
-    /// Returns an error if training fails or cannot create output directories.
+    /// Returns an error if:
+    /// - Dataset cannot be loaded
+    /// - Model fails to load
+    /// - Training encounters an error
+    /// - Checkpoint saving fails
     pub fn train(&mut self) -> Result<()> {
         tracing::info!("Starting training");
         tracing::info!("  Base model: {}", self.config.base_model);
