@@ -8,7 +8,7 @@ use crate::config::AxolotlConfig;
 use crate::dataset::Dataset;
 use crate::error::{AxolotlError, Result};
 use crate::model::{load_model, LoadedModel};
-use crate::optimizer::OptimizerConfig;
+use crate::optimizer::{AdamWOptimizer, OptimizerConfig};
 use crate::scheduler::{LRScheduler, SchedulerType};
 
 /// Training orchestrator.
@@ -41,6 +41,10 @@ pub struct Trainer {
     device: Device,
     /// Loaded model (optional, loaded during train())
     model: Option<LoadedModel>,
+    /// Optimizer (optional, created during train())
+    optimizer: Option<AdamWOptimizer>,
+    /// Learning rate scheduler (optional, created during train())
+    scheduler: Option<LRScheduler>,
 }
 
 impl Trainer {
@@ -82,6 +86,8 @@ impl Trainer {
             epoch: 0,
             device,
             model: None,
+            optimizer: None,
+            scheduler: None,
         })
     }
 
@@ -107,7 +113,7 @@ impl Trainer {
     ///
     /// This feature is not yet implemented.
     pub fn resume_from(&mut self, _checkpoint_path: &str) -> Result<()> {
-        // TODO: Load checkpoint state
+        // TODO: Load model weights, optimizer state, scheduler state, and training progress
         Err(AxolotlError::Checkpoint(
             "Resume not yet implemented".into(),
         ))
@@ -174,19 +180,21 @@ impl Trainer {
         
         // Create varmap for model parameters (will be populated with actual params)
         let varmap = VarMap::new();
-        let mut optimizer = optimizer_config.build_adamw(&varmap)?;
+        let optimizer = optimizer_config.build_adamw(&varmap)?;
         tracing::info!("Initialized AdamW optimizer with lr={}", optimizer.learning_rate());
+        self.optimizer = Some(optimizer);
 
         // Initialize learning rate scheduler
         let total_steps =
             dataset.len() * self.config.training.epochs / self.config.training.batch_size;
         let warmup_steps = (total_steps as f64 * 0.1) as usize; // 10% warmup
         
-        let mut scheduler = LRScheduler::new(
+        let scheduler = LRScheduler::new(
             SchedulerType::Linear { warmup_steps, total_steps },
             self.config.training.learning_rate,
         );
         tracing::info!("Initialized linear scheduler with {} warmup steps", warmup_steps);
+        self.scheduler = Some(scheduler);
 
         // Setup progress bar
         let pb = ProgressBar::new(total_steps as u64);
@@ -225,7 +233,7 @@ impl Trainer {
                         total_steps,
                         epoch + 1,
                         loss,
-                        optimizer.learning_rate()
+                        self.optimizer.as_ref().unwrap().learning_rate()
                     );
                 }
 
@@ -235,7 +243,9 @@ impl Trainer {
                 }
                 
                 // Step scheduler
-                scheduler.step(&mut optimizer);
+                if let (Some(scheduler), Some(optimizer)) = (self.scheduler.as_mut(), self.optimizer.as_mut()) {
+                    scheduler.step(optimizer);
+                }
             }
         }
 
