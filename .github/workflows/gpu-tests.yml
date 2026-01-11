@@ -109,10 +109,8 @@ jobs:
 
       - name: Run small model tests
         run: |
-          # These tests would use small models like GPT-2 or TinyLlama
-          # for quick validation of GPU functionality
-          echo "Small model tests would run here"
-          # cargo test --features cuda --release small_model_tests
+          echo "Running small model CUDA tests"
+          cargo test --features cuda --release small_model_tests -- --test-threads=1
         env:
           CUDA_VISIBLE_DEVICES: "0"
           TEST_MODEL_SIZE: "small"
