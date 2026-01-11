@@ -53,7 +53,7 @@ jobs:
   gpu-benchmarks:
     name: GPU Benchmarks
     runs-on: self-hosted
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'youruser/axolotl-rs' # Adjust to your repo
     
     steps:
       - name: Checkout repository
