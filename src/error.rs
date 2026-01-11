@@ -39,11 +39,13 @@ pub enum AxolotlError {
 
     /// PEFT error.
     #[error("PEFT error: {0}")]
-    Peft(#[from] peft_rs::PeftError),
+    // Peft(#[from] peft_rs::PeftError),
+    Peft(String),
 
     /// QLoRA error.
     #[error("QLoRA error: {0}")]
-    Qlora(#[from] qlora_rs::QLoraError),
+    // Qlora(#[from] qlora_rs::QLoraError),
+    Qlora(String),
 
     /// Candle error.
     #[error("candle error: {0}")]
@@ -52,4 +54,8 @@ pub enum AxolotlError {
     /// Tokenizer error.
     #[error("tokenizer error: {0}")]
     Tokenizer(#[from] tokenizers::Error),
+
+    /// Progress bar template error.
+    #[error("progress bar template error: {0}")]
+    Template(#[from] indicatif::style::TemplateError),
 }
