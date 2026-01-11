@@ -101,9 +101,11 @@ jobs:
         run: cargo audit
 
       - name: Install cargo-deny
+        if: ${{ hashFiles('deny.toml') != '' }}
         run: cargo install cargo-deny --locked
 
       - name: Run cargo deny
+        if: ${{ hashFiles('deny.toml') != '' }}
         run: cargo deny check
 
   benchmark:
