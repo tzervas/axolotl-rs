@@ -326,13 +326,13 @@ fn load_custom(path: &Path, config: &DatasetConfig) -> Result<Vec<Example>> {
 
         let input = obj
             .get(&config.input_field)
-            .and_then(|v| v.as_str())
+            .and_then(|v: &serde_json::Value| v.as_str())
             .unwrap_or("")
             .to_string();
 
         let output = obj
             .get(&config.output_field)
-            .and_then(|v| v.as_str())
+            .and_then(|v: &serde_json::Value| v.as_str())
             .unwrap_or("")
             .to_string();
 
