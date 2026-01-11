@@ -385,7 +385,7 @@ mod tests {
     #[cfg(feature = "download")]
     fn test_download_model_from_hub() {
         // Currently returns "Model download not yet implemented" error
-        let result = tokio::runtime::Runtime::new().unwrap().block_on(async {
+        let result: Result<String> = tokio::runtime::Runtime::new().unwrap().block_on(async {
             download_model("meta-llama/Llama-2-7b-hf", "/tmp/cache").await
         });
         assert!(result.is_err());
