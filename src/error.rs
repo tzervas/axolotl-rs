@@ -313,4 +313,5 @@ mod tests {
         let error = AxolotlError::Qlora("QLoRA quantization failed".to_string());
         assert!(error.to_string().contains("QLoRA error"));
     }
+>>>>>>> origin/dev
 }
