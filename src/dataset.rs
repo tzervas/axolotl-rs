@@ -52,9 +52,17 @@ impl Dataset {
         };
 
         // Split into train/validation
-        #[allow(clippy::cast_precision_loss)]
-        #[allow(clippy::cast_possible_truncation)]
-        #[allow(clippy::cast_sign_loss)]
+        // NOTE: The float/usize casts here are considered safe because:
+        // - `examples.len()` is expected to be well below `f32::MAX` for realistic datasets.
+        // - `config.val_split` is expected to be in the range [0.0, 1.0], so the product
+        //   stays within [0, examples.len()] and remains non-negative.
+        // - Truncation when casting back to `usize` is intentional, effectively flooring
+        //   the split index used for slicing.
+        #[allow(
+            clippy::cast_precision_loss,
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss
+        )]
         let split_idx = ((1.0 - config.val_split) * examples.len() as f32) as usize;
         let (train, validation) = examples.split_at(split_idx);
 
