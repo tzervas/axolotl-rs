@@ -480,6 +480,8 @@ impl AxolotlConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_config_serialization() {
@@ -504,5 +506,364 @@ mod tests {
         assert!(AxolotlConfig::from_preset("mistral-7b").is_ok());
         assert!(AxolotlConfig::from_preset("phi3-mini").is_ok());
         assert!(AxolotlConfig::from_preset("invalid").is_err());
+    }
+
+    // LoraSettings tests
+    #[test]
+    fn test_lora_settings_valid() {
+        let lora = LoraSettings {
+            r: 64,
+            alpha: 16,
+            dropout: 0.05,
+            target_modules: vec!["q_proj".into(), "v_proj".into()],
+        };
+        assert_eq!(lora.r, 64);
+        assert_eq!(lora.alpha, 16);
+        assert_eq!(lora.dropout, 0.05);
+        assert_eq!(lora.target_modules.len(), 2);
+    }
+
+    #[test]
+    fn test_lora_settings_invalid_r() {
+        let mut config = AxolotlConfig::llama2_7b_preset();
+
+        // r = 0 should fail validation
+        config.lora.r = 0;
+        assert!(config.validate().is_err());
+
+        // Valid r values
+        config.lora.r = 8;
+        assert!(config.validate().is_ok());
+
+        config.lora.r = 256;
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_lora_settings_default_target_modules() {
+        let lora = LoraSettings::default();
+        assert_eq!(lora.target_modules.len(), 4);
+        assert!(lora.target_modules.contains(&"q_proj".to_string()));
+        assert!(lora.target_modules.contains(&"k_proj".to_string()));
+        assert!(lora.target_modules.contains(&"v_proj".to_string()));
+        assert!(lora.target_modules.contains(&"o_proj".to_string()));
+        assert_eq!(lora.r, 64);
+        assert_eq!(lora.alpha, 16);
+    }
+
+    #[test]
+    fn test_lora_settings_empty_target_modules() {
+        let lora = LoraSettings {
+            r: 64,
+            alpha: 16,
+            dropout: 0.05,
+            target_modules: vec![],
+        };
+        // Empty target modules is allowed but should be handled by application logic
+        assert_eq!(lora.target_modules.len(), 0);
+    }
+
+    // QuantizationSettings tests
+    #[test]
+    fn test_quantization_4bit() {
+        let quant = QuantizationSettings {
+            bits: 4,
+            quant_type: QuantType::Nf4,
+            double_quant: true,
+            block_size: 64,
+        };
+        assert_eq!(quant.bits, 4);
+        assert!(matches!(quant.quant_type, QuantType::Nf4));
+        assert!(quant.double_quant);
+        assert_eq!(quant.block_size, 64);
+    }
+
+    #[test]
+    fn test_quantization_8bit() {
+        let quant = QuantizationSettings {
+            bits: 8,
+            quant_type: QuantType::Fp4,
+            double_quant: false,
+            block_size: 128,
+        };
+        assert_eq!(quant.bits, 8);
+        assert!(matches!(quant.quant_type, QuantType::Fp4));
+        assert!(!quant.double_quant);
+    }
+
+    #[test]
+    fn test_quantization_none() {
+        let mut config = AxolotlConfig::llama2_7b_preset();
+        config.adapter = AdapterType::Lora;
+        config.quantization = None;
+        // LoRA without quantization should be valid
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_quantization_compute_dtype() {
+        let quant = QuantizationSettings::default();
+        assert_eq!(quant.bits, 4);
+        assert!(quant.double_quant);
+        assert!(matches!(quant.quant_type, QuantType::Nf4));
+    }
+
+    // DatasetConfig tests
+    #[test]
+    fn test_dataset_config_all_formats() {
+        // Test Alpaca format
+        let alpaca = DatasetConfig {
+            path: "./data.jsonl".into(),
+            format: DatasetFormat::Alpaca,
+            ..Default::default()
+        };
+        assert!(matches!(alpaca.format, DatasetFormat::Alpaca));
+
+        // Test ShareGPT format
+        let sharegpt = DatasetConfig {
+            path: "./data.jsonl".into(),
+            format: DatasetFormat::Sharegpt,
+            ..Default::default()
+        };
+        assert!(matches!(sharegpt.format, DatasetFormat::Sharegpt));
+
+        // Test Completion format
+        let completion = DatasetConfig {
+            path: "./data.jsonl".into(),
+            format: DatasetFormat::Completion,
+            ..Default::default()
+        };
+        assert!(matches!(completion.format, DatasetFormat::Completion));
+
+        // Test Custom format
+        let custom = DatasetConfig {
+            path: "./data.jsonl".into(),
+            format: DatasetFormat::Custom,
+            ..Default::default()
+        };
+        assert!(matches!(custom.format, DatasetFormat::Custom));
+    }
+
+    #[test]
+    fn test_dataset_config_split_ratios() {
+        // Valid split ratio: 0.0
+        let dataset1 = DatasetConfig {
+            path: "./data.jsonl".into(),
+            val_split: 0.0,
+            ..Default::default()
+        };
+        assert_eq!(dataset1.val_split, 0.0);
+
+        // Valid split ratio: 0.5
+        let dataset2 = DatasetConfig {
+            path: "./data.jsonl".into(),
+            val_split: 0.5,
+            ..Default::default()
+        };
+        assert_eq!(dataset2.val_split, 0.5);
+
+        // Valid split ratio: 1.0
+        let dataset3 = DatasetConfig {
+            path: "./data.jsonl".into(),
+            val_split: 1.0,
+            ..Default::default()
+        };
+        assert_eq!(dataset3.val_split, 1.0);
+
+        // Invalid split ratio: > 1.0 (currently not validated, but we test the value)
+        let dataset4 = DatasetConfig {
+            path: "./data.jsonl".into(),
+            val_split: 1.5,
+            ..Default::default()
+        };
+        assert_eq!(dataset4.val_split, 1.5);
+    }
+
+    #[test]
+    fn test_dataset_config_missing_path() {
+        let mut config = AxolotlConfig::llama2_7b_preset();
+        config.dataset.path = String::new();
+        assert!(config.validate().is_err());
+    }
+
+    // TrainingConfig tests
+    #[test]
+    fn test_training_config_batch_size_validation() {
+        let training = TrainingConfig {
+            batch_size: 1,
+            gradient_accumulation_steps: 1,
+            ..Default::default()
+        };
+        assert_eq!(training.batch_size, 1);
+
+        let training2 = TrainingConfig {
+            batch_size: 32,
+            gradient_accumulation_steps: 4,
+            ..Default::default()
+        };
+        assert_eq!(training2.batch_size, 32);
+        assert_eq!(training2.gradient_accumulation_steps, 4);
+    }
+
+    #[test]
+    fn test_training_config_learning_rate() {
+        let training = TrainingConfig {
+            learning_rate: 1e-5,
+            ..Default::default()
+        };
+        assert_eq!(training.learning_rate, 1e-5);
+
+        let training2 = TrainingConfig {
+            learning_rate: 5e-4,
+            ..Default::default()
+        };
+        assert_eq!(training2.learning_rate, 5e-4);
+    }
+
+    #[test]
+    fn test_training_config_epochs() {
+        let training = TrainingConfig {
+            epochs: 1,
+            ..Default::default()
+        };
+        assert_eq!(training.epochs, 1);
+
+        let training2 = TrainingConfig {
+            epochs: 10,
+            ..Default::default()
+        };
+        assert_eq!(training2.epochs, 10);
+    }
+
+    // File I/O tests
+    #[test]
+    fn test_load_config_missing_file() {
+        let result = AxolotlConfig::from_file("/nonexistent/path/config.yaml");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_config_malformed_yaml() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, "invalid: yaml: content: [[[").unwrap();
+
+        let result = AxolotlConfig::from_file(temp_file.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_save_config_roundtrip() {
+        let config = AxolotlConfig::llama2_7b_preset();
+        let temp_file = NamedTempFile::new().unwrap();
+
+        // Save config
+        config.to_file(temp_file.path()).unwrap();
+
+        // Load it back
+        let loaded = AxolotlConfig::from_file(temp_file.path()).unwrap();
+
+        // Verify key fields match
+        assert_eq!(config.base_model, loaded.base_model);
+        assert_eq!(config.lora.r, loaded.lora.r);
+        assert_eq!(config.lora.alpha, loaded.lora.alpha);
+        assert_eq!(config.training.learning_rate, loaded.training.learning_rate);
+    }
+
+    #[test]
+    fn test_save_config_invalid_path() {
+        let config = AxolotlConfig::llama2_7b_preset();
+        let result = config.to_file("/nonexistent/directory/config.yaml");
+        assert!(result.is_err());
+    }
+
+    // Preset tests
+    #[test]
+    fn test_preset_mistral_7b() {
+        let config = AxolotlConfig::from_preset("mistral-7b").unwrap();
+        assert_eq!(config.base_model, "mistralai/Mistral-7B-v0.1");
+        assert!(matches!(config.adapter, AdapterType::Qlora));
+        assert_eq!(config.lora.r, 64);
+        assert_eq!(config.lora.alpha, 16);
+        // Mistral has 7 target modules
+        assert_eq!(config.lora.target_modules.len(), 7);
+        assert!(config.quantization.is_some());
+    }
+
+    #[test]
+    fn test_preset_phi3_mini() {
+        let config = AxolotlConfig::from_preset("phi3-mini").unwrap();
+        assert_eq!(config.base_model, "microsoft/phi-3-mini-4k-instruct");
+        assert!(matches!(config.adapter, AdapterType::Lora));
+        assert_eq!(config.lora.r, 32);
+        assert_eq!(config.lora.alpha, 16);
+        assert!(config.quantization.is_none());
+        assert_eq!(config.dataset.max_length, 4096);
+        assert_eq!(config.training.learning_rate, 1e-4);
+    }
+
+    #[test]
+    fn test_preset_unknown() {
+        let result = AxolotlConfig::from_preset("unknown-model");
+        assert!(result.is_err());
+
+        let result2 = AxolotlConfig::from_preset("gpt-4");
+        assert!(result2.is_err());
+    }
+
+    // Additional validation tests
+    #[test]
+    fn test_validation_qlora_requires_quantization() {
+        let mut config = AxolotlConfig::llama2_7b_preset();
+        config.adapter = AdapterType::Qlora;
+        config.quantization = None;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_validation_empty_base_model() {
+        let mut config = AxolotlConfig::llama2_7b_preset();
+        config.base_model = String::new();
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_lr_schedulers() {
+        let cosine = TrainingConfig {
+            lr_scheduler: LrScheduler::Cosine,
+            ..Default::default()
+        };
+        assert!(matches!(cosine.lr_scheduler, LrScheduler::Cosine));
+
+        let linear = TrainingConfig {
+            lr_scheduler: LrScheduler::Linear,
+            ..Default::default()
+        };
+        assert!(matches!(linear.lr_scheduler, LrScheduler::Linear));
+
+        let constant = TrainingConfig {
+            lr_scheduler: LrScheduler::Constant,
+            ..Default::default()
+        };
+        assert!(matches!(constant.lr_scheduler, LrScheduler::Constant));
+    }
+
+    #[test]
+    fn test_adapter_types() {
+        let none_adapter = AxolotlConfig {
+            adapter: AdapterType::None,
+            ..AxolotlConfig::llama2_7b_preset()
+        };
+        assert!(matches!(none_adapter.adapter, AdapterType::None));
+
+        let lora_adapter = AxolotlConfig {
+            adapter: AdapterType::Lora,
+            quantization: None,
+            ..AxolotlConfig::llama2_7b_preset()
+        };
+        assert!(matches!(lora_adapter.adapter, AdapterType::Lora));
+        assert!(lora_adapter.validate().is_ok());
+
+        let qlora_adapter = AxolotlConfig::llama2_7b_preset();
+        assert!(matches!(qlora_adapter.adapter, AdapterType::Qlora));
     }
 }
