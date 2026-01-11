@@ -6,6 +6,11 @@ use crate::config::AxolotlConfig;
 use crate::error::{AxolotlError, Result};
 
 /// Load a model from the configuration.
+///
+/// # Errors
+///
+/// Returns an error as model loading is not yet implemented.
+#[allow(dead_code)]
 pub fn load_model(_config: &AxolotlConfig, _device: &Device) -> Result<()> {
     // TODO: Implement model loading
     // 1. Download/load base model weights
@@ -17,6 +22,10 @@ pub fn load_model(_config: &AxolotlConfig, _device: &Device) -> Result<()> {
 }
 
 /// Merge adapter weights into base model.
+///
+/// # Errors
+///
+/// Returns an error as adapter merging is not yet implemented.
 pub fn merge_adapter(
     _config: &AxolotlConfig,
     _adapter_path: &str,

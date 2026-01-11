@@ -8,7 +8,7 @@
 //! ## Features
 //!
 //! - **YAML Configuration** - Define entire training runs in simple config files
-//! - **Multiple Adapters** - Support for LoRA, QLoRA, full fine-tuning
+//! - **Multiple Adapters** - Support for `LoRA`, `QLoRA`, full fine-tuning
 //! - **Dataset Handling** - Automatic loading and preprocessing
 //! - **Multi-GPU** - Distributed training support (planned)
 //!
@@ -95,6 +95,14 @@ pub mod dataset;
 pub mod error;
 pub mod model;
 pub mod trainer;
+
+// Mock modules for testing without external dependencies
+#[cfg(any(
+    feature = "mock-peft",
+    feature = "mock-qlora",
+    feature = "mock-unsloth"
+))]
+pub mod mocks;
 
 pub use config::{AxolotlConfig, TrainingConfig};
 pub use error::{AxolotlError, Result};

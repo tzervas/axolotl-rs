@@ -27,7 +27,7 @@ use crate::error::{AxolotlError, Result};
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AxolotlConfig {
-    /// Base model identifier (HuggingFace model ID or local path).
+    /// Base model identifier (`HuggingFace` model ID or local path).
     pub base_model: String,
 
     /// Adapter type.
@@ -72,10 +72,10 @@ fn default_seed() -> u64 {
 pub enum AdapterType {
     /// No adapter (full fine-tuning).
     None,
-    /// Standard LoRA.
+    /// Standard `LoRA`.
     #[default]
     Lora,
-    /// 4-bit quantized LoRA.
+    /// 4-bit quantized `LoRA`.
     Qlora,
 }
 
@@ -146,10 +146,10 @@ impl Default for LoraSettings {
     }
 }
 
-/// Quantization settings for QLoRA.
+/// Quantization settings for `QLoRA`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuantizationSettings {
-    /// Number of bits (4 for QLoRA).
+    /// Number of bits (4 for `QLoRA`).
     #[serde(default = "default_bits")]
     pub bits: u8,
 
@@ -191,7 +191,7 @@ impl Default for QuantizationSettings {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum QuantType {
-    /// 4-bit NormalFloat.
+    /// 4-bit `NormalFloat`.
     #[default]
     Nf4,
     /// 4-bit float point.
@@ -217,7 +217,7 @@ pub enum QuantType {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatasetConfig {
-    /// Path to dataset (local file or HuggingFace dataset ID).
+    /// Path to dataset (local file or `HuggingFace` dataset ID).
     pub path: String,
 
     /// Dataset format type.
@@ -274,7 +274,7 @@ pub enum DatasetFormat {
     /// Alpaca format: instruction, input, output.
     #[default]
     Alpaca,
-    /// ShareGPT format: conversations array.
+    /// `ShareGPT` format: conversations array.
     Sharegpt,
     /// Simple completion: just text.
     Completion,
@@ -484,7 +484,7 @@ impl AxolotlConfig {
             "llama2-7b" => Ok(Self::llama2_7b_preset()),
             "mistral-7b" => Ok(Self::mistral_7b_preset()),
             "phi3-mini" => Ok(Self::phi3_mini_preset()),
-            _ => Err(AxolotlError::Config(format!("Unknown preset: {}", preset))),
+            _ => Err(AxolotlError::Config(format!("Unknown preset: {preset}"))),
         }
     }
 
