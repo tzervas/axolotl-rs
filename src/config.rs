@@ -7,6 +7,24 @@ use serde::{Deserialize, Serialize};
 use crate::error::{AxolotlError, Result};
 
 /// Main configuration for Axolotl training.
+///
+/// # Example
+///
+/// ```rust
+/// use axolotl_rs::AxolotlConfig;
+///
+/// # fn main() -> axolotl_rs::Result<()> {
+/// // Load from a YAML file
+/// let config = AxolotlConfig::from_file("examples/configs/llama2-7b-qlora.yaml")?;
+///
+/// // Or create from a preset
+/// let config = AxolotlConfig::from_preset("llama2-7b")?;
+///
+/// // Validate configuration
+/// config.validate()?;
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AxolotlConfig {
     /// Base model identifier (`HuggingFace` model ID or local path).
@@ -16,11 +34,11 @@ pub struct AxolotlConfig {
     #[serde(default)]
     pub adapter: AdapterType,
 
-    /// `LoRA` configuration (if using LoRA/QLoRA).
+    /// LoRA configuration (if using LoRA/QLoRA).
     #[serde(default)]
     pub lora: LoraSettings,
 
-    /// Quantization configuration (if using `QLoRA`).
+    /// Quantization configuration (if using QLoRA).
     #[serde(default)]
     pub quantization: Option<QuantizationSettings>,
 
@@ -62,6 +80,27 @@ pub enum AdapterType {
 }
 
 /// LoRA-specific settings.
+///
+/// # Example
+///
+/// ```rust
+/// use axolotl_rs::config::LoraSettings;
+///
+/// let lora = LoraSettings {
+///     r: 64,
+///     alpha: 16,
+///     dropout: 0.05,
+///     target_modules: vec![
+///         "q_proj".to_string(),
+///         "k_proj".to_string(),
+///         "v_proj".to_string(),
+///         "o_proj".to_string(),
+///     ],
+/// };
+///
+/// assert_eq!(lora.r, 64);
+/// assert_eq!(lora.alpha, 16);
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoraSettings {
     /// Rank of low-rank decomposition.
@@ -76,7 +115,7 @@ pub struct LoraSettings {
     #[serde(default)]
     pub dropout: f64,
 
-    /// Target modules for `LoRA`.
+    /// Target modules for LoRA.
     #[serde(default = "default_target_modules")]
     pub target_modules: Vec<String>,
 }
@@ -160,6 +199,22 @@ pub enum QuantType {
 }
 
 /// Dataset configuration.
+///
+/// # Example
+///
+/// ```rust
+/// use axolotl_rs::config::{DatasetConfig, DatasetFormat};
+///
+/// let dataset_config = DatasetConfig {
+///     path: "./data/train.jsonl".to_string(),
+///     format: DatasetFormat::Alpaca,
+///     max_length: 2048,
+///     val_split: 0.05,
+///     ..Default::default()
+/// };
+///
+/// assert_eq!(dataset_config.max_length, 2048);
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatasetConfig {
     /// Path to dataset (local file or `HuggingFace` dataset ID).
@@ -228,6 +283,26 @@ pub enum DatasetFormat {
 }
 
 /// Training hyperparameters.
+///
+/// # Example
+///
+/// ```rust
+/// use axolotl_rs::TrainingConfig;
+/// use axolotl_rs::config::LrScheduler;
+///
+/// let training = TrainingConfig {
+///     epochs: 3,
+///     batch_size: 4,
+///     learning_rate: 2e-4,
+///     lr_scheduler: LrScheduler::Cosine,
+///     warmup_ratio: 0.03,
+///     gradient_accumulation_steps: 4,
+///     ..Default::default()
+/// };
+///
+/// assert_eq!(training.epochs, 3);
+/// assert_eq!(training.batch_size, 4);
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainingConfig {
     /// Number of training epochs.
@@ -339,9 +414,17 @@ pub enum LrScheduler {
 impl AxolotlConfig {
     /// Load configuration from a YAML file.
     ///
-    /// # Errors
+    /// # Example
     ///
-    /// Returns an error if the file cannot be read or parsed.
+    /// ```rust
+    /// use axolotl_rs::AxolotlConfig;
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let config = AxolotlConfig::from_file("examples/configs/llama2-7b-qlora.yaml")?;
+    /// assert_eq!(config.base_model, "meta-llama/Llama-2-7b-hf");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let config: Self = serde_yaml::from_str(&content)?;
@@ -350,9 +433,19 @@ impl AxolotlConfig {
 
     /// Save configuration to a YAML file.
     ///
-    /// # Errors
+    /// # Example
     ///
-    /// Returns an error if the file cannot be written.
+    /// ```no_run
+    /// use axolotl_rs::AxolotlConfig;
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let config = AxolotlConfig::from_preset("llama2-7b")?;
+    ///
+    /// // Save to a file
+    /// config.to_file("my-config.yaml")?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let content = serde_yaml::to_string(self)?;
         std::fs::write(path, content)?;
@@ -361,9 +454,31 @@ impl AxolotlConfig {
 
     /// Create a configuration from a preset.
     ///
-    /// # Errors
+    /// Available presets:
+    /// - `"llama2-7b"` - LLaMA 2 7B with QLoRA
+    /// - `"mistral-7b"` - Mistral 7B with QLoRA
+    /// - `"phi3-mini"` - Phi-3 Mini with LoRA
     ///
-    /// Returns an error if the preset name is unknown.
+    /// # Example
+    ///
+    /// ```rust
+    /// use axolotl_rs::AxolotlConfig;
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// // Create a preset configuration
+    /// let config = AxolotlConfig::from_preset("llama2-7b")?;
+    /// assert_eq!(config.base_model, "meta-llama/Llama-2-7b-hf");
+    ///
+    /// // Mistral preset
+    /// let config = AxolotlConfig::from_preset("mistral-7b")?;
+    /// assert_eq!(config.base_model, "mistralai/Mistral-7B-v0.1");
+    ///
+    /// // Phi-3 preset
+    /// let config = AxolotlConfig::from_preset("phi3-mini")?;
+    /// assert_eq!(config.base_model, "microsoft/phi-3-mini-4k-instruct");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn from_preset(preset: &str) -> Result<Self> {
         match preset {
             "llama2-7b" => Ok(Self::llama2_7b_preset()),
@@ -451,9 +566,37 @@ impl AxolotlConfig {
 
     /// Validate the configuration.
     ///
-    /// # Errors
+    /// Checks for:
+    /// - Required fields are set (base_model, dataset path)
+    /// - LoRA rank is valid
+    /// - QLoRA has quantization config
     ///
-    /// Returns an error if the configuration is invalid.
+    /// # Example
+    ///
+    /// ```rust
+    /// use axolotl_rs::AxolotlConfig;
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let config = AxolotlConfig::from_preset("llama2-7b")?;
+    ///
+    /// // Validate configuration
+    /// config.validate()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ```rust
+    /// use axolotl_rs::AxolotlConfig;
+    /// use axolotl_rs::config::AdapterType;
+    ///
+    /// # fn main() {
+    /// let mut config = AxolotlConfig::from_preset("llama2-7b").unwrap();
+    ///
+    /// // This will fail validation
+    /// config.base_model = String::new();
+    /// assert!(config.validate().is_err());
+    /// # }
+    /// ```
     pub fn validate(&self) -> Result<()> {
         if self.base_model.is_empty() {
             return Err(AxolotlError::Config("base_model is required".into()));
