@@ -87,7 +87,7 @@ jobs:
   small-model-test:
     name: Small Model Tests
     runs-on: self-hosted
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    if: (github.event_name == 'pull_request' || github.event_name == 'push') && github.repository == 'youruser/axolotl-rs' # Adjust to your repo
     
     steps:
       - name: Checkout repository
