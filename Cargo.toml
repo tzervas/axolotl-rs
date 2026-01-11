@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.75"
 license = "MIT"
 description = "YAML-driven configurable fine-tuning toolkit for LLMs in Rust"
-repository = "https://github.com/youruser/axolotl-rs"
+repository = "https://github.com/tzervas/axolotl-rs"
 keywords = ["llm", "fine-tuning", "training", "configuration", "yaml"]
 categories = ["science", "machine-learning", "command-line-utilities"]
 
@@ -24,9 +24,11 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1.0"
 
-# Local workspace dependencies - commented out for testing
-# peft-rs = { path = "../peft-rs" }
-# qlora-rs = { path = "../qlora-rs" }
+# Mock dependencies (enabled by default for testing)
+# Uncomment real dependencies when available:
+# peft-rs = { path = "../peft-rs", optional = true }
+# qlora-rs = { path = "../qlora-rs", optional = true }
+# unsloth-rs = { path = "../unsloth-rs", optional = true }
 # unsloth-rs = { path = "../unsloth-rs", optional = true }
 
 # CLI
@@ -45,10 +47,19 @@ assert_cmd = "2.0"
 predicates = "3.0"
 
 [features]
-default = ["download"]
+default = ["download", "mock-peft", "mock-qlora", "mock-unsloth"]
 download = ["reqwest"]
+mock-peft = []
+mock-qlora = []
+mock-unsloth = []
 cuda = ["candle-core/cuda"]
 optimized = []
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = "warn"
 
 [[bin]]
 name = "axolotl"

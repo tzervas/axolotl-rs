@@ -8,6 +8,20 @@ use crate::config::{DatasetConfig, DatasetFormat};
 use crate::error::{AxolotlError, Result};
 
 /// A single training example.
+///
+/// # Example
+///
+/// ```rust
+/// use axolotl_rs::dataset::Example;
+///
+/// let example = Example {
+///     input: "What is the capital of France?".to_string(),
+///     output: "The capital of France is Paris.".to_string(),
+///     text: "### Instruction:\nWhat is the capital of France?\n\n### Response:\nThe capital of France is Paris.".to_string(),
+/// };
+///
+/// assert_eq!(example.output, "The capital of France is Paris.");
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Example {
     /// Input text (instruction/prompt).
@@ -19,17 +33,105 @@ pub struct Example {
 }
 
 /// Dataset for training.
+///
+/// # Example
+///
+/// ```no_run
+/// use axolotl_rs::dataset::Dataset;
+/// use axolotl_rs::config::{DatasetConfig, DatasetFormat};
+///
+/// # fn main() -> axolotl_rs::Result<()> {
+/// let config = DatasetConfig {
+///     path: "./data/train.jsonl".to_string(),
+///     format: DatasetFormat::Alpaca,
+///     max_length: 2048,
+///     val_split: 0.05,
+///     ..Default::default()
+/// };
+///
+/// // Load dataset
+/// let dataset = Dataset::load(&config)?;
+/// println!("Loaded {} training examples", dataset.len());
+/// println!("Validation set size: {}", dataset.validation.len());
+/// # Ok(())
+/// # }
+/// ```
 pub struct Dataset {
     /// Training examples.
     pub train: Vec<Example>,
     /// Validation examples.
+    #[allow(dead_code)]
     pub validation: Vec<Example>,
     /// Configuration used.
+    #[allow(dead_code)]
     pub config: DatasetConfig,
 }
 
 impl Dataset {
     /// Load dataset from configuration.
+    ///
+    /// Supports multiple formats:
+    /// - Alpaca: `{"instruction": "", "input": "", "output": ""}`
+    /// - ShareGPT: `{"conversations": [{"from": "human", "value": ""}, ...]}`
+    /// - Completion: `{"text": ""}`
+    /// - Custom: Configurable field names
+    ///
+    /// # Example - Alpaca Format
+    ///
+    /// ```no_run
+    /// use axolotl_rs::dataset::Dataset;
+    /// use axolotl_rs::config::{DatasetConfig, DatasetFormat};
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let config = DatasetConfig {
+    ///     path: "./data/alpaca.jsonl".to_string(),
+    ///     format: DatasetFormat::Alpaca,
+    ///     ..Default::default()
+    /// };
+    ///
+    /// let dataset = Dataset::load(&config)?;
+    /// assert!(!dataset.is_empty());
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Example - ShareGPT Format
+    ///
+    /// ```no_run
+    /// use axolotl_rs::dataset::Dataset;
+    /// use axolotl_rs::config::{DatasetConfig, DatasetFormat};
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let config = DatasetConfig {
+    ///     path: "./data/sharegpt.jsonl".to_string(),
+    ///     format: DatasetFormat::Sharegpt,
+    ///     ..Default::default()
+    /// };
+    ///
+    /// let dataset = Dataset::load(&config)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Example - Custom Format
+    ///
+    /// ```no_run
+    /// use axolotl_rs::dataset::Dataset;
+    /// use axolotl_rs::config::{DatasetConfig, DatasetFormat};
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let config = DatasetConfig {
+    ///     path: "./data/custom.jsonl".to_string(),
+    ///     format: DatasetFormat::Custom,
+    ///     input_field: "question".to_string(),
+    ///     output_field: "answer".to_string(),
+    ///     ..Default::default()
+    /// };
+    ///
+    /// let dataset = Dataset::load(&config)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn load(config: &DatasetConfig) -> Result<Self> {
         let path = Path::new(&config.path);
 
@@ -48,7 +150,13 @@ impl Dataset {
         };
 
         // Split into train/validation
-        let split_idx = ((1.0 - config.val_split) * examples.len() as f32) as usize;
+        #[allow(clippy::cast_precision_loss)]
+        let len_f32 = examples.len() as f32;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+        let split_idx = ((1.0 - config.val_split) * len_f32)
+            .round()
+            .max(0.0)
+            .min(examples.len() as f32) as usize;
         let (train, validation) = examples.split_at(split_idx);
 
         Ok(Self {
@@ -66,6 +174,7 @@ impl Dataset {
 
     /// Check if dataset is empty.
     #[must_use]
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.train.is_empty()
     }
@@ -90,7 +199,7 @@ fn load_alpaca(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
         }
 
         let alpaca: AlpacaExample = serde_json::from_str(line)
-            .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {}", e)))?;
+            .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {e}")))?;
 
         let input = if alpaca.input.is_empty() {
             alpaca.instruction.clone()
@@ -113,7 +222,7 @@ fn load_alpaca(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
     Ok(examples)
 }
 
-/// ShareGPT format: {"conversations": [{"from": "human", "value": ""}, {"from": "gpt", "value": ""}]}
+/// `ShareGPT` format: {"conversations": [{"from": "human", "value": ""}, {"from": "gpt", "value": ""}]}
 #[derive(Deserialize)]
 struct ShareGptExample {
     conversations: Vec<ShareGptMessage>,
@@ -135,7 +244,7 @@ fn load_sharegpt(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
         }
 
         let sharegpt: ShareGptExample = serde_json::from_str(line)
-            .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {}", e)))?;
+            .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {e}")))?;
 
         let mut text = String::new();
         let mut input = String::new();
@@ -144,12 +253,14 @@ fn load_sharegpt(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
         for msg in &sharegpt.conversations {
             match msg.from.as_str() {
                 "human" | "user" => {
-                    text.push_str(&format!("### Human:\n{}\n\n", msg.value));
-                    input = msg.value.clone();
+                    use std::fmt::Write;
+                    write!(text, "### Human:\n{}\n\n", msg.value).unwrap();
+                    input.clone_from(&msg.value);
                 }
                 "gpt" | "assistant" => {
-                    text.push_str(&format!("### Assistant:\n{}\n\n", msg.value));
-                    output = msg.value.clone();
+                    use std::fmt::Write;
+                    write!(text, "### Assistant:\n{}\n\n", msg.value).unwrap();
+                    output.clone_from(&msg.value);
                 }
                 _ => {}
             }
@@ -169,6 +280,11 @@ fn load_sharegpt(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
 
 /// Completion format: {"text": ""}
 fn load_completion(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
+    #[derive(Deserialize)]
+    struct CompletionExample {
+        text: String,
+    }
+
     let content = std::fs::read_to_string(path)?;
     let mut examples = Vec::new();
 
@@ -183,7 +299,7 @@ fn load_completion(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>>
         }
 
         let completion: CompletionExample = serde_json::from_str(line)
-            .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {}", e)))?;
+            .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {e}")))?;
 
         examples.push(Example {
             input: String::new(),
@@ -206,7 +322,7 @@ fn load_custom(path: &Path, config: &DatasetConfig) -> Result<Vec<Example>> {
         }
 
         let obj: serde_json::Value = serde_json::from_str(line)
-            .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {}", e)))?;
+            .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {e}")))?;
 
         let input = obj
             .get(&config.input_field)
@@ -220,7 +336,7 @@ fn load_custom(path: &Path, config: &DatasetConfig) -> Result<Vec<Example>> {
             .unwrap_or("")
             .to_string();
 
-        let text = format!("### Input:\n{}\n\n### Output:\n{}", input, output);
+        let text = format!("### Input:\n{input}\n\n### Output:\n{output}");
 
         examples.push(Example {
             input,
@@ -250,6 +366,7 @@ mod tests {
         let config = DatasetConfig {
             path: file.path().to_string_lossy().into(),
             format: DatasetFormat::Alpaca,
+            val_split: 0.0,
             ..Default::default()
         };
 
