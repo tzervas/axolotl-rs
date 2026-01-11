@@ -150,6 +150,9 @@ fn bench_config_from_yaml_large(c: &mut Criterion) {
         });
     }
 
+fn benchmark_config_parsing(c: &mut Criterion) {
+    // Benchmarks for config parsing
+    let group = c.benchmark_group("config_parsing");
     group.finish();
 }
 

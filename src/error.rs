@@ -27,6 +27,7 @@ pub enum AxolotlError {
 
     /// Training error.
     #[error("training error: {0}")]
+    #[allow(dead_code)]
     Training(String),
 
     /// Checkpoint error.
@@ -37,13 +38,15 @@ pub enum AxolotlError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// PEFT error.
+    /// PEFT error (mock).
     #[error("PEFT error: {0}")]
-    Peft(#[from] peft_rs::PeftError),
+    #[allow(dead_code)]
+    Peft(String),
 
-    /// QLoRA error.
+    /// `QLoRA` error (mock).
     #[error("QLoRA error: {0}")]
-    Qlora(#[from] qlora_rs::QLoraError),
+    #[allow(dead_code)]
+    Qlora(String),
 
     /// Candle error.
     #[error("candle error: {0}")]
@@ -52,4 +55,14 @@ pub enum AxolotlError {
     /// Tokenizer error.
     #[error("tokenizer error: {0}")]
     Tokenizer(#[from] tokenizers::Error),
+
+    /// Progress bar template error.
+    #[error("template error: {0}")]
+    Template(String),
+}
+
+impl From<indicatif::style::TemplateError> for AxolotlError {
+    fn from(err: indicatif::style::TemplateError) -> Self {
+        AxolotlError::Template(err.to_string())
+    }
 }
