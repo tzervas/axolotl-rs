@@ -141,6 +141,8 @@ struct ShareGptMessage {
 }
 
 fn load_sharegpt(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
+    use std::fmt::Write;
+    
     let content = std::fs::read_to_string(path)?;
     let mut examples = Vec::new();
 
@@ -159,12 +161,10 @@ fn load_sharegpt(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
         for msg in &sharegpt.conversations {
             match msg.from.as_str() {
                 "human" | "user" => {
-                    use std::fmt::Write;
                     let _ = write!(text, "### Human:\n{}\n\n", msg.value);
                     input.clone_from(&msg.value);
                 }
                 "gpt" | "assistant" => {
-                    use std::fmt::Write;
                     let _ = write!(text, "### Assistant:\n{}\n\n", msg.value);
                     output.clone_from(&msg.value);
                 }
