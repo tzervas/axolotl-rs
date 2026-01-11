@@ -463,6 +463,12 @@ impl AxolotlConfig {
             return Err(AxolotlError::Config("dataset.path is required".into()));
         }
 
+        if self.dataset.val_split < 0.0 || self.dataset.val_split > 1.0 {
+            return Err(AxolotlError::Config(
+                "dataset.val_split must be between 0.0 and 1.0".into(),
+            ));
+        }
+
         if self.lora.r == 0 {
             return Err(AxolotlError::Config("lora.r must be > 0".into()));
         }
@@ -647,36 +653,29 @@ mod tests {
     #[test]
     fn test_dataset_config_split_ratios() {
         // Valid split ratio: 0.0
-        let dataset1 = DatasetConfig {
-            path: "./data.jsonl".into(),
-            val_split: 0.0,
-            ..Default::default()
-        };
-        assert_eq!(dataset1.val_split, 0.0);
+        let mut config = AxolotlConfig::llama2_7b_preset();
+        config.dataset.val_split = 0.0;
+        assert!(config.validate().is_ok());
 
         // Valid split ratio: 0.5
-        let dataset2 = DatasetConfig {
-            path: "./data.jsonl".into(),
-            val_split: 0.5,
-            ..Default::default()
-        };
-        assert_eq!(dataset2.val_split, 0.5);
+        let mut config = AxolotlConfig::llama2_7b_preset();
+        config.dataset.val_split = 0.5;
+        assert!(config.validate().is_ok());
 
         // Valid split ratio: 1.0
-        let dataset3 = DatasetConfig {
-            path: "./data.jsonl".into(),
-            val_split: 1.0,
-            ..Default::default()
-        };
-        assert_eq!(dataset3.val_split, 1.0);
+        let mut config = AxolotlConfig::llama2_7b_preset();
+        config.dataset.val_split = 1.0;
+        assert!(config.validate().is_ok());
 
-        // Invalid split ratio: > 1.0 (currently not validated, but we test the value)
-        let dataset4 = DatasetConfig {
-            path: "./data.jsonl".into(),
-            val_split: 1.5,
-            ..Default::default()
-        };
-        assert_eq!(dataset4.val_split, 1.5);
+        // Invalid split ratio: > 1.0 (should be rejected by validation)
+        let mut config = AxolotlConfig::llama2_7b_preset();
+        config.dataset.val_split = 1.5;
+        assert!(config.validate().is_err());
+
+        // Invalid split ratio: < 0.0 (should be rejected by validation)
+        let mut config = AxolotlConfig::llama2_7b_preset();
+        config.dataset.val_split = -0.1;
+        assert!(config.validate().is_err());
     }
 
     #[test]
