@@ -56,6 +56,7 @@ pub struct Example {
 /// # Ok(())
 /// # }
 /// ```
+#[derive(Debug)]
 pub struct Dataset {
     /// Training examples.
     pub train: Vec<Example>,
@@ -354,12 +355,110 @@ mod tests {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
+    // ========== Alpaca Format Tests ==========
+
     #[test]
-    fn test_load_alpaca() {
+    fn test_load_alpaca_valid() {
         let mut file = NamedTempFile::new().unwrap();
         writeln!(
             file,
             r#"{{"instruction": "Test", "input": "", "output": "Response"}}"#
+        )
+        .unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            val_split: 0.0, // No validation split for this test
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 1);
+        assert_eq!(dataset.train[0].output, "Response");
+    }
+
+    #[test]
+    fn test_load_alpaca_empty_array() {
+        let file = NamedTempFile::new().unwrap();
+        // Empty file - no lines
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 0);
+        assert!(dataset.is_empty());
+    }
+
+    #[test]
+    fn test_load_alpaca_malformed_json() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, r#"{{"instruction": "Test", "output": "Response""#).unwrap(); // Missing closing brace
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            ..Default::default()
+        };
+
+        let result = Dataset::load(&config);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to parse line"));
+    }
+
+    #[test]
+    fn test_load_alpaca_missing_required_fields() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, r#"{{"instruction": "Test only"}}"#).unwrap(); // Missing "output"
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            ..Default::default()
+        };
+
+        let result = Dataset::load(&config);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_alpaca_large_dataset() {
+        let mut file = NamedTempFile::new().unwrap();
+        // Create a larger dataset with 1000 examples
+        for i in 0..1000 {
+            writeln!(
+                file,
+                r#"{{"instruction": "Task {}", "input": "", "output": "Result {}"}}"#,
+                i, i
+            )
+            .unwrap();
+        }
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            val_split: 0.1,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 900);
+        assert_eq!(dataset.validation.len(), 100);
+    }
+
+    #[test]
+    fn test_load_alpaca_with_input_field() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            r#"{{"instruction": "Translate", "input": "Hello", "output": "Hola"}}"#
         )
         .unwrap();
 
@@ -372,6 +471,423 @@ mod tests {
 
         let dataset = Dataset::load(&config).unwrap();
         assert_eq!(dataset.train.len(), 1);
-        assert_eq!(dataset.train[0].output, "Response");
+        assert!(dataset.train[0].input.contains("Translate"));
+        assert!(dataset.train[0].input.contains("Hello"));
+    }
+
+    // ========== ShareGPT Format Tests ==========
+
+    #[test]
+    fn test_load_sharegpt_valid() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            r#"{{"conversations": [{{"from": "human", "value": "Hello"}}, {{"from": "gpt", "value": "Hi there"}}]}}"#
+        ).unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Sharegpt,
+            val_split: 0.0,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 1);
+        assert_eq!(dataset.train[0].input, "Hello");
+        assert_eq!(dataset.train[0].output, "Hi there");
+    }
+
+    #[test]
+    fn test_load_sharegpt_multi_turn() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            r#"{{"conversations": [{{"from": "human", "value": "Q1"}}, {{"from": "gpt", "value": "A1"}}, {{"from": "human", "value": "Q2"}}, {{"from": "gpt", "value": "A2"}}]}}"#
+        ).unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Sharegpt,
+            val_split: 0.0,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 1);
+        // Should use last turn
+        assert!(dataset.train[0].text.contains("Q2"));
+        assert!(dataset.train[0].text.contains("A2"));
+    }
+
+    #[test]
+    fn test_load_sharegpt_user_assistant_roles() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            r#"{{"conversations": [{{"from": "user", "value": "Help me"}}, {{"from": "assistant", "value": "Sure"}}]}}"#
+        ).unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Sharegpt,
+            val_split: 0.0,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 1);
+        assert_eq!(dataset.train[0].input, "Help me");
+        assert_eq!(dataset.train[0].output, "Sure");
+    }
+
+    #[test]
+    fn test_load_sharegpt_empty_conversations() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, r#"{{"conversations": []}}"#).unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Sharegpt,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        // Empty conversations should not produce examples
+        assert_eq!(dataset.train.len(), 0);
+    }
+
+    #[test]
+    fn test_load_sharegpt_missing_role_field() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, r#"{{"conversations": [{{"value": "Hello"}}]}}"#).unwrap(); // Missing "from" field
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Sharegpt,
+            ..Default::default()
+        };
+
+        let result = Dataset::load(&config);
+        assert!(result.is_err());
+    }
+
+    // ========== Completion Format Tests ==========
+
+    #[test]
+    fn test_load_completion_valid() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, r#"{{"text": "Sample completion text"}}"#).unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Completion,
+            val_split: 0.0,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 1);
+        assert_eq!(dataset.train[0].text, "Sample completion text");
+        assert_eq!(dataset.train[0].output, "Sample completion text");
+    }
+
+    #[test]
+    fn test_load_completion_missing_field() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, r#"{{"content": "Wrong field"}}"#).unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Completion,
+            ..Default::default()
+        };
+
+        let result = Dataset::load(&config);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_completion_empty_string() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, r#"{{"text": ""}}"#).unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Completion,
+            val_split: 0.0,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 1);
+        assert_eq!(dataset.train[0].text, "");
+    }
+
+    // ========== Custom Format Tests ==========
+
+    #[test]
+    fn test_load_custom_valid() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            r#"{{"prompt": "Custom prompt", "response": "Custom response"}}"#
+        )
+        .unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Custom,
+            input_field: "prompt".into(),
+            output_field: "response".into(),
+            val_split: 0.0,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 1);
+        assert_eq!(dataset.train[0].input, "Custom prompt");
+        assert_eq!(dataset.train[0].output, "Custom response");
+    }
+
+    #[test]
+    fn test_load_custom_missing_field() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, r#"{{"prompt": "Only prompt"}}"#).unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Custom,
+            input_field: "prompt".into(),
+            output_field: "response".into(),
+            val_split: 0.0,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 1);
+        // Missing field should result in empty string
+        assert_eq!(dataset.train[0].output, "");
+    }
+
+    // ========== Dataset Struct Tests ==========
+
+    #[test]
+    fn test_dataset_len_and_is_empty() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            r#"{{"instruction": "Test", "input": "", "output": "Response"}}"#
+        )
+        .unwrap();
+        writeln!(
+            file,
+            r#"{{"instruction": "Test2", "input": "", "output": "Response2"}}"#
+        )
+        .unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            val_split: 0.0,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.len(), 2);
+        assert!(!dataset.is_empty());
+    }
+
+    #[test]
+    fn test_dataset_split_ratios() {
+        let mut file = NamedTempFile::new().unwrap();
+        for i in 0..100 {
+            writeln!(
+                file,
+                r#"{{"instruction": "Task {}", "input": "", "output": "Result {}"}}"#,
+                i, i
+            )
+            .unwrap();
+        }
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            val_split: 0.2,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 80);
+        assert_eq!(dataset.validation.len(), 20);
+    }
+
+    #[test]
+    fn test_dataset_split_zero() {
+        let mut file = NamedTempFile::new().unwrap();
+        for i in 0..10 {
+            writeln!(
+                file,
+                r#"{{"instruction": "Task {}", "input": "", "output": "Result {}"}}"#,
+                i, i
+            )
+            .unwrap();
+        }
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            val_split: 0.0,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 10);
+        assert_eq!(dataset.validation.len(), 0);
+    }
+
+    #[test]
+    fn test_dataset_split_one() {
+        let mut file = NamedTempFile::new().unwrap();
+        for i in 0..10 {
+            writeln!(
+                file,
+                r#"{{"instruction": "Task {}", "input": "", "output": "Result {}"}}"#,
+                i, i
+            )
+            .unwrap();
+        }
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            val_split: 1.0,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 0);
+        assert_eq!(dataset.validation.len(), 10);
+    }
+
+    #[test]
+    fn test_empty_dataset_split() {
+        let file = NamedTempFile::new().unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            val_split: 0.2,
+            ..Default::default()
+        };
+
+        let dataset = Dataset::load(&config).unwrap();
+        assert_eq!(dataset.train.len(), 0);
+        assert_eq!(dataset.validation.len(), 0);
+        assert!(dataset.is_empty());
+    }
+
+    // ========== File I/O Error Tests ==========
+
+    #[test]
+    fn test_nonexistent_file() {
+        let config = DatasetConfig {
+            path: "/nonexistent/path/to/dataset.jsonl".into(),
+            format: DatasetFormat::Alpaca,
+            ..Default::default()
+        };
+
+        let result = Dataset::load(&config);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Dataset not found"));
+    }
+
+    #[test]
+    fn test_invalid_utf8_content() {
+        use std::io::Write;
+
+        let mut file = NamedTempFile::new().unwrap();
+        // Write invalid UTF-8 bytes
+        file.write_all(&[0xFF, 0xFE, 0xFD]).unwrap();
+        file.flush().unwrap();
+
+        let config = DatasetConfig {
+            path: file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            ..Default::default()
+        };
+
+        let result = Dataset::load(&config);
+        assert!(result.is_err());
+    }
+
+    // ========== Dataset Format Router Test ==========
+
+    #[test]
+    fn test_dataset_format_routing() {
+        // Test that Dataset::load correctly routes to different format loaders
+        let mut alpaca_file = NamedTempFile::new().unwrap();
+        writeln!(
+            alpaca_file,
+            r#"{{"instruction": "Test", "input": "", "output": "Response"}}"#
+        )
+        .unwrap();
+
+        let mut sharegpt_file = NamedTempFile::new().unwrap();
+        writeln!(
+            sharegpt_file,
+            r#"{{"conversations": [{{"from": "human", "value": "Q"}}, {{"from": "gpt", "value": "A"}}]}}"#
+        ).unwrap();
+
+        let mut completion_file = NamedTempFile::new().unwrap();
+        writeln!(completion_file, r#"{{"text": "Completion"}}"#).unwrap();
+
+        let mut custom_file = NamedTempFile::new().unwrap();
+        writeln!(custom_file, r#"{{"question": "Q", "answer": "A"}}"#).unwrap();
+
+        // Test Alpaca format
+        let alpaca_config = DatasetConfig {
+            path: alpaca_file.path().to_string_lossy().into(),
+            format: DatasetFormat::Alpaca,
+            val_split: 0.0,
+            ..Default::default()
+        };
+        let alpaca_dataset = Dataset::load(&alpaca_config).unwrap();
+        assert_eq!(alpaca_dataset.train.len(), 1);
+
+        // Test ShareGPT format
+        let sharegpt_config = DatasetConfig {
+            path: sharegpt_file.path().to_string_lossy().into(),
+            format: DatasetFormat::Sharegpt,
+            val_split: 0.0,
+            ..Default::default()
+        };
+        let sharegpt_dataset = Dataset::load(&sharegpt_config).unwrap();
+        assert_eq!(sharegpt_dataset.train.len(), 1);
+
+        // Test Completion format
+        let completion_config = DatasetConfig {
+            path: completion_file.path().to_string_lossy().into(),
+            format: DatasetFormat::Completion,
+            val_split: 0.0,
+            ..Default::default()
+        };
+        let completion_dataset = Dataset::load(&completion_config).unwrap();
+        assert_eq!(completion_dataset.train.len(), 1);
+
+        // Test Custom format
+        let custom_config = DatasetConfig {
+            path: custom_file.path().to_string_lossy().into(),
+            format: DatasetFormat::Custom,
+            input_field: "question".into(),
+            output_field: "answer".into(),
+            val_split: 0.0,
+            ..Default::default()
+        };
+        let custom_dataset = Dataset::load(&custom_config).unwrap();
+        assert_eq!(custom_dataset.train.len(), 1);
     }
 }
