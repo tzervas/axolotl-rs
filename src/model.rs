@@ -46,7 +46,7 @@ pub fn merge_adapter(
 ///
 /// Returns an error if the model cannot be downloaded.
 #[cfg(feature = "download")]
-pub fn download_model(_model_id: &str, _cache_dir: &str) -> Result<String> {
+pub async fn download_model(_model_id: &str, _cache_dir: &str) -> Result<String> {
     // TODO: Implement model download
     Err(AxolotlError::Model(
         "Model download not yet implemented".into(),
