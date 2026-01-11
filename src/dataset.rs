@@ -8,6 +8,20 @@ use crate::config::{DatasetConfig, DatasetFormat};
 use crate::error::{AxolotlError, Result};
 
 /// A single training example.
+///
+/// # Example
+///
+/// ```rust
+/// use axolotl_rs::dataset::Example;
+///
+/// let example = Example {
+///     input: "What is the capital of France?".to_string(),
+///     output: "The capital of France is Paris.".to_string(),
+///     text: "### Instruction:\nWhat is the capital of France?\n\n### Response:\nThe capital of France is Paris.".to_string(),
+/// };
+///
+/// assert_eq!(example.output, "The capital of France is Paris.");
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Example {
     /// Input text (instruction/prompt).
@@ -19,6 +33,29 @@ pub struct Example {
 }
 
 /// Dataset for training.
+///
+/// # Example
+///
+/// ```no_run
+/// use axolotl_rs::dataset::Dataset;
+/// use axolotl_rs::config::{DatasetConfig, DatasetFormat};
+///
+/// # fn main() -> axolotl_rs::Result<()> {
+/// let config = DatasetConfig {
+///     path: "./data/train.jsonl".to_string(),
+///     format: DatasetFormat::Alpaca,
+///     max_length: 2048,
+///     val_split: 0.05,
+///     ..Default::default()
+/// };
+///
+/// // Load dataset
+/// let dataset = Dataset::load(&config)?;
+/// println!("Loaded {} training examples", dataset.len());
+/// println!("Validation set size: {}", dataset.validation.len());
+/// # Ok(())
+/// # }
+/// ```
 pub struct Dataset {
     /// Training examples.
     pub train: Vec<Example>,
@@ -33,9 +70,68 @@ pub struct Dataset {
 impl Dataset {
     /// Load dataset from configuration.
     ///
-    /// # Errors
+    /// Supports multiple formats:
+    /// - Alpaca: `{"instruction": "", "input": "", "output": ""}`
+    /// - ShareGPT: `{"conversations": [{"from": "human", "value": ""}, ...]}`
+    /// - Completion: `{"text": ""}`
+    /// - Custom: Configurable field names
     ///
-    /// Returns an error if the dataset file cannot be read or parsed.
+    /// # Example - Alpaca Format
+    ///
+    /// ```no_run
+    /// use axolotl_rs::dataset::Dataset;
+    /// use axolotl_rs::config::{DatasetConfig, DatasetFormat};
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let config = DatasetConfig {
+    ///     path: "./data/alpaca.jsonl".to_string(),
+    ///     format: DatasetFormat::Alpaca,
+    ///     ..Default::default()
+    /// };
+    ///
+    /// let dataset = Dataset::load(&config)?;
+    /// assert!(!dataset.is_empty());
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Example - ShareGPT Format
+    ///
+    /// ```no_run
+    /// use axolotl_rs::dataset::Dataset;
+    /// use axolotl_rs::config::{DatasetConfig, DatasetFormat};
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let config = DatasetConfig {
+    ///     path: "./data/sharegpt.jsonl".to_string(),
+    ///     format: DatasetFormat::Sharegpt,
+    ///     ..Default::default()
+    /// };
+    ///
+    /// let dataset = Dataset::load(&config)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Example - Custom Format
+    ///
+    /// ```no_run
+    /// use axolotl_rs::dataset::Dataset;
+    /// use axolotl_rs::config::{DatasetConfig, DatasetFormat};
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let config = DatasetConfig {
+    ///     path: "./data/custom.jsonl".to_string(),
+    ///     format: DatasetFormat::Custom,
+    ///     input_field: "question".to_string(),
+    ///     output_field: "answer".to_string(),
+    ///     ..Default::default()
+    /// };
+    ///
+    /// let dataset = Dataset::load(&config)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn load(config: &DatasetConfig) -> Result<Self> {
         let path = Path::new(&config.path);
 
@@ -197,6 +293,11 @@ fn load_completion(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>>
             continue;
         }
 
+        #[derive(Deserialize)]
+        struct CompletionExample {
+            text: String,
+        }
+
         let completion: CompletionExample = serde_json::from_str(line)
             .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {e}")))?;
 
@@ -261,7 +362,6 @@ mod tests {
             r#"{{"instruction": "Test", "input": "", "output": "Response"}}"#
         )
         .unwrap();
-        file.flush().unwrap();
 
         let config = DatasetConfig {
             path: file.path().to_string_lossy().into(),
