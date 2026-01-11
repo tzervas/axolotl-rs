@@ -160,8 +160,8 @@ impl Dataset {
         let (train, validation) = examples.split_at(split_idx);
 
         Ok(Self {
-            train: train.to_vec(),
-            validation: validation.to_vec(),
+            train: train.iter().cloned().collect(),
+            validation: validation.iter().cloned().collect(),
             config: config.clone(),
         })
     }
