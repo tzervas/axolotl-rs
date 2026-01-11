@@ -94,6 +94,8 @@ pub mod config;
 pub mod dataset;
 pub mod error;
 pub mod model;
+pub mod optimizer;
+pub mod scheduler;
 pub mod trainer;
 
 // Mock modules for testing without external dependencies
