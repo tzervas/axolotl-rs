@@ -160,11 +160,15 @@ fn load_sharegpt(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>> {
         for msg in &sharegpt.conversations {
             match msg.from.as_str() {
                 "human" | "user" => {
-                    let _ = write!(text, "### Human:\n{}\n\n", msg.value);
+                    use std::fmt::Write;
+                    write!(text, "### Human:\n{}\n\n", msg.value)
+                        .expect("Failed to format human message");
                     input.clone_from(&msg.value);
                 }
                 "gpt" | "assistant" => {
-                    let _ = write!(text, "### Assistant:\n{}\n\n", msg.value);
+                    use std::fmt::Write;
+                    write!(text, "### Assistant:\n{}\n\n", msg.value)
+                        .expect("Failed to format assistant message");
                     output.clone_from(&msg.value);
                 }
                 _ => {}
