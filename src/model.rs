@@ -249,6 +249,17 @@ impl Module for LlamaWrapper {
 }
 
 /// Merge adapter weights into base model.
+///
+/// # Arguments
+/// * `config` - The axolotl configuration containing adapter settings
+/// * `adapter_path` - Path to the adapter weights file
+/// * `output_path` - Path where the merged model should be saved
+///
+/// # Returns
+/// Returns `Ok(())` on success, or an `AxolotlError` if merging fails.
+///
+/// # Errors
+/// This function is not yet implemented and will return an error indicating so.
 pub fn merge_adapter(
     _config: &AxolotlConfig,
     _adapter_path: &str,
@@ -298,11 +309,10 @@ mod tests {
 
         let device = Device::Cpu;
 
-        // Currently returns "Model loading not yet implemented" error
+        // Currently returns "Model not found" error
         let result = load_model(&config, &device);
         assert!(result.is_err());
         if let Err(AxolotlError::Model(msg)) = result {
-            println!("Actual error message: {}", msg);
             assert!(msg.contains("Model not found"));
         } else {
             panic!("Expected Model error");
@@ -357,7 +367,7 @@ mod tests {
 
         let device = Device::Cpu;
 
-        // Currently returns "Model loading not yet implemented" error
+        // Currently returns "Model not found" error
         let result = load_model(&config, &device);
         assert!(result.is_err());
         if let Err(AxolotlError::Model(msg)) = result {
@@ -367,12 +377,12 @@ mod tests {
         }
     }
 
-    /// Test applying a LoRA adapter to a base model.
+    /// Test merging a LoRA adapter into a base model.
     ///
     /// Currently tests that the function can be called with valid parameters
     /// and returns the expected "not implemented" error.
     #[test]
-    fn test_apply_adapter_lora() {
+    fn test_merge_adapter_lora() {
         let config = AxolotlConfig {
             base_model: "meta-llama/Llama-2-7b-hf".to_string(),
             adapter: AdapterType::Lora,
@@ -403,12 +413,12 @@ mod tests {
         }
     }
 
-    /// Test applying a QLoRA adapter with quantization.
+    /// Test merging a QLoRA adapter with quantization.
     ///
     /// Currently tests that the function can be called with valid parameters
     /// and returns the expected "not implemented" error.
     #[test]
-    fn test_apply_adapter_qlora() {
+    fn test_merge_adapter_qlora() {
         let config = AxolotlConfig {
             base_model: "meta-llama/Llama-2-7b-hf".to_string(),
             adapter: AdapterType::Qlora,
