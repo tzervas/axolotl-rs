@@ -8,6 +8,8 @@ mod config;
 mod dataset;
 mod error;
 mod model;
+mod optimizer;
+mod scheduler;
 mod trainer;
 
 use config::AxolotlConfig;

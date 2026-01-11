@@ -47,10 +47,10 @@ impl OptimizerConfig {
             eps: self.eps,
             weight_decay: self.weight_decay,
         };
-        
+
         let opt = candle_nn::AdamW::new(vars, params)
             .map_err(|e| AxolotlError::Training(format!("Failed to create AdamW: {}", e)))?;
-        
+
         Ok(AdamWOptimizer { inner: opt })
     }
 }
@@ -71,12 +71,12 @@ impl AdamWOptimizer {
             .backward_step(loss)
             .map_err(|e| AxolotlError::Training(format!("Optimizer step failed: {}", e)))
     }
-    
+
     /// Get current learning rate.
     pub fn learning_rate(&self) -> f64 {
         self.inner.learning_rate()
     }
-    
+
     /// Set learning rate (used by schedulers).
     pub fn set_learning_rate(&mut self, lr: f64) {
         self.inner.set_learning_rate(lr);
@@ -86,7 +86,7 @@ impl AdamWOptimizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_optimizer_config_default() {
         let config = OptimizerConfig::default();
@@ -95,15 +95,15 @@ mod tests {
         assert_eq!(config.beta2, 0.999);
         assert_eq!(config.weight_decay, 0.01);
     }
-    
+
     #[test]
     fn test_build_adamw() -> Result<()> {
         let config = OptimizerConfig::default();
         let varmap = VarMap::new();
-        
+
         let optimizer = config.build_adamw(&varmap)?;
         assert_eq!(optimizer.learning_rate(), 5e-5);
-        
+
         Ok(())
     }
 }

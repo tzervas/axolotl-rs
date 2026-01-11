@@ -153,7 +153,11 @@ impl Dataset {
         // Split into train/validation
         #[allow(clippy::cast_precision_loss)]
         let len_f32 = examples.len() as f32;
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::cast_precision_loss
+        )]
         let split_idx = ((1.0 - config.val_split) * len_f32)
             .round()
             .max(0.0)

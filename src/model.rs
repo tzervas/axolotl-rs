@@ -5,7 +5,10 @@ use candle_nn::{Module, VarBuilder};
 use candle_transformers::models::llama::{Cache, Llama, LlamaConfig, LlamaEosToks};
 use std::path::PathBuf;
 
-use crate::config::{AdapterType, AxolotlConfig, DatasetConfig, LoraSettings, QuantizationSettings, QuantType, TrainingConfig};
+use crate::config::{
+    AdapterType, AxolotlConfig, DatasetConfig, LoraSettings, QuantType, QuantizationSettings,
+    TrainingConfig,
+};
 use crate::error::{AxolotlError, Result};
 
 /// Loaded model with configuration.
@@ -40,26 +43,33 @@ impl LoadedModel {
 /// Returns an error if model files cannot be found or loaded.
 pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel> {
     tracing::info!("Loading model: {}", config.base_model);
-    
+
     // Determine model type from config
     let model_path = resolve_model_path(&config.base_model)?;
-    
+
     // Load tokenizer
     let tokenizer = load_tokenizer(&model_path)?;
-    tracing::info!("Loaded tokenizer with vocab size: {}", tokenizer.get_vocab_size(true));
-    
+    tracing::info!(
+        "Loaded tokenizer with vocab size: {}",
+        tokenizer.get_vocab_size(true)
+    );
+
     // Determine dtype
     let dtype = if config.quantization.is_some() {
         DType::F16 // Use F16 for quantized models
     } else {
         DType::F32
     };
-    
+
     // Load model weights based on architecture
     let model = load_model_architecture(config, &model_path, device, dtype)?;
-    
-    tracing::info!("Model loaded successfully on {:?} with dtype {:?}", device, dtype);
-    
+
+    tracing::info!(
+        "Model loaded successfully on {:?} with dtype {:?}",
+        device,
+        dtype
+    );
+
     Ok(LoadedModel {
         model,
         tokenizer,
@@ -75,17 +85,18 @@ fn resolve_model_path(model_id: &str) -> Result<PathBuf> {
     if path.exists() {
         return Ok(path);
     }
-    
+
     // Try HuggingFace cache directory
     let cache_dir = std::env::var("HF_HOME")
         .or_else(|_| std::env::var("HOME").map(|h| format!("{}/.cache/huggingface", h)))
         .unwrap_or_else(|_| "/tmp/huggingface".to_string());
-    
-    let hf_path = PathBuf::from(format!("{}/hub/models--{}", 
-        cache_dir, 
+
+    let hf_path = PathBuf::from(format!(
+        "{}/hub/models--{}",
+        cache_dir,
         model_id.replace("/", "--")
     ));
-    
+
     if hf_path.exists() {
         Ok(hf_path)
     } else {
@@ -99,13 +110,13 @@ fn resolve_model_path(model_id: &str) -> Result<PathBuf> {
 /// Load tokenizer from model directory.
 fn load_tokenizer(model_path: &PathBuf) -> Result<tokenizers::Tokenizer> {
     let tokenizer_file = model_path.join("tokenizer.json");
-    
+
     if !tokenizer_file.exists() {
         return Err(AxolotlError::Tokenizer(
-            format!("tokenizer.json not found in {:?}", model_path).into()
+            format!("tokenizer.json not found in {:?}", model_path).into(),
         ));
     }
-    
+
     tokenizers::Tokenizer::from_file(&tokenizer_file)
         .map_err(|e| AxolotlError::Tokenizer(format!("Failed to load tokenizer: {}", e).into()))
 }
@@ -122,7 +133,10 @@ fn load_model_architecture(
         load_llama_model(config, model_path, device, dtype)
     } else {
         // For other architectures, use stub for now
-        tracing::warn!("Architecture not supported yet: {}, using stub model", config.base_model);
+        tracing::warn!(
+            "Architecture not supported yet: {}, using stub model",
+            config.base_model
+        );
         let vb = VarBuilder::zeros(dtype, device);
         let model = SimpleModel::new(vb)?;
         Ok(Box::new(model))
@@ -200,7 +214,11 @@ fn load_llama_model(
     let model = Llama::load(vb, &config)
         .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {}", e)))?;
 
-    tracing::info!("Loaded LLaMA model with {} layers, {} hidden size", llama_config.num_hidden_layers, llama_config.hidden_size);
+    tracing::info!(
+        "Loaded LLaMA model with {} layers, {} hidden size",
+        llama_config.num_hidden_layers,
+        llama_config.hidden_size
+    );
 
     Ok(Box::new(LlamaWrapper::new(model, &config, device)?))
 }
@@ -230,7 +248,11 @@ pub struct LlamaWrapper {
 }
 
 impl LlamaWrapper {
-    pub fn new(model: Llama, config: &candle_transformers::models::llama::Config, device: &Device) -> Result<Self> {
+    pub fn new(
+        model: Llama,
+        config: &candle_transformers::models::llama::Config,
+        device: &Device,
+    ) -> Result<Self> {
         let cache = Cache::new(false, DType::F32, config, device)
             .map_err(|e| AxolotlError::Model(format!("Failed to create cache: {}", e)))?;
         Ok(Self {
@@ -287,8 +309,8 @@ pub async fn download_model(_model_id: &str, _cache_dir: &str) -> Result<String>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     /// Test loading a LLaMA 2 model configuration.
     ///
@@ -408,7 +430,9 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            AxolotlError::Model(msg) => assert!(msg.contains("Adapter merging not yet implemented")),
+            AxolotlError::Model(msg) => {
+                assert!(msg.contains("Adapter merging not yet implemented"))
+            }
             _ => panic!("Expected Model error, got {:?}", err),
         }
     }
@@ -449,7 +473,9 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            AxolotlError::Model(msg) => assert!(msg.contains("Adapter merging not yet implemented")),
+            AxolotlError::Model(msg) => {
+                assert!(msg.contains("Adapter merging not yet implemented"))
+            }
             _ => panic!("Expected Model error, got {:?}", err),
         }
     }
@@ -480,7 +506,9 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            AxolotlError::Model(msg) => assert!(msg.contains("Adapter merging not yet implemented")),
+            AxolotlError::Model(msg) => {
+                assert!(msg.contains("Adapter merging not yet implemented"))
+            }
             _ => panic!("Expected Model error, got {:?}", err),
         }
     }
@@ -493,9 +521,9 @@ mod tests {
     #[cfg(feature = "download")]
     fn test_download_model_from_hub() {
         // Currently returns "Model download not yet implemented" error
-        let result: Result<String> = tokio::runtime::Runtime::new().unwrap().block_on(async {
-            download_model("meta-llama/Llama-2-7b-hf", "/tmp/cache").await
-        });
+        let result: Result<String> = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async { download_model("meta-llama/Llama-2-7b-hf", "/tmp/cache").await });
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
@@ -524,7 +552,9 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            AxolotlError::Tokenizer(e) => assert!(e.to_string().contains("tokenizer.json not found")),
+            AxolotlError::Tokenizer(e) => {
+                assert!(e.to_string().contains("tokenizer.json not found"))
+            }
             _ => panic!("Expected Tokenizer error, got {:?}", err),
         }
     }
@@ -546,7 +576,8 @@ mod tests {
         let device = Device::Cpu;
         let dtype = DType::F32;
 
-        let result = load_model_architecture(&config, &temp_dir.path().to_path_buf(), &device, dtype);
+        let result =
+            load_model_architecture(&config, &temp_dir.path().to_path_buf(), &device, dtype);
         assert!(result.is_ok());
 
         let model = result.unwrap();

@@ -51,8 +51,9 @@ training:
   learning_rate: 0.0002
   gradient_accumulation_steps: 1
 
-adapter:
-  type: "lora"
+adapter: "lora"
+
+lora:
   r: 8
   alpha: 16
   target_modules:
@@ -107,7 +108,7 @@ fn test_train_command_help() {
     cmd.assert()
         .success()
         .stdout(predicates::str::contains("Start training"))
-        .stdout(predicates::str::contains("--config"))
+        .stdout(predicates::str::contains("CONFIG"))
         .stdout(predicates::str::contains("--resume"));
 }
 

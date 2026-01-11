@@ -69,7 +69,7 @@ impl Trainer {
     /// Returns an error if the configuration is invalid.
     pub fn new(config: AxolotlConfig) -> Result<Self> {
         config.validate()?;
-        
+
         // Determine device
         let device = if cfg!(feature = "cuda") && candle_core::utils::cuda_is_available() {
             Device::new_cuda(0)
@@ -77,7 +77,7 @@ impl Trainer {
         } else {
             Device::Cpu
         };
-        
+
         tracing::info!("Training device: {:?}", device);
 
         Ok(Self {
@@ -86,7 +86,17 @@ impl Trainer {
             epoch: 0,
             device,
             model: None,
+            #[cfg(any(
+                feature = "mock-peft",
+                feature = "mock-qlora",
+                feature = "mock-unsloth"
+            ))]
             optimizer: None,
+            #[cfg(any(
+                feature = "mock-peft",
+                feature = "mock-qlora",
+                feature = "mock-unsloth"
+            ))]
             scheduler: None,
         })
     }
@@ -161,7 +171,10 @@ impl Trainer {
 
         // Load model
         let model = load_model(&self.config, &self.device)?;
-        tracing::info!("Model loaded with vocab size: {}", model.tokenizer.get_vocab_size(true));
+        tracing::info!(
+            "Model loaded with vocab size: {}",
+            model.tokenizer.get_vocab_size(true)
+        );
         self.model = Some(model);
 
         // Load dataset
@@ -171,38 +184,52 @@ impl Trainer {
         // Create output directory
         std::fs::create_dir_all(&self.config.output_dir)?;
 
-        // Initialize optimizer
-        let optimizer_config = OptimizerConfig {
-            learning_rate: self.config.training.learning_rate,
-            weight_decay: self.config.training.weight_decay,
-            ..OptimizerConfig::default()
-        };
-        
-        // Create varmap for model parameters (will be populated with actual params)
-        let varmap = VarMap::new();
-        let optimizer = optimizer_config.build_adamw(&varmap)?;
-        tracing::info!("Initialized AdamW optimizer with lr={}", optimizer.learning_rate());
-        self.optimizer = Some(optimizer);
-
-        // Initialize learning rate scheduler
+        // Calculate total steps for progress bar
         let total_steps =
             dataset.len() * self.config.training.epochs / self.config.training.batch_size;
-        let warmup_steps = (total_steps as f64 * 0.1) as usize; // 10% warmup
-        
-        let scheduler = LRScheduler::new(
-            SchedulerType::Linear { warmup_steps, total_steps },
+
+        // Initialize optimizer
+        {
+            let optimizer_config = OptimizerConfig {
+                learning_rate: self.config.training.learning_rate,
+                weight_decay: self.config.training.weight_decay,
+                ..OptimizerConfig::default()
+            };
+
+            // Create varmap for model parameters (will be populated with actual params)
+            let varmap = VarMap::new();
+            let optimizer = optimizer_config.build_adamw(&varmap)?;
+            tracing::info!(
+                "Initialized AdamW optimizer with lr={}",
+                optimizer.learning_rate()
+            );
+            self.optimizer = Some(optimizer);
+        }
+
+        // Initialize learning rate scheduler
+        {
+            let warmup_steps = (total_steps as f64 * 0.1) as usize; // 10% warmup
+
+            let scheduler = LRScheduler::new(
+                SchedulerType::Linear {
+                    warmup_steps,
+                total_steps,
+            },
             self.config.training.learning_rate,
         );
-        tracing::info!("Initialized linear scheduler with {} warmup steps", warmup_steps);
-        self.scheduler = Some(scheduler);
+        tracing::info!(
+            "Initialized linear scheduler with {} warmup steps",
+            warmup_steps
+        );
+            self.scheduler = Some(scheduler);
+        }
 
-        // Setup progress bar
+        // Create progress bar
         let pb = ProgressBar::new(total_steps as u64);
         pb.set_style(
             ProgressStyle::default_bar()
-                .template(
-                    "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta}) loss: {msg}",
-                )?
+                .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} {msg}")
+                .unwrap()
                 .progress_chars("#>-"),
         );
 
@@ -220,7 +247,7 @@ impl Trainer {
 
                 // Training step
                 let loss = self.training_step(batch)?;
-                
+
                 // Update progress bar with loss
                 pb.set_message(format!("{:.4}", loss));
                 pb.inc(1);
@@ -241,9 +268,11 @@ impl Trainer {
                 if self.step % self.config.training.save_steps == 0 {
                     self.save_checkpoint()?;
                 }
-                
+
                 // Step scheduler
-                if let (Some(scheduler), Some(optimizer)) = (self.scheduler.as_mut(), self.optimizer.as_mut()) {
+                if let (Some(scheduler), Some(optimizer)) =
+                    (self.scheduler.as_mut(), self.optimizer.as_mut())
+                {
                     scheduler.step(optimizer);
                 }
             }
@@ -256,7 +285,7 @@ impl Trainer {
 
         Ok(())
     }
-    
+
     /// Perform a single training step.
     fn training_step(&self, _batch: &[crate::dataset::Example]) -> Result<f64> {
         // TODO: Full implementation
@@ -265,7 +294,7 @@ impl Trainer {
         // 3. Compute loss
         // 4. Backward pass
         // 5. Optimizer step
-        
+
         // For now, return a dummy loss that decreases over time
         let loss = 2.0 - (self.step as f64 * 0.001).min(1.5);
         Ok(loss)
@@ -659,9 +688,9 @@ mod tests {
 
         let result = trainer.train();
         assert!(result.is_err()); // Model loading fails in test environment
-        // With 3 examples and 10% val split: 2 training examples
-        // With batch size 1: 2 steps
-        // But since training fails, step counter remains 0
+                                  // With 3 examples and 10% val split: 2 training examples
+                                  // With batch size 1: 2 steps
+                                  // But since training fails, step counter remains 0
         assert_eq!(trainer.step, 0);
     }
 
