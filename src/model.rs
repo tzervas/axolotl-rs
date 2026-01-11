@@ -2,6 +2,7 @@
 
 use candle_core::{DType, Device, Tensor};
 use candle_nn::{Module, VarBuilder};
+use candle_transformers::models::llama::{Cache, Llama, LlamaConfig, LlamaEosToks};
 use std::path::PathBuf;
 
 use crate::config::{AdapterType, AxolotlConfig, DatasetConfig, LoraSettings, QuantizationSettings, QuantType, TrainingConfig};
@@ -111,42 +112,139 @@ fn load_tokenizer(model_path: &PathBuf) -> Result<tokenizers::Tokenizer> {
 
 /// Load model architecture based on config.
 fn load_model_architecture(
-    _config: &AxolotlConfig,
-    _model_path: &PathBuf,
+    config: &AxolotlConfig,
+    model_path: &PathBuf,
     device: &Device,
     dtype: DType,
 ) -> Result<Box<dyn Module>> {
-    // For now, we'll use a simple stub that returns a working module
-    // In Phase 2, this will detect architecture and load proper models
-    
-    let vb = VarBuilder::zeros(dtype, device);
-    
-    // Create a simple pass-through module for testing
-    let model = SimpleModel::new(vb)?;
-    
-    tracing::warn!("Using stub model architecture - full implementation pending");
-    
-    Ok(Box::new(model))
+    // Detect model architecture from base_model name
+    if config.base_model.to_lowercase().contains("llama") {
+        load_llama_model(config, model_path, device, dtype)
+    } else {
+        // For other architectures, use stub for now
+        tracing::warn!("Architecture not supported yet: {}, using stub model", config.base_model);
+        let vb = VarBuilder::zeros(dtype, device);
+        let model = SimpleModel::new(vb)?;
+        Ok(Box::new(model))
+    }
 }
 
-/// Simple stub model for testing.
+/// Load a LLaMA model from the given path.
+fn load_llama_model(
+    config: &AxolotlConfig,
+    model_path: &PathBuf,
+    device: &Device,
+    dtype: DType,
+) -> Result<Box<dyn Module>> {
+    // Try to load config.json first
+    let config_path = model_path.join("config.json");
+    let llama_config: LlamaConfig = if config_path.exists() {
+        let config_str = std::fs::read_to_string(&config_path)
+            .map_err(|e| AxolotlError::Model(format!("Failed to read config.json: {}", e)))?;
+        serde_json::from_str(&config_str)
+            .map_err(|e| AxolotlError::Model(format!("Failed to parse config.json: {}", e)))?
+    } else {
+        // Use default config for LLaMA 2 7B
+        tracing::warn!("config.json not found, using default LLaMA 2 7B config");
+        LlamaConfig {
+            vocab_size: 32000,
+            hidden_size: 4096,
+            intermediate_size: 11008,
+            num_hidden_layers: 32,
+            num_attention_heads: 32,
+            num_key_value_heads: Some(32),
+            rms_norm_eps: 1e-5,
+            rope_theta: 10000.0,
+            bos_token_id: Some(1),
+            eos_token_id: Some(LlamaEosToks::Single(2)),
+            max_position_embeddings: 4096,
+            rope_scaling: None,
+            tie_word_embeddings: None,
+        }
+    };
+
+    // Load model weights
+    let vb = if model_path.join("model.safetensors").exists() {
+        let tensors = candle_core::safetensors::load(model_path.join("model.safetensors"), device)
+            .map_err(|e| AxolotlError::Model(format!("Failed to load safetensors: {}", e)))?;
+        VarBuilder::from_tensors(tensors, dtype, device)
+    } else if model_path.join("pytorch_model.bin").exists() {
+        VarBuilder::from_pth(model_path.join("pytorch_model.bin"), dtype, device)
+            .map_err(|e| AxolotlError::Model(format!("Failed to load pytorch model: {}", e)))?
+    } else {
+        return Err(AxolotlError::Model(format!(
+            "No model weights found in {}. Expected model.safetensors or pytorch_model.bin",
+            model_path.display()
+        )));
+    };
+
+    // Convert LlamaConfig to Config for Llama::load
+    let config = candle_transformers::models::llama::Config {
+        hidden_size: llama_config.hidden_size,
+        intermediate_size: llama_config.intermediate_size,
+        vocab_size: llama_config.vocab_size,
+        num_hidden_layers: llama_config.num_hidden_layers,
+        num_attention_heads: llama_config.num_attention_heads,
+        num_key_value_heads: llama_config.num_key_value_heads(),
+        use_flash_attn: false, // TODO: make configurable
+        rms_norm_eps: llama_config.rms_norm_eps,
+        rope_theta: llama_config.rope_theta,
+        bos_token_id: llama_config.bos_token_id,
+        eos_token_id: llama_config.eos_token_id,
+        rope_scaling: llama_config.rope_scaling,
+        max_position_embeddings: llama_config.max_position_embeddings,
+        tie_word_embeddings: llama_config.tie_word_embeddings.unwrap_or(false),
+    };
+
+    // Create LLaMA model
+    let model = Llama::load(vb, &config)
+        .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {}", e)))?;
+
+    tracing::info!("Loaded LLaMA model with {} layers, {} hidden size", llama_config.num_hidden_layers, llama_config.hidden_size);
+
+    Ok(Box::new(LlamaWrapper::new(model, &config, device)?))
+}
+
+/// Simple stub model for unsupported architectures.
 struct SimpleModel {
-    #[allow(dead_code)]
-    weight: Tensor,
+    layer: candle_nn::Linear,
 }
 
 impl SimpleModel {
     fn new(vb: VarBuilder) -> Result<Self> {
-        let weight = vb.get((768, 768), "weight")
-            .map_err(|e| AxolotlError::Model(format!("Failed to create weight: {}", e)))?;
-        Ok(Self { weight })
+        let layer = candle_nn::linear(10, 10, vb)?;
+        Ok(Self { layer })
     }
 }
 
 impl Module for SimpleModel {
     fn forward(&self, xs: &Tensor) -> candle_core::Result<Tensor> {
-        // Simple pass-through for now
-        Ok(xs.clone())
+        self.layer.forward(xs)
+    }
+}
+
+/// Wrapper for LLaMA model that implements the Module trait.
+pub struct LlamaWrapper {
+    model: Llama,
+    cache: std::cell::RefCell<Cache>,
+}
+
+impl LlamaWrapper {
+    pub fn new(model: Llama, config: &candle_transformers::models::llama::Config, device: &Device) -> Result<Self> {
+        let cache = Cache::new(false, DType::F32, config, device)
+            .map_err(|e| AxolotlError::Model(format!("Failed to create cache: {}", e)))?;
+        Ok(Self {
+            model,
+            cache: std::cell::RefCell::new(cache),
+        })
+    }
+}
+
+impl Module for LlamaWrapper {
+    fn forward(&self, xs: &Tensor) -> candle_core::Result<Tensor> {
+        let mut cache = self.cache.borrow_mut();
+        // For inference, we start from position 0
+        self.model.forward(xs, 0, &mut cache)
     }
 }
 
