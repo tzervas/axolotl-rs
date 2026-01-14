@@ -8,6 +8,8 @@ mod config;
 mod dataset;
 mod error;
 mod model;
+mod optimizer;
+mod scheduler;
 mod trainer;
 
 use config::AxolotlConfig;
@@ -101,13 +103,13 @@ fn main() -> Result<()> {
                 adapter.unwrap_or_else(|| format!("{}/checkpoint-final", config.output_dir));
 
             model::merge_adapter(&config, &adapter_path, &output)?;
-            println!("✓ Merged model saved to: {}", output);
+            println!("✓ Merged model saved to: {output}");
         }
         Commands::Init { output, preset } => {
             tracing::info!("Generating config for preset: {}", preset);
             let config = AxolotlConfig::from_preset(&preset)?;
             config.to_file(&output)?;
-            println!("✓ Configuration written to: {}", output);
+            println!("✓ Configuration written to: {output}");
         }
     }
 

@@ -8,11 +8,11 @@
 //! ## Features
 //!
 //! - **YAML Configuration** - Define entire training runs in simple config files
-//! - **Multiple Adapters** - Support for LoRA, QLoRA, full fine-tuning
+//! - **Multiple Adapters** - Support for `LoRA`, `QLoRA`, full fine-tuning
 //! - **Dataset Handling** - Automatic loading and preprocessing
 //! - **Multi-GPU** - Distributed training support (planned)
 //!
-//! ## Quick Start
+//! ## Quick Start (CLI)
 //!
 //! ```bash
 //! # Validate configuration
@@ -24,6 +24,67 @@
 //! # Merge adapters
 //! axolotl merge --config config.yaml --output ./merged-model
 //! ```
+//!
+//! ## Quick Start (Library)
+//!
+//! ```no_run
+//! use axolotl_rs::{AxolotlConfig, Trainer};
+//!
+//! # fn main() -> axolotl_rs::Result<()> {
+//! // Load configuration from YAML file
+//! let config = AxolotlConfig::from_file("config.yaml")?;
+//!
+//! // Create trainer and start training
+//! let mut trainer = Trainer::new(config)?;
+//! trainer.train()?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Using Presets
+//!
+//! ```rust
+//! use axolotl_rs::AxolotlConfig;
+//!
+//! # fn main() -> axolotl_rs::Result<()> {
+//! // Create mutable config from preset
+//! let mut config = AxolotlConfig::from_preset("llama2-7b")?;
+//!
+//! // Customize as needed
+//! config.training.epochs = 5;
+//! config.training.learning_rate = 1e-4;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Building Custom Configurations
+//!
+//! ```rust
+//! use axolotl_rs::{AxolotlConfig, TrainingConfig};
+//! use axolotl_rs::config::{AdapterType, LoraSettings, DatasetConfig};
+//!
+//! let config = AxolotlConfig {
+//!     base_model: "meta-llama/Llama-2-7b-hf".to_string(),
+//!     adapter: AdapterType::Lora,
+//!     lora: LoraSettings {
+//!         r: 64,
+//!         alpha: 16,
+//!         ..Default::default()
+//!     },
+//!     quantization: None,
+//!     dataset: DatasetConfig {
+//!         path: "./data/train.jsonl".to_string(),
+//!         ..Default::default()
+//!     },
+//!     training: TrainingConfig {
+//!         epochs: 3,
+//!         learning_rate: 2e-4,
+//!         ..Default::default()
+//!     },
+//!     output_dir: "./outputs".to_string(),
+//!     seed: 42,
+//! };
+//! ```
 
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]
@@ -33,7 +94,17 @@ pub mod config;
 pub mod dataset;
 pub mod error;
 pub mod model;
+pub mod optimizer;
+pub mod scheduler;
 pub mod trainer;
+
+// Mock modules for testing without external dependencies
+#[cfg(any(
+    feature = "mock-peft",
+    feature = "mock-qlora",
+    feature = "mock-unsloth"
+))]
+pub mod mocks;
 
 pub use config::{AxolotlConfig, TrainingConfig};
 pub use error::{AxolotlError, Result};
