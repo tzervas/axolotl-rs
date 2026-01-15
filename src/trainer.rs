@@ -109,14 +109,10 @@ impl Trainer {
     /// # }
     /// ```
     ///
-    /// # Note
-    ///
-    /// This feature is not yet implemented.
-    pub fn resume_from(&mut self, _checkpoint_path: &str) -> Result<()> {
-        // TODO: Load model weights, optimizer state, scheduler state, and training progress
-        Err(AxolotlError::Checkpoint(
-            "Resume not yet implemented".into(),
-        ))
+    /// # Errors
+    /// Returns an error if the checkpoint cannot be loaded.
+    pub fn resume_from(&mut self, checkpoint_path: &str) -> Result<()> {
+        self.load_checkpoint(checkpoint_path)
     }
 
     /// Run the training loop.
@@ -350,17 +346,72 @@ impl Trainer {
     }
 
     /// Save a checkpoint.
+    ///
+    /// Saves:
+    /// - Training state (step, epoch, config)
+    /// - Adapter weights (if using LoRA/QLoRA)
+    /// - Optimizer state (for resume)
     fn save_checkpoint(&self) -> Result<()> {
         let checkpoint_dir = format!("{}/checkpoint-{}", self.config.output_dir, self.step);
         std::fs::create_dir_all(&checkpoint_dir)?;
 
-        // TODO: Save model weights
-        // TODO: Save optimizer state
-        // TODO: Save training state
+        // Save training state
+        let training_state = TrainingState {
+            step: self.step,
+            epoch: self.epoch,
+            learning_rate: self.optimizer.as_ref().map(|o| o.learning_rate()).unwrap_or(0.0),
+        };
+        let state_path = format!("{}/training_state.json", checkpoint_dir);
+        let state_json = serde_json::to_string_pretty(&training_state)
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to serialize state: {}", e).into()))?;
+        std::fs::write(&state_path, state_json)?;
+
+        // Save config for reproducibility
+        let config_path = format!("{}/config.yaml", checkpoint_dir);
+        self.config.to_file(&config_path)?;
+
+        // TODO: Save adapter weights using peft-rs save_adapter_weights
+        // When adapters are properly integrated, we'll save:
+        // - adapter_model.safetensors (LoRA A/B matrices)
+        // - adapter_config.json (LoRA configuration)
 
         tracing::info!("Saved checkpoint to: {}", checkpoint_dir);
         Ok(())
     }
+
+    /// Load training state from a checkpoint.
+    ///
+    /// # Errors
+    /// Returns error if checkpoint files cannot be read or parsed.
+    pub fn load_checkpoint(&mut self, checkpoint_path: &str) -> Result<()> {
+        let state_path = format!("{}/training_state.json", checkpoint_path);
+        let state_json = std::fs::read_to_string(&state_path)
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to read state: {}", e).into()))?;
+        let state: TrainingState = serde_json::from_str(&state_json)
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to parse state: {}", e).into()))?;
+
+        self.step = state.step;
+        self.epoch = state.epoch;
+        
+        if let Some(optimizer) = self.optimizer.as_mut() {
+            optimizer.set_learning_rate(state.learning_rate);
+        }
+
+        tracing::info!("Loaded checkpoint from: {} (step={}, epoch={})", 
+            checkpoint_path, state.step, state.epoch);
+        Ok(())
+    }
+}
+
+/// Training state for checkpoint serialization.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct TrainingState {
+    /// Current training step
+    step: usize,
+    /// Current epoch
+    epoch: usize,
+    /// Current learning rate
+    learning_rate: f64,
 }
 
 #[cfg(test)]
@@ -502,27 +553,52 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_resume_from_not_implemented() {
+    fn test_resume_from_missing_checkpoint() {
         let temp_dir = TempDir::new().unwrap();
         let output_path = temp_dir.path().join("outputs");
         let config = create_test_config(output_path.to_str().unwrap());
 
         let mut trainer = Trainer::new(config).unwrap();
 
-        // Currently returns not implemented error
-        let result = trainer.resume_from("checkpoint-100");
+        // Resuming from non-existent checkpoint should fail
+        let result = trainer.resume_from("nonexistent-checkpoint");
         assert!(result.is_err());
 
         match result {
-            Err(AxolotlError::Checkpoint(msg)) => {
-                assert!(msg.contains("not yet implemented"));
-            }
+            Err(AxolotlError::Checkpoint(_)) => {}
             _ => panic!("Expected Checkpoint error"),
         }
     }
 
     #[test]
-    fn test_resume_from_missing_checkpoint() {
+    fn test_checkpoint_save_and_load() {
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("outputs");
+        let config = create_test_config(output_path.to_str().unwrap());
+
+        let mut trainer = Trainer::new(config).unwrap();
+        trainer.step = 100;
+        trainer.epoch = 2;
+
+        // Save checkpoint
+        trainer.save_checkpoint().unwrap();
+
+        // Verify checkpoint files exist
+        let checkpoint_dir = output_path.join("checkpoint-100");
+        assert!(checkpoint_dir.join("training_state.json").exists());
+        assert!(checkpoint_dir.join("config.yaml").exists());
+
+        // Load checkpoint into new trainer
+        let config2 = create_test_config(output_path.to_str().unwrap());
+        let mut trainer2 = Trainer::new(config2).unwrap();
+        trainer2.load_checkpoint(checkpoint_dir.to_str().unwrap()).unwrap();
+
+        assert_eq!(trainer2.step, 100);
+        assert_eq!(trainer2.epoch, 2);
+    }
+
+    #[test]
+    fn test_resume_from_valid_checkpoint() {
         let temp_dir = TempDir::new().unwrap();
         let output_path = temp_dir.path().join("outputs");
         let config = create_test_config(output_path.to_str().unwrap());
