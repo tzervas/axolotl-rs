@@ -86,17 +86,7 @@ impl Trainer {
             epoch: 0,
             device,
             model: None,
-            #[cfg(any(
-                feature = "mock-peft",
-                feature = "mock-qlora",
-                feature = "mock-unsloth"
-            ))]
             optimizer: None,
-            #[cfg(any(
-                feature = "mock-peft",
-                feature = "mock-qlora",
-                feature = "mock-unsloth"
-            ))]
             scheduler: None,
         })
     }

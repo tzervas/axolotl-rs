@@ -89,6 +89,7 @@
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]
 
+pub mod adapters;
 pub mod cli;
 pub mod config;
 pub mod dataset;
