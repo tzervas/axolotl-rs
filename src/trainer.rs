@@ -319,7 +319,9 @@ impl Trainer {
             // Mask padding tokens with -100 so they don't contribute to loss
             let mut label_ids: Vec<i64> = Vec::with_capacity(max_len);
             for i in 0..max_len {
-                if i + 1 < original_len.min(max_len) {
+                // After truncation at line 312, original_len represents the actual content length
+                // We mask positions where there's no next token (i.e., i >= original_len - 1)
+                if i + 1 < original_len {
                     // Use next token as label
                     label_ids.push(ids[i + 1] as i64);
                 } else {
@@ -363,15 +365,37 @@ impl Trainer {
             .map_err(|e| AxolotlError::Training(format!("Failed to convert labels: {}", e)))?;
 
         for (logit_row, &label) in logits_vec.iter().zip(labels_vec.iter()) {
-            if label != -100 {
-                // Compute cross-entropy for this position
-                let max_logit = logit_row.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-                let sum_exp: f32 = logit_row.iter().map(|&x| (x - max_logit).exp()).sum();
-                let log_sum_exp = max_logit + sum_exp.ln();
-                let nll = log_sum_exp - logit_row[label as usize];
-                total_loss += nll;
-                valid_count += 1;
+            // Skip masked positions (label == -100)
+            if label == -100 {
+                continue;
             }
+
+            // Validate label is within bounds to prevent panic on corrupted data
+            // Labels should be valid token IDs in range [0, vocab_size)
+            if label < 0 || (label as usize) >= logit_row.len() {
+                continue;
+            }
+
+            // Compute cross-entropy for this position using a single pass over logit_row
+            // This is more efficient than finding max and computing sum_exp separately
+            let mut max_logit = f32::NEG_INFINITY;
+            let mut sum_exp = 0.0f32;
+            
+            for &x in logit_row {
+                if x > max_logit {
+                    if max_logit.is_finite() {
+                        // Rescale the accumulated sum_exp to the new max_logit
+                        sum_exp *= (max_logit - x).exp();
+                    }
+                    max_logit = x;
+                }
+                sum_exp += (x - max_logit).exp();
+            }
+            
+            let log_sum_exp = max_logit + sum_exp.ln();
+            let nll = log_sum_exp - logit_row[label as usize];
+            total_loss += nll;
+            valid_count += 1;
         }
 
         let loss_val = if valid_count > 0 {
