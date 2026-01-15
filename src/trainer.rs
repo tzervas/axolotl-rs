@@ -1,6 +1,6 @@
 //! Training loop and optimization.
 
-use candle_core::Device;
+use candle_core::{Device, Tensor};
 use candle_nn::VarMap;
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -277,17 +277,76 @@ impl Trainer {
     }
 
     /// Perform a single training step.
-    fn training_step(&self, _batch: &[crate::dataset::Example]) -> Result<f64> {
-        // TODO: Full implementation
-        // 1. Tokenize batch
-        // 2. Forward pass
-        // 3. Compute loss
-        // 4. Backward pass
-        // 5. Optimizer step
+    ///
+    /// This method:
+    /// 1. Tokenizes the batch
+    /// 2. Performs forward pass
+    /// 3. Computes cross-entropy loss
+    /// 4. Performs backward pass and optimizer step
+    fn training_step(&mut self, batch: &[crate::dataset::Example]) -> Result<f64> {
+        let model = self.model.as_ref().ok_or_else(|| {
+            AxolotlError::Training("Model not loaded".into())
+        })?;
 
-        // For now, return a dummy loss that decreases over time
-        let loss = 2.0 - (self.step as f64 * 0.001).min(1.5);
-        Ok(loss)
+        // 1. Tokenize batch
+        let mut input_ids = Vec::new();
+        let mut labels = Vec::new();
+        let max_len = self.config.dataset.max_length;
+
+        for example in batch {
+            let encoding = model.tokenizer.encode(example.text.as_str(), true)
+                .map_err(|e| AxolotlError::Tokenizer(format!("Tokenization failed: {}", e).into()))?;
+
+            let mut ids = encoding.get_ids().to_vec();
+            
+            // Truncate or pad to max_len
+            if ids.len() > max_len {
+                ids.truncate(max_len);
+            }
+            while ids.len() < max_len {
+                ids.push(0); // Pad token
+            }
+
+            // For causal LM, labels are shifted input_ids
+            let label_ids: Vec<u32> = ids.iter().skip(1).chain(std::iter::once(&0)).copied().collect();
+
+            input_ids.push(ids);
+            labels.push(label_ids);
+        }
+
+        // 2. Convert to tensors
+        let batch_size = input_ids.len();
+        let flat_input: Vec<i64> = input_ids.iter().flatten().map(|&x| x as i64).collect();
+        let flat_labels: Vec<i64> = labels.iter().flatten().map(|&x| x as i64).collect();
+
+        let input_tensor = Tensor::from_vec(flat_input, (batch_size, max_len), &self.device)
+            .map_err(|e| AxolotlError::Training(format!("Failed to create input tensor: {}", e)))?;
+        let label_tensor = Tensor::from_vec(flat_labels, (batch_size, max_len), &self.device)
+            .map_err(|e| AxolotlError::Training(format!("Failed to create label tensor: {}", e)))?;
+
+        // 3. Forward pass
+        let logits = model.forward(&input_tensor)
+            .map_err(|e| AxolotlError::Training(format!("Forward pass failed: {}", e)))?;
+
+        // 4. Compute cross-entropy loss
+        let vocab_size = logits.dims()[2];
+        let logits_flat = logits.reshape((batch_size * max_len, vocab_size))
+            .map_err(|e| AxolotlError::Training(format!("Reshape failed: {}", e)))?;
+        let labels_flat = label_tensor.reshape(batch_size * max_len)
+            .map_err(|e| AxolotlError::Training(format!("Label reshape failed: {}", e)))?;
+
+        let loss = candle_nn::loss::cross_entropy(&logits_flat, &labels_flat)
+            .map_err(|e| AxolotlError::Training(format!("Loss computation failed: {}", e)))?;
+
+        let loss_val = loss.to_scalar::<f32>()
+            .map_err(|e| AxolotlError::Training(format!("Failed to get loss value: {}", e)))? as f64;
+
+        // 5. Backward pass and optimizer step
+        if let Some(optimizer) = self.optimizer.as_mut() {
+            optimizer.step(&loss)?;
+        }
+
+        Ok(loss_val)
     }
 
     /// Save a checkpoint.
