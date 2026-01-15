@@ -279,12 +279,23 @@ impl Trainer {
     /// 2. Performs forward pass
     /// 3. Computes cross-entropy loss
     /// 4. Performs backward pass and optimizer step
+    ///
+    /// Note that this method requires `&mut self` because calling the optimizer
+    /// step updates the internal training state (e.g. optimizer buffers and
+    /// model parameters), and therefore must take a mutable reference to the
+    /// trainer.
     fn training_step(&mut self, batch: &[crate::dataset::Example]) -> Result<f64> {
         let model = self.model.as_ref().ok_or_else(|| {
             AxolotlError::Training("Model not loaded".into())
         })?;
 
         // 1. Tokenize batch
+        // Get pad token ID from tokenizer, fallback to 0 if not found
+        let pad_token_id = model.tokenizer
+            .token_to_id("<pad>")
+            .or_else(|| model.tokenizer.token_to_id("[PAD]"))
+            .unwrap_or(0);
+
         let mut input_ids = Vec::new();
         let mut labels = Vec::new();
         let max_len = self.config.dataset.max_length;
@@ -294,17 +305,28 @@ impl Trainer {
                 .map_err(|e| AxolotlError::Tokenizer(format!("Tokenization failed: {}", e).into()))?;
 
             let mut ids = encoding.get_ids().to_vec();
+            let original_len = ids.len();
             
             // Truncate or pad to max_len
             if ids.len() > max_len {
                 ids.truncate(max_len);
             }
             while ids.len() < max_len {
-                ids.push(0); // Pad token
+                ids.push(pad_token_id);
             }
 
-            // For causal LM, labels are shifted input_ids
-            let label_ids: Vec<u32> = ids.iter().skip(1).chain(std::iter::once(&0)).copied().collect();
+            // For causal LM, labels are input_ids shifted left by 1
+            // Mask padding tokens with -100 so they don't contribute to loss
+            let mut label_ids: Vec<i64> = Vec::with_capacity(max_len);
+            for i in 0..max_len {
+                if i + 1 < original_len.min(max_len) {
+                    // Use next token as label
+                    label_ids.push(ids[i + 1] as i64);
+                } else {
+                    // Mask padding positions with -100 (ignore index)
+                    label_ids.push(-100);
+                }
+            }
 
             input_ids.push(ids);
             labels.push(label_ids);
@@ -313,7 +335,7 @@ impl Trainer {
         // 2. Convert to tensors
         let batch_size = input_ids.len();
         let flat_input: Vec<i64> = input_ids.iter().flatten().map(|&x| x as i64).collect();
-        let flat_labels: Vec<i64> = labels.iter().flatten().map(|&x| x as i64).collect();
+        let flat_labels: Vec<i64> = labels.iter().flatten().copied().collect();
 
         let input_tensor = Tensor::from_vec(flat_input, (batch_size, max_len), &self.device)
             .map_err(|e| AxolotlError::Training(format!("Failed to create input tensor: {}", e)))?;
@@ -324,25 +346,51 @@ impl Trainer {
         let logits = model.forward(&input_tensor)
             .map_err(|e| AxolotlError::Training(format!("Forward pass failed: {}", e)))?;
 
-        // 4. Compute cross-entropy loss
+        // 4. Compute cross-entropy loss, masking positions where label == -100
         let vocab_size = logits.dims()[2];
         let logits_flat = logits.reshape((batch_size * max_len, vocab_size))
             .map_err(|e| AxolotlError::Training(format!("Reshape failed: {}", e)))?;
         let labels_flat = label_tensor.reshape(batch_size * max_len)
             .map_err(|e| AxolotlError::Training(format!("Label reshape failed: {}", e)))?;
 
-        let loss = candle_nn::loss::cross_entropy(&logits_flat, &labels_flat)
-            .map_err(|e| AxolotlError::Training(format!("Loss computation failed: {}", e)))?;
+        // Compute loss only for non-masked positions
+        let mut total_loss = 0.0f32;
+        let mut valid_count = 0;
+        
+        let logits_vec = logits_flat.to_vec2::<f32>()
+            .map_err(|e| AxolotlError::Training(format!("Failed to convert logits: {}", e)))?;
+        let labels_vec = labels_flat.to_vec1::<i64>()
+            .map_err(|e| AxolotlError::Training(format!("Failed to convert labels: {}", e)))?;
 
-        let loss_val = loss.to_scalar::<f32>()
-            .map_err(|e| AxolotlError::Training(format!("Failed to get loss value: {}", e)))? as f64;
-
-        // 5. Backward pass and optimizer step
-        if let Some(optimizer) = self.optimizer.as_mut() {
-            optimizer.step(&loss)?;
+        for (logit_row, &label) in logits_vec.iter().zip(labels_vec.iter()) {
+            if label != -100 {
+                // Compute cross-entropy for this position
+                let max_logit = logit_row.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+                let sum_exp: f32 = logit_row.iter().map(|&x| (x - max_logit).exp()).sum();
+                let log_sum_exp = max_logit + sum_exp.ln();
+                let nll = log_sum_exp - logit_row[label as usize];
+                total_loss += nll;
+                valid_count += 1;
+            }
         }
 
-        Ok(loss_val)
+        let loss_val = if valid_count > 0 {
+            total_loss / valid_count as f32
+        } else {
+            0.0
+        };
+
+        // Create loss tensor for backward pass
+        let loss = Tensor::new(&[loss_val], &self.device)
+            .map_err(|e| AxolotlError::Training(format!("Failed to create loss tensor: {}", e)))?;
+
+        // 5. Backward pass and optimizer step
+        let optimizer = self.optimizer.as_mut().ok_or_else(|| {
+            AxolotlError::Training("Optimizer not initialized".into())
+        })?;
+        optimizer.step(&loss)?;
+
+        Ok(loss_val as f64)
     }
 
     /// Save a checkpoint.
@@ -356,10 +404,13 @@ impl Trainer {
         std::fs::create_dir_all(&checkpoint_dir)?;
 
         // Save training state
+        let optimizer = self.optimizer.as_ref().ok_or_else(|| {
+            AxolotlError::Checkpoint("Optimizer not initialized during checkpoint save".into())
+        })?;
         let training_state = TrainingState {
             step: self.step,
             epoch: self.epoch,
-            learning_rate: self.optimizer.as_ref().map(|o| o.learning_rate()).unwrap_or(0.0),
+            learning_rate: optimizer.learning_rate(),
         };
         let state_path = format!("{}/training_state.json", checkpoint_dir);
         let state_json = serde_json::to_string_pretty(&training_state)
@@ -580,6 +631,15 @@ mod tests {
         trainer.step = 100;
         trainer.epoch = 2;
 
+        // Initialize optimizer for checkpoint save (required)
+        let optimizer_config = OptimizerConfig {
+            learning_rate: 0.001,
+            weight_decay: 0.01,
+            ..OptimizerConfig::default()
+        };
+        let varmap = VarMap::new();
+        trainer.optimizer = Some(optimizer_config.build_adamw(&varmap).unwrap());
+
         // Save checkpoint
         trainer.save_checkpoint().unwrap();
 
@@ -591,10 +651,22 @@ mod tests {
         // Load checkpoint into new trainer
         let config2 = create_test_config(output_path.to_str().unwrap());
         let mut trainer2 = Trainer::new(config2).unwrap();
+        
+        // Initialize optimizer in trainer2 to test learning rate restoration
+        let optimizer_config2 = OptimizerConfig {
+            learning_rate: 0.002, // Different initial value
+            weight_decay: 0.01,
+            ..OptimizerConfig::default()
+        };
+        let varmap2 = VarMap::new();
+        trainer2.optimizer = Some(optimizer_config2.build_adamw(&varmap2).unwrap());
+        
         trainer2.load_checkpoint(checkpoint_dir.to_str().unwrap()).unwrap();
 
         assert_eq!(trainer2.step, 100);
         assert_eq!(trainer2.epoch, 2);
+        // Verify learning rate was restored from checkpoint
+        assert_eq!(trainer2.optimizer.as_ref().unwrap().learning_rate(), 0.001);
     }
 
     #[test]
