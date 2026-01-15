@@ -213,14 +213,14 @@ impl Trainer {
             let scheduler = LRScheduler::new(
                 SchedulerType::Linear {
                     warmup_steps,
-                total_steps,
-            },
-            self.config.training.learning_rate,
-        );
-        tracing::info!(
-            "Initialized linear scheduler with {} warmup steps",
-            warmup_steps
-        );
+                    total_steps,
+                },
+                self.config.training.learning_rate,
+            );
+            tracing::info!(
+                "Initialized linear scheduler with {} warmup steps",
+                warmup_steps
+            );
             self.scheduler = Some(scheduler);
         }
 
