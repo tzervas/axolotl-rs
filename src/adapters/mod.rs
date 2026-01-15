@@ -89,8 +89,8 @@ impl AdapterWrapper {
     pub fn to_peft_lora_config(settings: &LoraSettings) -> PeftLoraConfig {
         PeftLoraConfig {
             r: settings.r,
-            alpha: settings.alpha as usize,
-            dropout: settings.dropout as f64,
+            alpha: settings.alpha,
+            dropout: settings.dropout,
             target_modules: settings.target_modules.clone(),
             ..Default::default()
         }
@@ -157,7 +157,7 @@ impl From<&LoraSettings> for AdapterApplicationConfig {
         Self {
             target_modules: settings.target_modules.clone(),
             r: settings.r,
-            alpha: settings.alpha as usize,
+            alpha: settings.alpha,
             dropout: settings.dropout as f32,
         }
     }
