@@ -67,7 +67,7 @@ fn default_seed() -> u64 {
 }
 
 /// Adapter type for fine-tuning.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AdapterType {
     /// No adapter (full fine-tuning).
