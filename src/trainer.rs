@@ -1,6 +1,6 @@
 //! Training loop and optimization.
 
-use candle_core::{Device, Tensor};
+use candle_core::{Device, Tensor, DType};
 use candle_nn::VarMap;
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -10,6 +10,10 @@ use crate::error::{AxolotlError, Result};
 use crate::model::{load_model, LoadedModel};
 use crate::optimizer::{AdamWOptimizer, OptimizerConfig};
 use crate::scheduler::{LRScheduler, SchedulerType};
+
+// Use qlora-rs cross_entropy_loss when available (maintains gradient graph)
+#[cfg(feature = "qlora")]
+use qlora_rs::cross_entropy_loss;
 
 /// Training orchestrator.
 ///
@@ -174,7 +178,7 @@ impl Trainer {
         let total_steps =
             dataset.len() * self.config.training.epochs / self.config.training.batch_size;
 
-        // Initialize optimizer
+        // Initialize optimizer with trainable parameters from adapter layers
         {
             let optimizer_config = OptimizerConfig {
                 learning_rate: self.config.training.learning_rate,
@@ -182,12 +186,16 @@ impl Trainer {
                 ..OptimizerConfig::default()
             };
 
-            // Create varmap for model parameters (will be populated with actual params)
-            let varmap = VarMap::new();
-            let optimizer = optimizer_config.build_adamw(&varmap)?;
+            // Use trainable params from loaded model (LoRA A/B matrices)
+            let model = self.model.as_ref().ok_or_else(|| {
+                AxolotlError::Training("Model must be loaded before optimizer init".into())
+            })?;
+            let optimizer = optimizer_config.build_adamw(&model.trainable_params)?;
+            let param_count: usize = model.trainable_params.all_vars().iter().map(|v| v.elem_count()).sum();
             tracing::info!(
-                "Initialized AdamW optimizer with lr={}",
-                optimizer.learning_rate()
+                "Initialized AdamW optimizer with lr={}, {} trainable params",
+                optimizer.learning_rate(),
+                param_count
             );
             self.optimizer = Some(optimizer);
         }
@@ -344,69 +352,16 @@ impl Trainer {
         let label_tensor = Tensor::from_vec(flat_labels, (batch_size, max_len), &self.device)
             .map_err(|e| AxolotlError::Training(format!("Failed to create label tensor: {}", e)))?;
 
-        // 3. Forward pass
-        let logits = model.forward(&input_tensor)
+        // 3. Forward pass - returns logits for last position only [batch, vocab]
+        let logits = model.forward_with_adapters(&input_tensor)
             .map_err(|e| AxolotlError::Training(format!("Forward pass failed: {}", e)))?;
 
-        // 4. Compute cross-entropy loss, masking positions where label == -100
-        let vocab_size = logits.dims()[2];
-        let logits_flat = logits.reshape((batch_size * max_len, vocab_size))
-            .map_err(|e| AxolotlError::Training(format!("Reshape failed: {}", e)))?;
-        let labels_flat = label_tensor.reshape(batch_size * max_len)
-            .map_err(|e| AxolotlError::Training(format!("Label reshape failed: {}", e)))?;
-
-        // Compute loss only for non-masked positions
-        let mut total_loss = 0.0f32;
-        let mut valid_count = 0;
-        
-        let logits_vec = logits_flat.to_vec2::<f32>()
-            .map_err(|e| AxolotlError::Training(format!("Failed to convert logits: {}", e)))?;
-        let labels_vec = labels_flat.to_vec1::<i64>()
-            .map_err(|e| AxolotlError::Training(format!("Failed to convert labels: {}", e)))?;
-
-        for (logit_row, &label) in logits_vec.iter().zip(labels_vec.iter()) {
-            // Skip masked positions (label == -100)
-            if label == -100 {
-                continue;
-            }
-
-            // Validate label is within bounds to prevent panic on corrupted data
-            // Labels should be valid token IDs in range [0, vocab_size)
-            if label < 0 || (label as usize) >= logit_row.len() {
-                continue;
-            }
-
-            // Compute cross-entropy for this position using a single pass over logit_row
-            // This is more efficient than finding max and computing sum_exp separately
-            let mut max_logit = f32::NEG_INFINITY;
-            let mut sum_exp = 0.0f32;
-            
-            for &x in logit_row {
-                if x > max_logit {
-                    if max_logit.is_finite() {
-                        // Rescale the accumulated sum_exp to the new max_logit
-                        sum_exp *= (max_logit - x).exp();
-                    }
-                    max_logit = x;
-                }
-                sum_exp += (x - max_logit).exp();
-            }
-            
-            let log_sum_exp = max_logit + sum_exp.ln();
-            let nll = log_sum_exp - logit_row[label as usize];
-            total_loss += nll;
-            valid_count += 1;
-        }
-
-        let loss_val = if valid_count > 0 {
-            total_loss / valid_count as f32
-        } else {
-            0.0
-        };
-
-        // Create loss tensor for backward pass
-        let loss = Tensor::new(&[loss_val], &self.device)
-            .map_err(|e| AxolotlError::Training(format!("Failed to create loss tensor: {}", e)))?;
+        // 4. Compute cross-entropy loss on last position
+        // Logits shape: [batch, vocab] (last position only)
+        // We use the last non-padding label for each sequence
+        let loss = compute_last_position_loss(&logits, &label_tensor, &self.device)?;
+        let loss_val = loss.to_vec0::<f32>()
+            .map_err(|e| AxolotlError::Training(format!("Failed to get loss value: {}", e)))? as f64;
 
         // 5. Backward pass and optimizer step
         let optimizer = self.optimizer.as_mut().ok_or_else(|| {
@@ -514,6 +469,219 @@ struct TrainingState {
     epoch: usize,
     /// Current learning rate
     learning_rate: f64,
+}
+
+/// Compute cross-entropy loss on the last position prediction.
+///
+/// This is used when the model only returns logits for the last position
+/// (common in generation-optimized models like candle's Llama).
+///
+/// # Arguments
+/// * `logits` - Model output logits with shape [batch_size, vocab_size] (last position only)
+/// * `labels` - Target labels with shape [batch_size, seq_len], -100 for masked positions
+/// * `device` - Device for tensor operations
+///
+/// # Returns
+/// A scalar loss tensor that can be backpropagated through
+fn compute_last_position_loss(
+    logits: &Tensor,
+    labels: &Tensor,
+    device: &Device,
+) -> Result<Tensor> {
+    let dims = logits.dims();
+    
+    // Logits should be [batch, vocab] for last-position-only output
+    if dims.len() != 2 {
+        return Err(AxolotlError::Training(format!(
+            "Expected 2D logits [batch, vocab], got {:?}", dims
+        )));
+    }
+    
+    let (batch_size, vocab_size) = (dims[0], dims[1]);
+    let label_dims = labels.dims();
+    let seq_len = label_dims[1];
+    
+    // For each sequence, get the last non-padding label
+    // This is the target for predicting what comes after the last token
+    let labels_flat = labels.to_vec2::<i64>()
+        .map_err(|e| AxolotlError::Training(format!("Failed to read labels: {}", e)))?;
+    
+    // Find last valid (non -100) label for each batch item
+    let mut last_labels: Vec<u32> = Vec::with_capacity(batch_size);
+    let mut valid_mask: Vec<f32> = Vec::with_capacity(batch_size);
+    
+    for seq_labels in &labels_flat {
+        // Find the last valid label (not -100)
+        let mut last_valid: Option<i64> = None;
+        for &label in seq_labels.iter().rev() {
+            if label >= 0 && (label as usize) < vocab_size {
+                last_valid = Some(label);
+                break;
+            }
+        }
+        
+        match last_valid {
+            Some(label) => {
+                last_labels.push(label as u32);
+                valid_mask.push(1.0);
+            }
+            None => {
+                last_labels.push(0);
+                valid_mask.push(0.0);
+            }
+        }
+    }
+    
+    let valid_count: f32 = valid_mask.iter().sum();
+    
+    if valid_count == 0.0 {
+        return Tensor::new(0.0f32, device)
+            .map_err(|e| AxolotlError::Training(format!("Failed to create zero loss: {}", e)));
+    }
+    
+    let labels_tensor = Tensor::from_vec(last_labels, batch_size, device)
+        .map_err(|e| AxolotlError::Training(format!("Failed to create labels tensor: {}", e)))?;
+    
+    // Compute log softmax
+    let log_probs = candle_nn::ops::log_softmax(logits, 1)
+        .map_err(|e| AxolotlError::Training(format!("Log softmax failed: {}", e)))?;
+    
+    // Gather log probs at target indices
+    let target_indices = labels_tensor.unsqueeze(1)
+        .map_err(|e| AxolotlError::Training(format!("Unsqueeze failed: {}", e)))?;
+    let gathered = log_probs.gather(&target_indices, 1)
+        .map_err(|e| AxolotlError::Training(format!("Gather failed: {}", e)))?
+        .squeeze(1)
+        .map_err(|e| AxolotlError::Training(format!("Squeeze failed: {}", e)))?;
+    
+    // Apply mask and compute mean of negative log likelihood
+    let mask_tensor = Tensor::from_vec(valid_mask, batch_size, device)
+        .map_err(|e| AxolotlError::Training(format!("Failed to create mask tensor: {}", e)))?;
+    let masked_loss = gathered.neg()
+        .map_err(|e| AxolotlError::Training(format!("Neg failed: {}", e)))?
+        .mul(&mask_tensor)
+        .map_err(|e| AxolotlError::Training(format!("Mul failed: {}", e)))?;
+    
+    // Sum and divide by valid count
+    let total_loss = masked_loss.sum_all()
+        .map_err(|e| AxolotlError::Training(format!("Sum failed: {}", e)))?;
+    
+    let valid_count_scalar = Tensor::new(valid_count, device)
+        .map_err(|e| AxolotlError::Training(format!("Failed to create count tensor: {}", e)))?;
+    
+    let loss = total_loss.broadcast_div(&valid_count_scalar)
+        .map_err(|e| AxolotlError::Training(format!("Div failed: {}", e)))?;
+    
+    Ok(loss)
+}
+
+/// Compute cross-entropy loss with gradient tracking (full sequence version).
+///
+/// This function uses tensor operations that maintain the autograd graph,
+/// enabling proper backpropagation through the loss to update LoRA weights.
+///
+/// # Arguments
+/// * `logits` - Model output logits with shape [batch_size, seq_len, vocab_size] or [batch*seq, vocab]
+/// * `labels` - Target labels with shape [batch_size, seq_len], -100 for masked positions
+/// * `device` - Device for tensor operations
+///
+/// # Returns
+/// A scalar loss tensor that can be backpropagated through
+#[allow(dead_code)]
+fn compute_cross_entropy_loss(
+    logits: &Tensor,
+    labels: &Tensor,
+    device: &Device,
+) -> Result<Tensor> {
+    let dims = logits.dims();
+    let label_dims = labels.dims();
+    
+    // Handle different logit shapes from different model implementations
+    // Candle's Llama returns [batch * seq, vocab] while some return [batch, seq, vocab]
+    let (num_positions, vocab_size) = match dims.len() {
+        2 => (dims[0], dims[1]),
+        3 => (dims[0] * dims[1], dims[2]),
+        _ => return Err(AxolotlError::Training(format!(
+            "Expected 2D or 3D logits, got {:?}", dims
+        ))),
+    };
+    
+    // Flatten logits to [num_positions, vocab_size]
+    let logits_flat = if dims.len() == 3 {
+        logits.reshape((num_positions, vocab_size))
+            .map_err(|e| AxolotlError::Training(format!("Logits reshape failed: {}", e)))?
+    } else {
+        logits.clone()
+    };
+    
+    // Flatten labels to [num_positions]
+    let labels_flat = labels.reshape(num_positions)
+        .map_err(|e| AxolotlError::Training(format!("Labels reshape failed: {}", e)))?;
+    
+    // Verify dimensions match
+    if num_positions != label_dims.iter().product::<usize>() {
+        return Err(AxolotlError::Training(format!(
+            "Logits positions {} != labels positions {}",
+            num_positions, label_dims.iter().product::<usize>()
+        )));
+    }
+    
+    // Create mask for valid (non-padding) positions
+    // Labels of -100 are masked out
+    let labels_i64 = labels_flat.to_vec1::<i64>()
+        .map_err(|e| AxolotlError::Training(format!("Failed to read labels: {}", e)))?;
+    
+    let valid_mask: Vec<f32> = labels_i64.iter()
+        .map(|&l| if l >= 0 && (l as usize) < vocab_size { 1.0 } else { 0.0 })
+        .collect();
+    let valid_count: f32 = valid_mask.iter().sum();
+    
+    if valid_count == 0.0 {
+        // No valid labels, return zero loss
+        return Tensor::new(&[0.0f32], device)
+            .map_err(|e| AxolotlError::Training(format!("Failed to create zero loss: {}", e)));
+    }
+    
+    // Replace invalid labels with 0 (they'll be masked anyway)
+    let safe_labels: Vec<u32> = labels_i64.iter()
+        .map(|&l| if l >= 0 && (l as usize) < vocab_size { l as u32 } else { 0 })
+        .collect();
+    let safe_labels_tensor = Tensor::from_vec(safe_labels, num_positions, device)
+        .map_err(|e| AxolotlError::Training(format!("Failed to create safe labels: {}", e)))?;
+    
+    // Compute log softmax (this maintains gradients)
+    let log_probs = candle_nn::ops::log_softmax(&logits_flat, 1)
+        .map_err(|e| AxolotlError::Training(format!("Log softmax failed: {}", e)))?;
+    
+    // Gather log probs at target indices
+    let target_indices = safe_labels_tensor.unsqueeze(1)
+        .map_err(|e| AxolotlError::Training(format!("Unsqueeze failed: {}", e)))?;
+    let gathered = log_probs.gather(&target_indices, 1)
+        .map_err(|e| AxolotlError::Training(format!("Gather failed: {}", e)))?
+        .squeeze(1)
+        .map_err(|e| AxolotlError::Training(format!("Squeeze failed: {}", e)))?;
+    
+    // Apply mask and compute mean of negative log likelihood
+    let mask_tensor = Tensor::from_vec(valid_mask, num_positions, device)
+        .map_err(|e| AxolotlError::Training(format!("Failed to create mask tensor: {}", e)))?;
+    let masked_loss = gathered.neg()
+        .map_err(|e| AxolotlError::Training(format!("Neg failed: {}", e)))?
+        .mul(&mask_tensor)
+        .map_err(|e| AxolotlError::Training(format!("Mul failed: {}", e)))?;
+    
+    // Sum and divide by valid count
+    let total_loss = masked_loss.sum_all()
+        .map_err(|e| AxolotlError::Training(format!("Sum failed: {}", e)))?;
+    
+    // Create scalar tensor for valid_count and squeeze total_loss to same shape
+    let valid_count_scalar = Tensor::new(valid_count, device)
+        .map_err(|e| AxolotlError::Training(format!("Failed to create count tensor: {}", e)))?;
+    
+    // Both are scalars now, division should work
+    let loss = total_loss.broadcast_div(&valid_count_scalar)
+        .map_err(|e| AxolotlError::Training(format!("Div failed: {}", e)))?;
+    
+    Ok(loss)
 }
 
 #[cfg(test)]

@@ -1,0 +1,10 @@
+{"instruction":"Summarize the following text","input":"The quick brown fox jumps over the lazy dog. This is a sample sentence.","output":"A fox jumped over a dog."}
+{"instruction":"Translate to French","input":"Hello, how are you?","output":"Bonjour, comment allez-vous?"}
+{"instruction":"What is machine learning?","input":"","output":"Machine learning is a subset of AI that enables systems to learn from data."}
+{"instruction":"Write a haiku about programming","input":"","output":"Code flows like water\nBugs emerge from the shadows\nDebug brings the light"}
+{"instruction":"Explain recursion","input":"","output":"Recursion is when a function calls itself to solve smaller instances of the same problem."}
+{"instruction":"What is Rust?","input":"","output":"Rust is a systems programming language focused on safety, speed, and concurrency."}
+{"instruction":"Calculate","input":"2 + 2","output":"4"}
+{"instruction":"What is the capital of France?","input":"","output":"Paris"}
+{"instruction":"Reverse this string","input":"hello","output":"olleh"}
+{"instruction":"Count the words","input":"The quick brown fox","output":"4 words"}
