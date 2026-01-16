@@ -18,6 +18,9 @@ use qlora_rs::{QLoraConfig, QuantizedLinear};
 #[cfg(feature = "peft")]
 use crate::lora_llama::LoraLlama;
 
+#[cfg(all(feature = "peft", feature = "qlora"))]
+use super::qlora_llama::{prepare_for_qlora_training, QLoraLlama};
+
 // Additional imports for tests
 #[cfg(test)]
 use crate::config::{DatasetConfig, LoraSettings, QuantType, QuantizationSettings, TrainingConfig};
@@ -400,11 +403,56 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
     // Create trainable parameter map for adapters BEFORE loading model
     let trainable_params = VarMap::new();
 
-    // Check if we should use LoraLlama (requires LoRA adapters)
+    // Check adapter type for model loading strategy
     let use_lora_model = config.adapter == AdapterType::Lora;
+    let use_qlora_model = config.adapter == AdapterType::Qlora;
 
-    // Load model weights based on architecture
-    let (model, adapter_layers) = if use_lora_model {
+    // Load model weights based on architecture and adapter type
+    let (model, adapter_layers) = if use_qlora_model {
+        // QLoraLlama: combines quantized base with trainable LoRA adapters
+        #[cfg(all(feature = "peft", feature = "qlora"))]
+        {
+            let quant_settings = config.quantization.as_ref().ok_or_else(|| {
+                AxolotlError::Config("QLoRA requires quantization settings".into())
+            })?;
+            
+            let qlora_config = qlora_rs::QLoraConfig {
+                lora: peft_rs::LoraConfig {
+                    r: config.lora.r,
+                    alpha: config.lora.alpha,
+                    dropout: config.lora.dropout,
+                    target_modules: config.lora.target_modules.clone(),
+                    ..Default::default()
+                },
+                quantization: qlora_rs::QuantizationConfig {
+                    block_size: quant_settings.block_size,
+                    double_quant: quant_settings.double_quant,
+                    compute_dtype: qlora_rs::quantization::ComputeDType::BF16, // Critical for stability
+                    ..Default::default()
+                },
+                target_modules: config.lora.target_modules.clone(),
+                cache_dequantized: false, // On-the-fly dequant for training (memory optimal)
+            };
+            
+            let model = load_qlora_model(
+                config,
+                &model_path,
+                device,
+                dtype,
+                &qlora_config,
+                &trainable_params,
+            )?;
+            
+            // AdapterLayers will be empty since adapters are embedded in QLoraLlama
+            (model, None)
+        }
+        #[cfg(not(all(feature = "peft", feature = "qlora")))]
+        {
+            return Err(AxolotlError::Model(
+                "QLoRA requested but peft and/or qlora features not enabled".into()
+            ));
+        }
+    } else if use_lora_model {
         // LoraLlama creates its own adapters internally during construction
         // Pass lora_config through model_info
         #[cfg(feature = "peft")]
@@ -538,6 +586,8 @@ fn create_adapter_layers(
                         double_quant: quant_settings.double_quant,
                         ..Default::default()
                     },
+                    target_modules: config.lora.target_modules.clone(),
+                    cache_dequantized: false, // On-the-fly dequant for training
                 };
 
                 // Create VarBuilder from VarMap for gradient tracking
@@ -791,6 +841,109 @@ fn load_llama_model(
     );
 
     Ok(model)
+}
+
+/// Load a QLoRA LLaMA model with quantized base weights and trainable LoRA adapters.
+///
+/// This function:
+/// 1. Loads base model weights from safetensors/pytorch
+/// 2. Quantizes transformer layers to NF4 format
+/// 3. Creates trainable LoRA adapters at target modules
+/// 4. Keeps embeddings, layer norms, and lm_head in FP32
+///
+/// # Arguments
+/// * `axolotl_config` - Axolotl configuration
+/// * `model_path` - Path to model files
+/// * `device` - Device for computation
+/// * `dtype` - Data type for non-quantized weights
+/// * `qlora_config` - QLoRA configuration
+/// * `trainable_params` - VarMap for registering LoRA parameters
+///
+/// # Errors
+/// Returns error if model loading or quantization fails.
+#[cfg(all(feature = "peft", feature = "qlora"))]
+fn load_qlora_model(
+    _axolotl_config: &AxolotlConfig,
+    model_path: &PathBuf,
+    device: &Device,
+    dtype: DType,
+    qlora_config: &qlora_rs::QLoraConfig,
+    trainable_params: &VarMap,
+) -> Result<Box<dyn Module>> {
+    // Load config.json
+    let config_path = model_path.join("config.json");
+    let llama_config: LlamaConfig = if config_path.exists() {
+        let config_str = std::fs::read_to_string(&config_path)
+            .map_err(|e| AxolotlError::Model(format!("Failed to read config.json: {}", e)))?;
+        serde_json::from_str(&config_str)
+            .map_err(|e| AxolotlError::Model(format!("Failed to parse config.json: {}", e)))?
+    } else {
+        return Err(AxolotlError::Model(
+            "config.json required for QLoRA model loading".into(),
+        ));
+    };
+
+    // Load model weights
+    let vb = if model_path.join("model.safetensors").exists() {
+        let tensors = candle_core::safetensors::load(model_path.join("model.safetensors"), device)
+            .map_err(|e| AxolotlError::Model(format!("Failed to load safetensors: {}", e)))?;
+        VarBuilder::from_tensors(tensors, dtype, device)
+    } else if model_path.join("pytorch_model.bin").exists() {
+        VarBuilder::from_pth(model_path.join("pytorch_model.bin"), dtype, device)
+            .map_err(|e| AxolotlError::Model(format!("Failed to load pytorch model: {}", e)))?
+    } else {
+        return Err(AxolotlError::Model(format!(
+            "No model weights found in {}. Expected model.safetensors or pytorch_model.bin",
+            model_path.display()
+        )));
+    };
+
+    // Convert to candle-transformers Config
+    let config = candle_transformers::models::llama::Config {
+        hidden_size: llama_config.hidden_size,
+        intermediate_size: llama_config.intermediate_size,
+        vocab_size: llama_config.vocab_size,
+        num_hidden_layers: llama_config.num_hidden_layers,
+        num_attention_heads: llama_config.num_attention_heads,
+        num_key_value_heads: llama_config.num_key_value_heads(),
+        use_flash_attn: false,
+        rms_norm_eps: llama_config.rms_norm_eps,
+        rope_theta: llama_config.rope_theta,
+        bos_token_id: llama_config.bos_token_id,
+        eos_token_id: llama_config.eos_token_id,
+        rope_scaling: llama_config.rope_scaling,
+        max_position_embeddings: llama_config.max_position_embeddings,
+        tie_word_embeddings: llama_config.tie_word_embeddings.unwrap_or(false),
+    };
+
+    tracing::info!(
+        "Loading QLoraLlama with {} layers, {} hidden size, r={}, alpha={}",
+        config.num_hidden_layers,
+        config.hidden_size,
+        qlora_config.lora.r,
+        qlora_config.lora.alpha
+    );
+
+    // Create QLoraLlama
+    let model = QLoraLlama::new_with_qlora(&config, vb, qlora_config, trainable_params)
+        .map_err(|e| AxolotlError::Model(format!("Failed to create QLoraLlama: {}", e)))?;
+
+    // Prepare for training (validates setup, logs info)
+    prepare_for_qlora_training(&model, trainable_params)
+        .map_err(|e| AxolotlError::Model(format!("Failed to prepare QLoRA for training: {}", e)))?;
+
+    let trainable_count: usize = trainable_params.all_vars().iter().map(|v| v.elem_count()).sum();
+    let total_params = model.total_param_count();
+    let trainable_pct = 100.0 * trainable_count as f64 / total_params as f64;
+
+    tracing::info!(
+        "QLoraLlama ready: {} total params, {} trainable ({:.2}%)",
+        total_params,
+        trainable_count,
+        trainable_pct
+    );
+
+    Ok(Box::new(model))
 }
 
 /// Simple stub model for unsupported architectures.

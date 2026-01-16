@@ -120,6 +120,8 @@ impl AdapterWrapper {
         Ok(QLoraConfig {
             lora: lora_config,
             quantization: quant_config,
+            target_modules: lora.target_modules.clone(),
+            cache_dequantized: false, // On-the-fly dequant for training
         })
     }
 
