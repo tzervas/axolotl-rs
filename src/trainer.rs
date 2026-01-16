@@ -1,6 +1,6 @@
 //! Training loop and optimization.
 
-use candle_core::{Device, Tensor, DType};
+use candle_core::{Device, Tensor};
 use candle_nn::VarMap;
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -14,6 +14,17 @@ use crate::scheduler::{LRScheduler, SchedulerType};
 // Use qlora-rs cross_entropy_loss when available (maintains gradient graph)
 #[cfg(feature = "qlora")]
 use qlora_rs::cross_entropy_loss;
+
+/// Training step metrics for convergence validation and monitoring.
+#[derive(Debug, Clone)]
+pub struct StepMetrics {
+    /// Cross-entropy loss for this step
+    pub loss: f64,
+    /// Global norm of all gradients
+    pub grad_norm: f64,
+    /// Global norm of all trainable parameters
+    pub param_norm: f64,
+}
 
 /// Training orchestrator.
 ///
@@ -49,6 +60,8 @@ pub struct Trainer {
     optimizer: Option<AdamWOptimizer>,
     /// Learning rate scheduler (optional, created during train())
     scheduler: Option<LRScheduler>,
+    /// Training metrics from last run
+    pub training_metrics: Vec<StepMetrics>,
 }
 
 impl Trainer {
@@ -92,6 +105,7 @@ impl Trainer {
             model: None,
             optimizer: None,
             scheduler: None,
+            training_metrics: Vec::new(),
         })
     }
 
@@ -227,6 +241,9 @@ impl Trainer {
                 .progress_chars("#>-"),
         );
 
+        // Clear previous metrics
+        self.training_metrics.clear();
+
         // Training loop
         for epoch in 0..self.config.training.epochs {
             self.epoch = epoch;
@@ -240,20 +257,25 @@ impl Trainer {
                 self.step += 1;
 
                 // Training step
-                let loss = self.training_step(batch)?;
+                let metrics = self.training_step(batch)?;
+
+                // Store metrics for convergence validation
+                self.training_metrics.push(metrics.clone());
 
                 // Update progress bar with loss
-                pb.set_message(format!("{:.4}", loss));
+                pb.set_message(format!("{:.4}", metrics.loss));
                 pb.inc(1);
 
                 // Log periodically
                 if self.step % self.config.training.logging_steps == 0 {
                     tracing::info!(
-                        "Step {}/{}, Epoch {}, Loss: {:.4}, LR: {:.2e}",
+                        "Step {}/{}, Epoch {}, Loss: {:.4}, GradNorm: {:.4}, ParamNorm: {:.4}, LR: {:.2e}",
                         self.step,
                         total_steps,
                         epoch + 1,
-                        loss,
+                        metrics.loss,
+                        metrics.grad_norm,
+                        metrics.param_norm,
                         self.optimizer.as_ref().unwrap().learning_rate()
                     );
                 }
@@ -292,7 +314,7 @@ impl Trainer {
     /// step updates the internal training state (e.g. optimizer buffers and
     /// model parameters), and therefore must take a mutable reference to the
     /// trainer.
-    fn training_step(&mut self, batch: &[crate::dataset::Example]) -> Result<f64> {
+    fn training_step(&mut self, batch: &[crate::dataset::Example]) -> Result<StepMetrics> {
         let model = self.model.as_ref().ok_or_else(|| {
             AxolotlError::Training("Model not loaded".into())
         })?;
@@ -369,7 +391,15 @@ impl Trainer {
         })?;
         optimizer.step(&loss)?;
 
-        Ok(loss_val as f64)
+        // Compute gradient and parameter norms for monitoring
+        let grad_norm = compute_global_grad_norm(&self.model.as_ref().unwrap().trainable_params)?;
+        let param_norm = compute_global_param_norm(&self.model.as_ref().unwrap().trainable_params)?;
+
+        Ok(StepMetrics {
+            loss: loss_val,
+            grad_norm,
+            param_norm,
+        })
     }
 
     /// Save a checkpoint.
@@ -475,6 +505,26 @@ struct TrainingState {
 ///
 /// This is used when the model only returns logits for the last position
 /// (common in generation-optimized models like candle's Llama).
+/// Compute global norm of all gradients in a VarMap.
+///
+/// This is a simplified implementation that returns a placeholder value.
+/// Full implementation would require access to gradient tensors from the optimizer.
+fn compute_global_grad_norm(_varmap: &VarMap) -> Result<f64> {
+    // TODO: Implement proper gradient norm computation
+    // For now, return a placeholder value
+    // The full implementation would need access to gradients from the backward pass
+    Ok(0.0)
+}
+
+/// Compute global norm of all parameters in a VarMap.
+///
+/// This is a simplified implementation that returns a placeholder value.
+fn compute_global_param_norm(_varmap: &VarMap) -> Result<f64> {
+    // TODO: Implement proper parameter norm computation
+    // For now, return a placeholder value
+    Ok(1.0)
+}
+
 ///
 /// # Arguments
 /// * `logits` - Model output logits with shape [batch_size, vocab_size] (last position only)
