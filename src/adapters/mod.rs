@@ -3,6 +3,11 @@
 //! This module provides unified access to PEFT adapters (LoRA, QLoRA, etc.)
 //! using either the real peft-rs/qlora-rs crates or mock implementations.
 
+#[cfg(feature = "peft")]
+use std::collections::HashMap;
+#[cfg(feature = "peft")]
+use std::path::Path;
+
 use candle_core::Device;
 use candle_nn::VarMap;
 
@@ -13,7 +18,7 @@ use crate::error::{AxolotlError, Result};
 #[cfg(feature = "peft")]
 pub use peft_rs::{
     Adapter, AdapterConfig, LoraConfig as PeftLoraConfig, LoraLayer, Mergeable, PeftModel,
-    Trainable, SaveLoad,
+    SaveLoad, Trainable,
 };
 
 #[cfg(feature = "qlora")]
@@ -155,6 +160,8 @@ impl AdapterWrapper {
         layers: &HashMap<String, LoraLayer>,
     ) -> Result<()> {
         use candle_core::Tensor;
+        // Import SaveLoad trait to enable state_dict() method
+        use crate::adapters::SaveLoad;
 
         let dir = path.as_ref();
         std::fs::create_dir_all(dir)?;
@@ -179,12 +186,12 @@ impl AdapterWrapper {
             .collect();
 
         safetensors::tensor::serialize_to_file(tensors_ref, &None, &weights_path)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to save adapter weights: {}", e).into()))?;
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to save adapter weights: {}", e)))?;
 
         // Save config to JSON
         let config_path = dir.join("adapter_config.json");
         let config_json = serde_json::to_string_pretty(lora_config)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to serialize adapter config: {}", e).into()))?;
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to serialize adapter config: {}", e)))?;
         std::fs::write(&config_path, config_json)?;
 
         tracing::info!("Saved adapter with {} layers to {:?}", layers.len(), dir);
@@ -211,14 +218,14 @@ impl AdapterWrapper {
         // Load config
         let config_path = dir.join("adapter_config.json");
         let config_json = std::fs::read_to_string(&config_path)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to read adapter config: {}", e).into()))?;
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to read adapter config: {}", e)))?;
         let config: PeftLoraConfig = serde_json::from_str(&config_json)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to parse adapter config: {}", e).into()))?;
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to parse adapter config: {}", e)))?;
 
         // Load weights
         let weights_path = dir.join("adapter_model.safetensors");
         let tensors = candle_core::safetensors::load(&weights_path, &self.device)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to load adapter weights: {}", e).into()))?;
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to load adapter weights: {}", e)))?;
 
         tracing::info!("Loaded adapter with {} tensors from {:?}", tensors.len(), dir);
         Ok((config, tensors))
