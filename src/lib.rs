@@ -94,7 +94,10 @@ pub mod cli;
 pub mod config;
 pub mod dataset;
 pub mod error;
+#[cfg(feature = "peft")]
+pub mod lora_llama;
 pub mod model;
+pub mod normalization;
 pub mod optimizer;
 pub mod scheduler;
 pub mod trainer;

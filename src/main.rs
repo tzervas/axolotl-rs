@@ -7,6 +7,8 @@ mod cli;
 mod config;
 mod dataset;
 mod error;
+#[cfg(feature = "peft")]
+mod lora_llama;
 mod model;
 mod optimizer;
 mod scheduler;

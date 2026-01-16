@@ -55,7 +55,7 @@ unsloth = ["unsloth-rs"]
 mock-peft = []
 mock-qlora = []
 mock-unsloth = []
-cuda = ["candle-core/cuda", "peft-rs?/cuda", "qlora-rs?/cuda", "unsloth-rs?/cuda"]
+cuda = ["candle-core/cuda", "peft-rs?/cuda", "qlora-rs?/cuda", "unsloth-rs?/cuda", "unsloth"]
 optimized = []
 
 [lints.rust]

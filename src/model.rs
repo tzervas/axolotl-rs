@@ -15,6 +15,9 @@ use peft_rs::{LoraConfig as PeftLoraConfig, LoraLayer, SaveLoad};
 #[cfg(feature = "qlora")]
 use qlora_rs::{QLoraConfig, QuantizedLinear};
 
+#[cfg(feature = "peft")]
+use crate::lora_llama::LoraLlama;
+
 // Additional imports for tests
 #[cfg(test)]
 use crate::config::{DatasetConfig, LoraSettings, QuantType, QuantizationSettings, TrainingConfig};
@@ -108,64 +111,30 @@ impl LoadedModel {
 
     /// Run forward pass with adapter layers.
     ///
-    /// For LoRA: output = base_output + adapter_output
-    /// For QLoRA: output = quantized_base_output + adapter_output
+    /// **IMPORTANT**: Current implementation does NOT properly integrate adapters.
+    /// LoRA adapters need to be injected at each attention/MLP layer, not applied
+    /// post-hoc to logits. This requires custom model architecture (LoraLlama).
     ///
-    /// Note: Currently adapters are applied post-hoc to the final logits.
-    /// For full adapter integration, we would need to inject into each attention layer,
-    /// which requires modifying the model architecture. This simplified approach
-    /// still allows testing the training loop and gradient flow.
+    /// For now, this returns base model output. Gradient flow is maintained through
+    /// the trainable LoRA parameters in `trainable_params` VarMap.
     ///
     /// # Errors
     ///
     /// Returns an error if the forward pass fails.
     pub fn forward_with_adapters(&self, input_ids: &Tensor) -> Result<Tensor> {
-        // Get base model output
-        let base_output = self.forward(input_ids)?;
+        // Get base model output (logits for all positions)
+        let logits = self.forward(input_ids)?;
         
-        // If no adapters, return base output directly
-        let adapters = match &self.adapter_layers {
-            Some(a) if !a.is_empty() => a,
-            _ => return Ok(base_output),
-        };
+        // TODO: Implement proper per-layer LoRA injection via LoraLlama
+        // Current approach: Return base logits
+        // This allows testing of training loop, loss computation, and optimizer
+        // even without proper LoRA integration
         
-        // Apply adapter forward pass
-        // For proper training, adapters need gradient-tracked forward
-        #[cfg(feature = "peft")]
-        {
-            use peft_rs::Adapter;
-            
-            // For now, apply a single aggregated adapter forward to the output
-            // This is a simplified version - full integration would inject at each layer
-            if !adapters.lora_layers.is_empty() {
-                // Get first layer to apply adapter forward (for gradient flow testing)
-                // In production, each adapter would be applied to its corresponding layer
-                if let Some((_name, lora_layer)) = adapters.lora_layers.iter().next() {
-                    // Apply LoRA: adapter_out = input @ A^T @ B^T * scaling
-                    // Then add to base: output = base + adapter_out
-                    // For logits [batch, vocab], we apply adapter to create gradient path
-                    let adapter_out: Tensor = lora_layer.forward(&base_output, None)
-                        .map_err(|e| AxolotlError::Model(format!("Adapter forward failed: {}", e)))?;
-                    
-                    // Return adapter output (contains gradients back to LoRA weights)
-                    return Ok(adapter_out);
-                }
-            }
-        }
+        tracing::trace!(
+            "Forward pass complete (base model only, LoRA not integrated yet)"
+        );
         
-        #[cfg(feature = "qlora")]
-        {
-            if adapters.is_quantized && !adapters.qlora_layers.is_empty() {
-                // QLoRA layers have their own forward implementation
-                if let Some((_name, qlora_layer)) = adapters.qlora_layers.iter().next() {
-                    let adapter_out = qlora_layer.forward(&base_output)
-                        .map_err(|e| AxolotlError::Model(format!("QLoRA forward failed: {}", e)))?;
-                    return Ok(adapter_out);
-                }
-            }
-        }
-        
-        Ok(base_output)
+        Ok(logits)
     }
 
     /// Get trainable parameters for optimizer.
@@ -428,14 +397,34 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
         tracing::info!("QLoRA mode: using F32 for model (quantization applied to weights)");
     }
 
-    // Load model weights based on architecture
-    let model = load_model_architecture(config, &model_path, device, dtype)?;
-
-    // Create trainable parameter map for adapters
+    // Create trainable parameter map for adapters BEFORE loading model
     let trainable_params = VarMap::new();
 
-    // Create adapter layers if using LoRA/QLoRA (with correct dimensions from model_info)
-    let adapter_layers = create_adapter_layers(config, &model_info, device, &trainable_params)?;
+    // Check if we should use LoraLlama (requires LoRA adapters)
+    let use_lora_model = config.adapter == AdapterType::Lora;
+
+    // Load model weights based on architecture
+    let (model, adapter_layers) = if use_lora_model {
+        // LoraLlama creates its own adapters internally during construction
+        // Pass lora_config through model_info
+        #[cfg(feature = "peft")]
+        let lora_config = PeftLoraConfig {
+            r: config.lora.r,
+            alpha: config.lora.alpha,
+            dropout: config.lora.dropout,
+            target_modules: config.lora.target_modules.clone(),
+            ..Default::default()
+        };
+        
+        let model = load_model_architecture(config, &model_path, device, dtype, None, Some((&model_info, &trainable_params, &lora_config)))?;
+        // AdapterLayers will be empty since LoRA is embedded in model
+        (model, None)
+    } else {
+        // Standard model + separate adapter layers
+        let model = load_model_architecture(config, &model_path, device, dtype, None, None)?;
+        let adapter_layers = create_adapter_layers(config, &model_info, device, &trainable_params)?;
+        (model, adapter_layers)
+    };
 
     let adapter_count = adapter_layers.as_ref().map_or(0, AdapterLayers::len);
     let trainable_count: usize = trainable_params.all_vars().iter().map(|v| v.elem_count()).sum();
@@ -551,6 +540,9 @@ fn create_adapter_layers(
                     },
                 };
 
+                // Create VarBuilder from VarMap for gradient tracking
+                let vb = VarBuilder::from_varmap(trainable_params, DType::F32, device);
+
                 // Create QLoRA layers for each target module with correct dimensions
                 for target in &config.lora.target_modules {
                     let (in_features, out_features) = model_info.get_target_dims(target);
@@ -558,11 +550,20 @@ fn create_adapter_layers(
                     for layer_idx in 0..model_info.num_layers {
                         let layer_name = format!("model.layers.{}.self_attn.{}", layer_idx, target);
                         
-                        let qlora_layer = QuantizedLinear::new(
-                            in_features,
-                            out_features,
+                        // Create zero-initialized weight tensor for quantization
+                        // In real usage, this should load actual model weights
+                        let weight = Tensor::zeros(&[out_features, in_features], DType::F32, device)
+                            .map_err(|e| AxolotlError::Model(format!(
+                                "Failed to create weight tensor for {}: {}", layer_name, e
+                            )))?;
+                        
+                        // Use VarBuilder for gradient tracking of LoRA weights
+                        let layer_vb = vb.pp(&layer_name);
+                        let qlora_layer = QuantizedLinear::from_weight_with_varbuilder(
+                            &weight,
+                            None,
                             &qlora_config,
-                            device,
+                            layer_vb,
                         ).map_err(|e| AxolotlError::Model(format!(
                             "Failed to create QLoRA layer {}: {}", layer_name, e
                         )))?;
@@ -662,6 +663,8 @@ fn load_model_architecture(
     model_path: &PathBuf,
     device: &Device,
     dtype: DType,
+    _adapter_layers: Option<&AdapterLayers>,
+    lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
 ) -> Result<Box<dyn Module>> {
     // Check config.json for architecture type
     let config_path = model_path.join("config.json");
@@ -676,7 +679,7 @@ fn load_model_architecture(
     };
 
     if is_llama_arch {
-        load_llama_model(config, model_path, device, dtype)
+        load_llama_model(config, model_path, device, dtype, lora_params)
     } else {
         // For other architectures, use stub for now
         tracing::warn!(
@@ -691,18 +694,20 @@ fn load_model_architecture(
 
 /// Load a LLaMA model from the given path.
 fn load_llama_model(
-    _config: &AxolotlConfig,
+    axolotl_config: &AxolotlConfig,
     model_path: &PathBuf,
     device: &Device,
     dtype: DType,
+    lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
 ) -> Result<Box<dyn Module>> {
     // Try to load config.json first
     let config_path = model_path.join("config.json");
     let llama_config: LlamaConfig = if config_path.exists() {
         let config_str = std::fs::read_to_string(&config_path)
             .map_err(|e| AxolotlError::Model(format!("Failed to read config.json: {}", e)))?;
-        serde_json::from_str(&config_str)
-            .map_err(|e| AxolotlError::Model(format!("Failed to parse config.json: {}", e)))?
+        let parsed: LlamaConfig = serde_json::from_str(&config_str)
+            .map_err(|e| AxolotlError::Model(format!("Failed to parse config.json: {}", e)))?;
+        parsed
     } else {
         // Use default config for LLaMA 2 7B
         tracing::warn!("config.json not found, using default LLaMA 2 7B config");
@@ -756,9 +761,28 @@ fn load_llama_model(
         tie_word_embeddings: llama_config.tie_word_embeddings.unwrap_or(false),
     };
 
-    // Create LLaMA model
-    let model = Llama::load(vb, &config)
-        .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {}", e)))?;
+    let model: Box<dyn Module> = if let Some((_model_info, trainable_params, lora_config)) = lora_params {
+        #[cfg(feature = "peft")]
+        {
+            tracing::info!("Loading LoraLlama with per-layer LoRA injection");
+            
+            // Create LoraLlama with internal adapters
+            let model = LoraLlama::new_with_lora(&config, vb, lora_config, trainable_params)
+                .map_err(|e| AxolotlError::Model(format!("Failed to create LoraLlama: {}", e)))?;
+            
+            Box::new(model)
+        }
+        #[cfg(not(feature = "peft"))]
+        {
+            return Err(AxolotlError::Model("LoRA requested but peft feature not enabled".into()));
+        }
+    } else {
+        // Use standard Llama model wrapped for training
+        let model = Llama::load(vb, &config)
+            .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {}", e)))?;
+        
+        Box::new(LlamaWrapper::new(model, &config, device)?)
+    };
 
     tracing::info!(
         "Loaded LLaMA model with {} layers, {} hidden size",
@@ -766,7 +790,7 @@ fn load_llama_model(
         llama_config.hidden_size
     );
 
-    Ok(Box::new(LlamaWrapper::new(model, &config, device)?))
+    Ok(model)
 }
 
 /// Simple stub model for unsupported architectures.
@@ -1239,7 +1263,7 @@ mod tests {
         let dtype = DType::F32;
 
         let result =
-            load_model_architecture(&config, &temp_dir.path().to_path_buf(), &device, dtype);
+            load_model_architecture(&config, &temp_dir.path().to_path_buf(), &device, dtype, None, None);
         assert!(result.is_ok());
 
         let model = result.unwrap();

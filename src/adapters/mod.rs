@@ -12,6 +12,8 @@ use candle_core::Device;
 use candle_nn::VarMap;
 
 use crate::config::{AdapterType, AxolotlConfig, LoraSettings};
+#[cfg(feature = "qlora")]
+use crate::config::QuantizationSettings;
 use crate::error::{AxolotlError, Result};
 
 // Re-export based on features
