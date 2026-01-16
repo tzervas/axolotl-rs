@@ -166,10 +166,18 @@ fn test_gpu_quick_iteration() {
 
     match result {
         Ok(()) => {
+            // Extract losses from training metrics
+            let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
+            
             gpu_test_status(&format!(
-                "✅ Quick iteration passed in {:.1}s",
-                elapsed.as_secs_f64()
+                "✅ Quick iteration passed in {:.1}s ({} steps collected)",
+                elapsed.as_secs_f64(),
+                losses.len()
             ));
+            
+            if losses.is_empty() {
+                panic!("No loss values collected during training");
+            }
         }
         Err(e) => {
             panic!("❌ GPU quick iteration failed: {}", e);
@@ -241,12 +249,34 @@ fn test_gpu_loss_convergence_100_steps() {
 
     match result {
         Ok(()) => {
+            // Extract losses from training metrics
+            let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
+            
             gpu_test_status(&format!(
-                "✅ Loss convergence test passed in {:.1}s",
-                elapsed.as_secs_f64()
+                "Loss convergence test completed in {:.1}s ({} steps)",
+                elapsed.as_secs_f64(),
+                losses.len()
             ));
-            // TODO: Extract losses from trainer and validate convergence
-            // For now, successful completion is the test
+            
+            if losses.is_empty() {
+                panic!("No loss values collected during training");
+            }
+            
+            // Validate loss convergence (at least 30% decrease)
+            let initial_loss = losses[0];
+            let final_loss = losses[losses.len() - 1];
+            let loss_decrease = (initial_loss - final_loss) / initial_loss;
+            
+            gpu_test_status(&format!(
+                "Loss: {:.4} -> {:.4} (decrease: {:.1}%)",
+                initial_loss,
+                final_loss,
+                loss_decrease * 100.0
+            ));
+            
+            assert_loss_convergence(&losses, 0.3, 10).expect("Loss convergence assertion failed");
+            
+            gpu_test_status("✅ Loss convergence test passed");
         }
         Err(e) => {
             panic!("❌ Loss convergence test failed: {}", e);
@@ -319,10 +349,17 @@ fn test_gpu_tinyllama_memory_validation() {
 
     match result {
         Ok(()) => {
+            let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
+            
             gpu_test_status(&format!(
-                "✅ TinyLlama memory validation passed in {:.1}s",
-                elapsed.as_secs_f64()
+                "✅ TinyLlama memory validation passed in {:.1}s ({} steps)",
+                elapsed.as_secs_f64(),
+                losses.len()
             ));
+            
+            if !losses.is_empty() {
+                gpu_test_status(&format!("Loss range: {:.4} -> {:.4}", losses[0], losses[losses.len() - 1]));
+            }
         }
         Err(e) => {
             panic!("❌ TinyLlama memory validation failed: {}", e);
@@ -390,11 +427,24 @@ fn test_gpu_tinyllama_extended_training() {
 
     match result {
         Ok(()) => {
+            let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
+            
             gpu_test_status(&format!(
-                "✅ TinyLlama extended training passed in {:.1}s ({:.1} steps/sec)",
+                "✅ TinyLlama extended training passed in {:.1}s ({:.1} steps/sec, {} steps)",
                 elapsed.as_secs_f64(),
-                500.0 / elapsed.as_secs_f64()
+                losses.len() as f64 / elapsed.as_secs_f64(),
+                losses.len()
             ));
+            
+            if losses.len() >= 2 {
+                let loss_decrease = (losses[0] - losses[losses.len() - 1]) / losses[0];
+                gpu_test_status(&format!(
+                    "Loss: {:.4} -> {:.4} (decrease: {:.1}%)",
+                    losses[0],
+                    losses[losses.len() - 1],
+                    loss_decrease * 100.0
+                ));
+            }
         }
         Err(e) => {
             panic!("❌ TinyLlama extended training failed: {}", e);
@@ -483,11 +533,24 @@ fn test_gpu_llama7b_full_validation() {
 
     match result {
         Ok(()) => {
+            let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
+            
             gpu_test_status(&format!(
-                "✅ LLaMA-7B full validation passed in {:.1}m ({:.1} steps/sec)",
+                "✅ LLaMA-7B full validation passed in {:.1}m ({:.1} steps/sec, {} steps)",
                 elapsed.as_secs_f64() / 60.0,
-                1000.0 / elapsed.as_secs_f64()
+                losses.len() as f64 / elapsed.as_secs_f64(),
+                losses.len()
             ));
+            
+            if losses.len() >= 2 {
+                let loss_decrease = (losses[0] - losses[losses.len() - 1]) / losses[0];
+                gpu_test_status(&format!(
+                    "Loss: {:.4} -> {:.4} (decrease: {:.1}%)",
+                    losses[0],
+                    losses[losses.len() - 1],
+                    loss_decrease * 100.0
+                ));
+            }
         }
         Err(e) => {
             panic!("❌ LLaMA-7B full validation failed: {}", e);
