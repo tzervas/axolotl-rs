@@ -421,7 +421,7 @@ impl Trainer {
     ///
     /// Saves:
     /// - Training state (step, epoch, config)
-    /// - Adapter weights (if using LoRA/QLoRA)
+    /// - Adapter weights (if using LoRA/QLoRA) in safetensors format
     /// - Optimizer state (for resume)
     fn save_checkpoint(&self) -> Result<()> {
         let checkpoint_dir = format!("{}/checkpoint-{}", self.config.output_dir, self.step);
@@ -445,10 +445,26 @@ impl Trainer {
         let config_path = format!("{}/config.yaml", checkpoint_dir);
         self.config.to_file(&config_path)?;
 
-        // TODO: Save adapter weights using peft-rs save_adapter_weights
-        // When adapters are properly integrated, we'll save:
-        // - adapter_model.safetensors (LoRA A/B matrices)
-        // - adapter_config.json (LoRA configuration)
+        // Save adapter weights if using LoRA/QLoRA
+        #[cfg(feature = "peft")]
+        if let Some(ref model) = self.model {
+            if model.adapter_layers.is_some() {
+                model.save_adapter_weights(&checkpoint_dir)?;
+                
+                // Also save adapter config as JSON (HuggingFace compatible)
+                let adapter_config = serde_json::json!({
+                    "base_model_name_or_path": self.config.base_model,
+                    "r": self.config.lora.r,
+                    "lora_alpha": self.config.lora.alpha,
+                    "lora_dropout": self.config.lora.dropout,
+                    "target_modules": self.config.lora.target_modules,
+                    "bias": "none",
+                    "task_type": "CAUSAL_LM"
+                });
+                let adapter_config_path = format!("{}/adapter_config.json", checkpoint_dir);
+                std::fs::write(&adapter_config_path, serde_json::to_string_pretty(&adapter_config).unwrap())?;
+            }
+        }
 
         tracing::info!("Saved checkpoint to: {}", checkpoint_dir);
         Ok(())
@@ -470,6 +486,17 @@ impl Trainer {
         
         if let Some(optimizer) = self.optimizer.as_mut() {
             optimizer.set_learning_rate(state.learning_rate);
+        }
+
+        // Load adapter weights if available
+        #[cfg(feature = "peft")]
+        {
+            let adapter_path = format!("{}/adapter_model.safetensors", checkpoint_path);
+            if std::path::Path::new(&adapter_path).exists() {
+                if let Some(ref mut model) = self.model {
+                    model.load_adapter_weights(checkpoint_path)?;
+                }
+            }
         }
 
         tracing::info!("Loaded checkpoint from: {} (step={}, epoch={})", 

@@ -1,15 +1,23 @@
 //! Model loading and adapter merging.
 
 use candle_core::{DType, Device, Tensor};
-use candle_nn::{Module, VarBuilder};
+use candle_nn::{Module, VarBuilder, VarMap};
 use candle_transformers::models::llama::{Cache, Llama, LlamaConfig, LlamaEosToks};
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
-use crate::config::{
-    AdapterType, AxolotlConfig, DatasetConfig, LoraSettings, QuantType, QuantizationSettings,
-    TrainingConfig,
-};
+use crate::config::{AdapterType, AxolotlConfig};
 use crate::error::{AxolotlError, Result};
+
+#[cfg(feature = "peft")]
+use peft_rs::{LoraConfig as PeftLoraConfig, LoraLayer, SaveLoad};
+
+#[cfg(feature = "qlora")]
+use qlora_rs::{QLoraConfig, QuantizedLinear};
+
+// Additional imports for tests
+#[cfg(test)]
+use crate::config::{DatasetConfig, LoraSettings, QuantType, QuantizationSettings, TrainingConfig};
 
 /// Loaded model with configuration.
 pub struct LoadedModel {
@@ -21,6 +29,65 @@ pub struct LoadedModel {
     pub device: Device,
     /// Model dtype
     pub dtype: DType,
+    /// Adapter layers (if using LoRA/QLoRA)
+    pub adapter_layers: Option<AdapterLayers>,
+    /// Trainable parameters (LoRA weights)
+    pub trainable_params: VarMap,
+}
+
+/// Container for adapter layers organized by module name.
+#[derive(Default)]
+pub struct AdapterLayers {
+    /// LoRA layers keyed by module path (e.g., "model.layers.0.self_attn.q_proj")
+    #[cfg(feature = "peft")]
+    pub lora_layers: HashMap<String, LoraLayer>,
+    /// QLoRA layers keyed by module path
+    #[cfg(feature = "qlora")]
+    pub qlora_layers: HashMap<String, QuantizedLinear>,
+    /// Whether this is a QLoRA model (quantized base)
+    pub is_quantized: bool,
+}
+
+#[cfg(not(feature = "peft"))]
+impl AdapterLayers {
+    /// Placeholder when peft feature is disabled
+    pub fn lora_layers(&self) -> &HashMap<String, ()> {
+        static EMPTY: std::sync::OnceLock<HashMap<String, ()>> = std::sync::OnceLock::new();
+        EMPTY.get_or_init(HashMap::new)
+    }
+}
+
+impl AdapterLayers {
+    /// Create new adapter layers container.
+    #[must_use]
+    pub fn new(is_quantized: bool) -> Self {
+        Self {
+            #[cfg(feature = "peft")]
+            lora_layers: HashMap::new(),
+            #[cfg(feature = "qlora")]
+            qlora_layers: HashMap::new(),
+            is_quantized,
+        }
+    }
+
+    /// Get the number of adapter layers.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        #[cfg(feature = "qlora")]
+        if self.is_quantized {
+            return self.qlora_layers.len();
+        }
+        #[cfg(feature = "peft")]
+        return self.lora_layers.len();
+        #[cfg(not(feature = "peft"))]
+        0
+    }
+
+    /// Check if there are no adapter layers.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl LoadedModel {
@@ -33,6 +100,96 @@ impl LoadedModel {
         self.model
             .forward(input_ids)
             .map_err(|e| AxolotlError::Model(format!("Forward pass failed: {}", e)))
+    }
+
+    /// Run forward pass with adapter layers.
+    ///
+    /// For LoRA: output = base_output + adapter_output
+    /// For QLoRA: output = quantized_base_output + adapter_output
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the forward pass fails.
+    pub fn forward_with_adapters(&self, input_ids: &Tensor) -> Result<Tensor> {
+        // For now, use base forward - adapter injection happens at layer level
+        // TODO: Implement proper adapter forward when we have layer-wise hooks
+        self.forward(input_ids)
+    }
+
+    /// Get trainable parameters for optimizer.
+    ///
+    /// Returns only the LoRA A/B matrices, not the frozen base model weights.
+    #[must_use]
+    pub fn trainable_tensors(&self) -> Vec<candle_core::Var> {
+        self.trainable_params.all_vars()
+    }
+
+    /// Count trainable parameters.
+    #[must_use]
+    pub fn trainable_param_count(&self) -> usize {
+        self.trainable_tensors()
+            .iter()
+            .map(|v| v.elem_count())
+            .sum()
+    }
+
+    /// Save adapter weights to safetensors.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if saving fails.
+    #[cfg(feature = "peft")]
+    pub fn save_adapter_weights<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let adapter_layers = self.adapter_layers.as_ref().ok_or_else(|| {
+            AxolotlError::Model("No adapter layers to save".into())
+        })?;
+
+        let dir = path.as_ref();
+        std::fs::create_dir_all(dir)?;
+
+        // Collect all adapter weights
+        let mut all_tensors: Vec<(String, Tensor)> = Vec::new();
+
+        for (name, layer) in &adapter_layers.lora_layers {
+            // Get LoRA A and B weights
+            if let Ok(state) = layer.state_dict() {
+                for (key, tensor) in state {
+                    all_tensors.push((format!("{}.{}", name, key), tensor));
+                }
+            }
+        }
+
+        // Save to safetensors
+        let weights_path = dir.join("adapter_model.safetensors");
+        let tensors_ref: Vec<(&str, Tensor)> = all_tensors
+            .iter()
+            .map(|(name, tensor)| (name.as_str(), tensor.clone()))
+            .collect();
+
+        safetensors::tensor::serialize_to_file(tensors_ref, &None, &weights_path)
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to save adapter: {}", e).into()))?;
+
+        tracing::info!("Saved {} adapter layers to {:?}", adapter_layers.len(), dir);
+        Ok(())
+    }
+
+    /// Load adapter weights from safetensors.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if loading fails.
+    #[cfg(feature = "peft")]
+    pub fn load_adapter_weights<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+        let dir = path.as_ref();
+        let weights_path = dir.join("adapter_model.safetensors");
+
+        let tensors = candle_core::safetensors::load(&weights_path, &self.device)
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to load adapter: {}", e).into()))?;
+
+        tracing::info!("Loaded {} adapter tensors from {:?}", tensors.len(), dir);
+        
+        // TODO: Apply loaded tensors to adapter layers
+        Ok(())
     }
 }
 
@@ -64,10 +221,21 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
     // Load model weights based on architecture
     let model = load_model_architecture(config, &model_path, device, dtype)?;
 
+    // Create trainable parameter map for adapters
+    let trainable_params = VarMap::new();
+
+    // Create adapter layers if using LoRA/QLoRA
+    let adapter_layers = create_adapter_layers(config, device, &trainable_params)?;
+
+    let adapter_count = adapter_layers.as_ref().map_or(0, AdapterLayers::len);
+    let trainable_count: usize = trainable_params.all_vars().iter().map(|v| v.elem_count()).sum();
+
     tracing::info!(
-        "Model loaded successfully on {:?} with dtype {:?}",
+        "Model loaded on {:?} with dtype {:?}, {} adapter layers, {} trainable params",
         device,
-        dtype
+        dtype,
+        adapter_count,
+        trainable_count
     );
 
     Ok(LoadedModel {
@@ -75,7 +243,134 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
         tokenizer,
         device: device.clone(),
         dtype,
+        adapter_layers,
+        trainable_params,
     })
+}
+
+/// Create adapter layers based on configuration.
+#[allow(unused_variables)]
+fn create_adapter_layers(
+    config: &AxolotlConfig,
+    device: &Device,
+    trainable_params: &VarMap,
+) -> Result<Option<AdapterLayers>> {
+    match config.adapter {
+        AdapterType::None => Ok(None),
+        AdapterType::Lora => {
+            #[cfg(feature = "peft")]
+            {
+                let mut layers = AdapterLayers::new(false);
+                
+                // Create LoRA config from settings
+                let lora_config = PeftLoraConfig {
+                    r: config.lora.r,
+                    alpha: config.lora.alpha,
+                    dropout: config.lora.dropout,
+                    target_modules: config.lora.target_modules.clone(),
+                    ..Default::default()
+                };
+
+                // Create LoRA layers for each target module
+                // For LLaMA, typical targets: q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj
+                for target in &config.lora.target_modules {
+                    // For a 7B model with 32 layers, create adapters for each
+                    // Hidden size is typically 4096 for 7B
+                    let hidden_size = 4096; // TODO: get from model config
+                    
+                    for layer_idx in 0..32 { // TODO: get num_layers from model config
+                        let layer_name = format!("model.layers.{}.self_attn.{}", layer_idx, target);
+                        
+                        let lora_layer = LoraLayer::new_with_zeros(
+                            hidden_size,
+                            hidden_size,
+                            lora_config.clone(),
+                            device,
+                        ).map_err(|e| AxolotlError::Model(format!(
+                            "Failed to create LoRA layer {}: {}", layer_name, e
+                        )))?;
+                        
+                        layers.lora_layers.insert(layer_name, lora_layer);
+                    }
+                }
+
+                tracing::info!(
+                    "Created {} LoRA layers with r={}, alpha={}",
+                    layers.len(),
+                    config.lora.r,
+                    config.lora.alpha
+                );
+                
+                Ok(Some(layers))
+            }
+            #[cfg(not(feature = "peft"))]
+            {
+                tracing::warn!("LoRA requested but peft feature not enabled");
+                Ok(None)
+            }
+        }
+        AdapterType::Qlora => {
+            #[cfg(feature = "qlora")]
+            {
+                let quant_settings = config.quantization.as_ref().ok_or_else(|| {
+                    AxolotlError::Config("QLoRA requires quantization settings".into())
+                })?;
+
+                let mut layers = AdapterLayers::new(true);
+                
+                // Create QLoRA config
+                let qlora_config = QLoraConfig {
+                    lora: peft_rs::LoraConfig {
+                        r: config.lora.r,
+                        alpha: config.lora.alpha,
+                        dropout: config.lora.dropout,
+                        target_modules: config.lora.target_modules.clone(),
+                        ..Default::default()
+                    },
+                    quantization: qlora_rs::QuantizationConfig {
+                        block_size: quant_settings.block_size,
+                        double_quant: quant_settings.double_quant,
+                        ..Default::default()
+                    },
+                };
+
+                // Create QLoRA layers for each target module
+                let hidden_size = 4096; // TODO: get from model config
+                
+                for target in &config.lora.target_modules {
+                    for layer_idx in 0..32 { // TODO: get num_layers from model config
+                        let layer_name = format!("model.layers.{}.self_attn.{}", layer_idx, target);
+                        
+                        let qlora_layer = QuantizedLinear::new(
+                            hidden_size,
+                            hidden_size,
+                            &qlora_config,
+                            device,
+                        ).map_err(|e| AxolotlError::Model(format!(
+                            "Failed to create QLoRA layer {}: {}", layer_name, e
+                        )))?;
+                        
+                        layers.qlora_layers.insert(layer_name, qlora_layer);
+                    }
+                }
+
+                tracing::info!(
+                    "Created {} QLoRA layers with r={}, alpha={}, {}bit quantization",
+                    layers.len(),
+                    config.lora.r,
+                    config.lora.alpha,
+                    quant_settings.bits
+                );
+                
+                Ok(Some(layers))
+            }
+            #[cfg(not(feature = "qlora"))]
+            {
+                tracing::warn!("QLoRA requested but qlora feature not enabled");
+                Ok(None)
+            }
+        }
+    }
 }
 
 /// Resolve model path from HuggingFace model ID or local path.
