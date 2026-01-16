@@ -27,10 +27,14 @@ fn linear_no_bias(in_dim: usize, out_dim: usize, vb: VarBuilder) -> CandleResult
 
 /// Cache for KV cache and rotary embeddings
 pub struct Cache {
-    cos: Tensor,
-    sin: Tensor,
-    kvs: Vec<Option<(Tensor, Tensor)>>,
+    /// Precomputed cosine values for rotary embeddings.
+    pub cos: Tensor,
+    /// Precomputed sine values for rotary embeddings.
+    pub sin: Tensor,
+    /// KV cache per layer: (key, value) tensors.
+    pub kvs: Vec<Option<(Tensor, Tensor)>>,
     masks: HashMap<usize, Tensor>,
+    /// Whether to use KV caching (for inference).
     pub use_kv_cache: bool,
     device: Device,
 }
