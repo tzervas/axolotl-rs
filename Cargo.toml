@@ -49,7 +49,7 @@ default = ["download"]
 download = ["reqwest"]
 # Enable real adapter/quantization libraries
 peft = ["peft-rs"]
-qlora = ["qlora-rs", "peft-rs"]
+qlora = ["qlora-rs", "peft"]
 unsloth = ["unsloth-rs"]
 # Mock features for testing without real deps
 mock-peft = []
