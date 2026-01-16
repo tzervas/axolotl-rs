@@ -5,10 +5,8 @@
 
 use candle_core::Device;
 use candle_nn::VarMap;
-use std::collections::HashMap;
-use std::path::Path;
 
-use crate::config::{AdapterType, AxolotlConfig, LoraSettings, QuantizationSettings};
+use crate::config::{AdapterType, AxolotlConfig, LoraSettings};
 use crate::error::{AxolotlError, Result};
 
 // Re-export based on features
