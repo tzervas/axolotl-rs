@@ -239,6 +239,81 @@ impl LoadedModel {
         // TODO: Apply loaded tensors to adapter layers
         Ok(())
     }
+
+    /// Capture current LoRA weight matrices for gradient flow verification.
+    ///
+    /// Returns a HashMap of module name to (A_matrix, B_matrix) weights.
+    /// This is used to verify that weights change after backward pass.
+    #[cfg(feature = "peft")]
+    pub fn capture_lora_weights(&self) -> Result<std::collections::HashMap<String, (Vec<f32>, Vec<f32>)>> {
+        use std::collections::HashMap;
+        
+        let mut weights = HashMap::new();
+        
+        if let Some(adapter_layers) = &self.adapter_layers {
+            for (module_name, lora_layer) in &adapter_layers.lora_layers {
+                // Capture A and B matrix values
+                // This is a placeholder - in production would extract actual values from lora_layer
+                weights.insert(
+                    module_name.clone(),
+                    (Vec::new(), Vec::new())
+                );
+            }
+        }
+        
+        Ok(weights)
+    }
+
+    /// Verify that LoRA weights have been updated after a training step.
+    ///
+    /// Compares captured weights with current weights to detect if gradients
+    /// flowed through the LoRA layers and were applied by the optimizer.
+    #[cfg(feature = "peft")]
+    pub fn verify_lora_weight_updates(
+        &self,
+        initial_weights: &std::collections::HashMap<String, (Vec<f32>, Vec<f32>)>,
+    ) -> Result<bool> {
+        if initial_weights.is_empty() {
+            return Ok(false);
+        }
+        
+        let current_weights = self.capture_lora_weights()?;
+        
+        // Check if any weights changed
+        for (module_name, (initial_a, initial_b)) in initial_weights {
+            if let Some((current_a, current_b)) = current_weights.get(module_name) {
+                // Calculate change magnitude for A matrix
+                let a_changed = if !initial_a.is_empty() && !current_a.is_empty() {
+                    let diff: f64 = initial_a.iter().zip(current_a.iter())
+                        .map(|(i, c)| ((i - c) as f64).abs())
+                        .sum();
+                    diff > 0.0
+                } else {
+                    false
+                };
+                
+                // Calculate change magnitude for B matrix
+                let b_changed = if !initial_b.is_empty() && !current_b.is_empty() {
+                    let diff: f64 = initial_b.iter().zip(current_b.iter())
+                        .map(|(i, c)| ((i - c) as f64).abs())
+                        .sum();
+                    diff > 0.0
+                } else {
+                    false
+                };
+                
+                if a_changed || b_changed {
+                    tracing::debug!(
+                        "LoRA weights updated in {}: A={}, B={}",
+                        module_name, a_changed, b_changed
+                    );
+                    return Ok(true);
+                }
+            }
+        }
+        
+        Ok(false)
+    }
 }
 
 /// Model architecture information extracted from config.json.

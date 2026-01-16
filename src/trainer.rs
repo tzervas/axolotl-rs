@@ -488,6 +488,20 @@ impl Trainer {
             checkpoint_path, state.step, state.epoch);
         Ok(())
     }
+
+    /// Get reference to the loaded model for testing/inspection.
+    ///
+    /// Returns None if model hasn't been loaded yet (before train() is called).
+    pub fn get_model(&self) -> Option<&LoadedModel> {
+        self.model.as_ref()
+    }
+
+    /// Get mutable reference to the loaded model for testing/inspection.
+    ///
+    /// Returns None if model hasn't been loaded yet (before train() is called).
+    pub fn get_model_mut(&mut self) -> Option<&mut LoadedModel> {
+        self.model.as_mut()
+    }
 }
 
 /// Training state for checkpoint serialization.
