@@ -12,6 +12,8 @@ use candle_core::Device;
 use candle_nn::VarMap;
 
 use crate::config::{AdapterType, AxolotlConfig, LoraSettings};
+#[cfg(feature = "qlora")]
+use crate::config::QuantizationSettings;
 use crate::error::{AxolotlError, Result};
 
 // Re-export based on features
@@ -118,6 +120,8 @@ impl AdapterWrapper {
         Ok(QLoraConfig {
             lora: lora_config,
             quantization: quant_config,
+            target_modules: lora.target_modules.clone(),
+            cache_dequantized: false, // On-the-fly dequant for training
         })
     }
 

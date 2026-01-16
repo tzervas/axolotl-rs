@@ -94,8 +94,15 @@ pub mod cli;
 pub mod config;
 pub mod dataset;
 pub mod error;
+#[cfg(feature = "peft")]
+pub mod llama_common;
+#[cfg(feature = "peft")]
+pub mod lora_llama;
 pub mod model;
+pub mod normalization;
 pub mod optimizer;
+#[cfg(all(feature = "peft", feature = "qlora"))]
+pub mod qlora_llama;
 pub mod scheduler;
 pub mod trainer;
 

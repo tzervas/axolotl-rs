@@ -264,7 +264,7 @@ fn test_checkpoint_resume() {
             trainer2.load_checkpoint(checkpoint_path.to_str().unwrap())
                 .expect("Failed to load checkpoint");
 
-            gpu_test_status(&format!("Checkpoint loaded: step={}", trainer2.step));
+            gpu_test_status(&format!("Checkpoint loaded: step={}", trainer2.step()));
 
             // Continue training (another 10 steps, but we need more data)
             let result2 = trainer2.train();

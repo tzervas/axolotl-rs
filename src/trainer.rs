@@ -88,9 +88,14 @@ impl Trainer {
         config.validate()?;
 
         // Determine device
-        let device = if cfg!(feature = "cuda") && candle_core::utils::cuda_is_available() {
-            Device::new_cuda(0)
-                .map_err(|e| AxolotlError::Training(format!("Failed to initialize CUDA: {}", e)))?
+        // NOTE: Temporary workaround for Candle not supporting RMS-Norm on GPU
+        // Use CPU for model inference until Candle or custom GPU kernel is available
+        let use_gpu = cfg!(feature = "cuda") && candle_core::utils::cuda_is_available();
+        let device = if use_gpu {
+            // For now, use CPU for model forward passes due to Candle GPU limitations
+            // Adapter weights can still use GPU if available
+            tracing::warn!("GPU CUDA available but using CPU for model forward passes due to RMS-Norm GPU support");
+            Device::Cpu
         } else {
             Device::Cpu
         };
@@ -374,14 +379,14 @@ impl Trainer {
         let label_tensor = Tensor::from_vec(flat_labels, (batch_size, max_len), &self.device)
             .map_err(|e| AxolotlError::Training(format!("Failed to create label tensor: {}", e)))?;
 
-        // 3. Forward pass - returns logits for last position only [batch, vocab]
+        // 3. Forward pass - returns logits for all positions [batch, seq, vocab]
         let logits = model.forward_with_adapters(&input_tensor)
             .map_err(|e| AxolotlError::Training(format!("Forward pass failed: {}", e)))?;
 
-        // 4. Compute cross-entropy loss on last position
-        // Logits shape: [batch, vocab] (last position only)
-        // We use the last non-padding label for each sequence
-        let loss = compute_last_position_loss(&logits, &label_tensor, &self.device)?;
+        // 4. Compute cross-entropy loss over all positions
+        // For language model training, we compute loss at each position
+        // comparing prediction at position i with target at position i+1
+        let loss = compute_cross_entropy_loss(&logits, &label_tensor, &self.device)?;
         let loss_val = loss.to_vec0::<f32>()
             .map_err(|e| AxolotlError::Training(format!("Failed to get loss value: {}", e)))? as f64;
 
@@ -389,6 +394,8 @@ impl Trainer {
         let optimizer = self.optimizer.as_mut().ok_or_else(|| {
             AxolotlError::Training("Optimizer not initialized".into())
         })?;
+        
+        // Compute gradients and apply via optimizer step (internally calls backward)
         optimizer.step(&loss)?;
 
         // Compute gradient and parameter norms for monitoring
@@ -503,6 +510,75 @@ impl Trainer {
     #[allow(dead_code)]
     pub fn get_model_mut(&mut self) -> Option<&mut LoadedModel> {
         self.model.as_mut()
+    }
+
+    /// Get all training metrics collected during training.
+    ///
+    /// Returns a vector of metrics for each training step.
+    /// Use this for convergence validation and analysis.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use axolotl_rs::{AxolotlConfig, Trainer};
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let mut trainer = Trainer::new(AxolotlConfig::from_preset("llama2-7b")?)?;
+    /// trainer.train()?;
+    ///
+    /// let metrics = trainer.metrics();
+    /// println!("Training completed with {} steps", metrics.len());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn metrics(&self) -> &[StepMetrics] {
+        &self.training_metrics
+    }
+
+    /// Get loss values for all training steps.
+    ///
+    /// Returns a vector of loss values, useful for convergence validation.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use axolotl_rs::{AxolotlConfig, Trainer};
+    ///
+    /// # fn main() -> axolotl_rs::Result<()> {
+    /// let mut trainer = Trainer::new(AxolotlConfig::from_preset("llama2-7b")?)?;
+    /// trainer.train()?;
+    ///
+    /// let losses = trainer.losses();
+    /// assert!(losses[losses.len()-1] < losses[0], "Loss should decrease");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn losses(&self) -> Vec<f64> {
+        self.training_metrics.iter().map(|m| m.loss).collect()
+    }
+
+    /// Get gradient norms for all training steps.
+    ///
+    /// Returns a vector of global gradient norms.
+    pub fn grad_norms(&self) -> Vec<f64> {
+        self.training_metrics.iter().map(|m| m.grad_norm).collect()
+    }
+
+    /// Get parameter norms for all training steps.
+    ///
+    /// Returns a vector of global parameter norms.
+    pub fn param_norms(&self) -> Vec<f64> {
+        self.training_metrics.iter().map(|m| m.param_norm).collect()
+    }
+
+    /// Get current training step.
+    pub fn step(&self) -> usize {
+        self.step
+    }
+
+    /// Get current epoch.
+    pub fn epoch(&self) -> usize {
+        self.epoch
     }
 }
 
