@@ -298,11 +298,6 @@ fn load_completion(path: &Path, _config: &DatasetConfig) -> Result<Vec<Example>>
             continue;
         }
 
-        #[derive(Deserialize)]
-        struct CompletionExample {
-            text: String,
-        }
-
         let completion: CompletionExample = serde_json::from_str(line)
             .map_err(|e| AxolotlError::Dataset(format!("Failed to parse line: {e}")))?;
 

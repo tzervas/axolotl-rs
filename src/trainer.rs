@@ -492,6 +492,7 @@ impl Trainer {
     /// Get reference to the loaded model for testing/inspection.
     ///
     /// Returns None if model hasn't been loaded yet (before train() is called).
+    #[allow(dead_code)]
     pub fn get_model(&self) -> Option<&LoadedModel> {
         self.model.as_ref()
     }
@@ -499,6 +500,7 @@ impl Trainer {
     /// Get mutable reference to the loaded model for testing/inspection.
     ///
     /// Returns None if model hasn't been loaded yet (before train() is called).
+    #[allow(dead_code)]
     pub fn get_model_mut(&mut self) -> Option<&mut LoadedModel> {
         self.model.as_mut()
     }
@@ -563,7 +565,7 @@ fn compute_last_position_loss(
     
     let (batch_size, vocab_size) = (dims[0], dims[1]);
     let label_dims = labels.dims();
-    let seq_len = label_dims[1];
+    let _seq_len = label_dims[1];
     
     // For each sequence, get the last non-padding label
     // This is the target for predicting what comes after the last token

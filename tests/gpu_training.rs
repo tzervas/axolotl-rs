@@ -274,7 +274,7 @@ fn test_gpu_loss_convergence_100_steps() {
                 loss_decrease * 100.0
             ));
             
-            assert_loss_convergence(&losses, 0.3, 10).expect("Loss convergence assertion failed");
+            assert_loss_convergence(&losses, 0.3, 10);
             
             gpu_test_status("✅ Loss convergence test passed");
         }

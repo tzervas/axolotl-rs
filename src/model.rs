@@ -4,7 +4,7 @@ use candle_core::{DType, Device, IndexOp, Tensor};
 use candle_nn::{Module, VarBuilder, VarMap};
 use candle_transformers::models::llama::{Cache, Llama, LlamaConfig, LlamaEosToks};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::config::{AdapterType, AxolotlConfig};
 use crate::error::{AxolotlError, Result};
@@ -26,8 +26,10 @@ pub struct LoadedModel {
     /// Tokenizer
     pub tokenizer: tokenizers::Tokenizer,
     /// Device where model is loaded
+    #[allow(dead_code)]
     pub device: Device,
     /// Model dtype
+    #[allow(dead_code)]
     pub dtype: DType,
     /// Adapter layers (if using LoRA/QLoRA)
     pub adapter_layers: Option<AdapterLayers>,
@@ -45,12 +47,14 @@ pub struct AdapterLayers {
     #[cfg(feature = "qlora")]
     pub qlora_layers: HashMap<String, QuantizedLinear>,
     /// Whether this is a QLoRA model (quantized base)
+    #[allow(dead_code)]
     pub is_quantized: bool,
 }
 
 #[cfg(not(feature = "peft"))]
 impl AdapterLayers {
     /// Placeholder when peft feature is disabled
+    #[allow(dead_code)]
     pub fn lora_layers(&self) -> &HashMap<String, ()> {
         static EMPTY: std::sync::OnceLock<HashMap<String, ()>> = std::sync::OnceLock::new();
         EMPTY.get_or_init(HashMap::new)
@@ -120,7 +124,7 @@ impl LoadedModel {
         let base_output = self.forward(input_ids)?;
         
         // If no adapters, return base output directly
-        let adapters = match &self.adapter_layers {
+        let _adapters = match &self.adapter_layers {
             Some(a) if !a.is_empty() => a,
             _ => return Ok(base_output),
         };
@@ -168,12 +172,14 @@ impl LoadedModel {
     ///
     /// Returns only the LoRA A/B matrices, not the frozen base model weights.
     #[must_use]
+    #[allow(dead_code)]
     pub fn trainable_tensors(&self) -> Vec<candle_core::Var> {
         self.trainable_params.all_vars()
     }
 
     /// Count trainable parameters.
     #[must_use]
+    #[allow(dead_code)]
     pub fn trainable_param_count(&self) -> usize {
         self.trainable_tensors()
             .iter()
@@ -327,10 +333,12 @@ pub struct ModelInfo {
     /// Number of transformer layers
     pub num_layers: usize,
     /// Number of attention heads
+    #[allow(dead_code)]
     pub num_attention_heads: usize,
     /// Number of key-value heads (for GQA)
     pub num_kv_heads: usize,
     /// Intermediate size (MLP hidden dimension)
+    #[allow(dead_code)]
     pub intermediate_size: usize,
 }
 
@@ -354,6 +362,7 @@ impl ModelInfo {
     /// - o_proj: hidden_size -> hidden_size
     /// - gate_proj, up_proj: hidden_size -> intermediate_size
     /// - down_proj: intermediate_size -> hidden_size
+    #[allow(dead_code)]
     pub fn get_target_dims(&self, target: &str) -> (usize, usize) {
         match target {
             // Attention projections
@@ -682,7 +691,7 @@ fn load_model_architecture(
 
 /// Load a LLaMA model from the given path.
 fn load_llama_model(
-    config: &AxolotlConfig,
+    _config: &AxolotlConfig,
     model_path: &PathBuf,
     device: &Device,
     dtype: DType,
@@ -786,6 +795,7 @@ pub struct LlamaWrapper {
     model: Llama,
     cache: std::cell::RefCell<Cache>,
     /// Whether to use training mode (all positions) or inference mode (last position only)
+    #[allow(dead_code)]
     training_mode: bool,
 }
 
@@ -806,6 +816,7 @@ impl LlamaWrapper {
     }
     
     /// Set whether to use training mode (all positions) or inference mode (last position)
+    #[allow(dead_code)]
     pub fn set_training_mode(&mut self, training: bool) {
         self.training_mode = training;
     }
@@ -828,6 +839,7 @@ impl LlamaWrapper {
     /// Candle's Llama.forward() only returns logits for the last token,
     /// but for training we need logits for all positions to compute loss
     /// across the entire sequence.
+    #[allow(dead_code)]
     fn forward_all_positions(
         &self,
         xs: &Tensor,
@@ -889,6 +901,7 @@ pub fn merge_adapter(
 
 /// Download model from HuggingFace Hub.
 #[cfg(feature = "download")]
+#[allow(dead_code)]
 pub async fn download_model(_model_id: &str, _cache_dir: &str) -> Result<String> {
     // TODO: Implement model download
     Err(AxolotlError::Model(

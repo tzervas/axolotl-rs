@@ -4,6 +4,7 @@ use crate::optimizer::AdamWOptimizer;
 
 /// Learning rate scheduler types.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum SchedulerType {
     /// Constant learning rate
     Constant,

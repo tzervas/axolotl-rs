@@ -2,7 +2,7 @@
 name = "axolotl-rs"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.92"
 license = "MIT"
 description = "YAML-driven configurable fine-tuning toolkit for LLMs in Rust"
 repository = "https://github.com/tzervas/axolotl-rs"
