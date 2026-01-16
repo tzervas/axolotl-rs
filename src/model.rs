@@ -4,7 +4,7 @@ use candle_core::{DType, Device, IndexOp, Tensor};
 use candle_nn::{Module, VarBuilder, VarMap};
 use candle_transformers::models::llama::{Cache, Llama, LlamaConfig, LlamaEosToks};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::config::{AdapterType, AxolotlConfig};
 use crate::error::{AxolotlError, Result};
@@ -124,7 +124,7 @@ impl LoadedModel {
         let base_output = self.forward(input_ids)?;
         
         // If no adapters, return base output directly
-        let _adapters = match &self.adapter_layers {
+        let adapters = match &self.adapter_layers {
             Some(a) if !a.is_empty() => a,
             _ => return Ok(base_output),
         };
@@ -144,7 +144,7 @@ impl LoadedModel {
                     // Apply LoRA: adapter_out = input @ A^T @ B^T * scaling
                     // Then add to base: output = base + adapter_out
                     // For logits [batch, vocab], we apply adapter to create gradient path
-                    let adapter_out = lora_layer.forward(&base_output, None)
+                    let adapter_out: Tensor = lora_layer.forward(&base_output, None)
                         .map_err(|e| AxolotlError::Model(format!("Adapter forward failed: {}", e)))?;
                     
                     // Return adapter output (contains gradients back to LoRA weights)
@@ -257,7 +257,7 @@ impl LoadedModel {
         let mut weights = HashMap::new();
         
         if let Some(adapter_layers) = &self.adapter_layers {
-            for (module_name, lora_layer) in &adapter_layers.lora_layers {
+            for (module_name, _lora_layer) in &adapter_layers.lora_layers {
                 // Capture A and B matrix values
                 // This is a placeholder - in production would extract actual values from lora_layer
                 weights.insert(
