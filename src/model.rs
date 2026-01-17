@@ -127,16 +127,14 @@ impl LoadedModel {
     pub fn forward_with_adapters(&self, input_ids: &Tensor) -> Result<Tensor> {
         // Get base model output (logits for all positions)
         let logits = self.forward(input_ids)?;
-        
+
         // TODO: Implement proper per-layer LoRA injection via LoraLlama
         // Current approach: Return base logits
         // This allows testing of training loop, loss computation, and optimizer
         // even without proper LoRA integration
-        
-        tracing::trace!(
-            "Forward pass complete (base model only, LoRA not integrated yet)"
-        );
-        
+
+        tracing::trace!("Forward pass complete (base model only, LoRA not integrated yet)");
+
         Ok(logits)
     }
 
@@ -166,9 +164,10 @@ impl LoadedModel {
     /// Returns an error if saving fails.
     #[cfg(feature = "peft")]
     pub fn save_adapter_weights<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let adapter_layers = self.adapter_layers.as_ref().ok_or_else(|| {
-            AxolotlError::Model("No adapter layers to save".into())
-        })?;
+        let adapter_layers = self
+            .adapter_layers
+            .as_ref()
+            .ok_or_else(|| AxolotlError::Model("No adapter layers to save".into()))?;
 
         let dir = path.as_ref();
         std::fs::create_dir_all(dir)?;
@@ -192,8 +191,9 @@ impl LoadedModel {
             .map(|(name, tensor)| (name.as_str(), tensor.clone()))
             .collect();
 
-        safetensors::tensor::serialize_to_file(tensors_ref, &None, &weights_path)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to save adapter: {}", e).into()))?;
+        safetensors::tensor::serialize_to_file(tensors_ref, &None, &weights_path).map_err(|e| {
+            AxolotlError::Checkpoint(format!("Failed to save adapter: {}", e).into())
+        })?;
 
         tracing::info!("Saved {} adapter layers to {:?}", adapter_layers.len(), dir);
         Ok(())
@@ -209,11 +209,12 @@ impl LoadedModel {
         let dir = path.as_ref();
         let weights_path = dir.join("adapter_model.safetensors");
 
-        let tensors = candle_core::safetensors::load(&weights_path, &self.device)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to load adapter: {}", e).into()))?;
+        let tensors = candle_core::safetensors::load(&weights_path, &self.device).map_err(|e| {
+            AxolotlError::Checkpoint(format!("Failed to load adapter: {}", e).into())
+        })?;
 
         tracing::info!("Loaded {} adapter tensors from {:?}", tensors.len(), dir);
-        
+
         // TODO: Apply loaded tensors to adapter layers
         Ok(())
     }
@@ -223,22 +224,21 @@ impl LoadedModel {
     /// Returns a HashMap of module name to (A_matrix, B_matrix) weights.
     /// This is used to verify that weights change after backward pass.
     #[cfg(feature = "peft")]
-    pub fn capture_lora_weights(&self) -> Result<std::collections::HashMap<String, (Vec<f32>, Vec<f32>)>> {
+    pub fn capture_lora_weights(
+        &self,
+    ) -> Result<std::collections::HashMap<String, (Vec<f32>, Vec<f32>)>> {
         use std::collections::HashMap;
-        
+
         let mut weights = HashMap::new();
-        
+
         if let Some(adapter_layers) = &self.adapter_layers {
             for (module_name, _lora_layer) in &adapter_layers.lora_layers {
                 // Capture A and B matrix values
                 // This is a placeholder - in production would extract actual values from lora_layer
-                weights.insert(
-                    module_name.clone(),
-                    (Vec::new(), Vec::new())
-                );
+                weights.insert(module_name.clone(), (Vec::new(), Vec::new()));
             }
         }
-        
+
         Ok(weights)
     }
 
@@ -254,48 +254,54 @@ impl LoadedModel {
         if initial_weights.is_empty() {
             return Ok(false);
         }
-        
+
         let current_weights = self.capture_lora_weights()?;
-        
+
         // Check if any weights changed
         for (module_name, (initial_a, initial_b)) in initial_weights {
             if let Some((current_a, current_b)) = current_weights.get(module_name) {
                 // Calculate change magnitude for A matrix
                 let a_changed = if !initial_a.is_empty() && !current_a.is_empty() {
-                    let diff: f64 = initial_a.iter().zip(current_a.iter())
+                    let diff: f64 = initial_a
+                        .iter()
+                        .zip(current_a.iter())
                         .map(|(i, c)| ((i - c) as f64).abs())
                         .sum();
                     diff > 0.0
                 } else {
                     false
                 };
-                
+
                 // Calculate change magnitude for B matrix
                 let b_changed = if !initial_b.is_empty() && !current_b.is_empty() {
-                    let diff: f64 = initial_b.iter().zip(current_b.iter())
+                    let diff: f64 = initial_b
+                        .iter()
+                        .zip(current_b.iter())
                         .map(|(i, c)| ((i - c) as f64).abs())
                         .sum();
                     diff > 0.0
                 } else {
                     false
                 };
-                
+
                 if a_changed || b_changed {
                     tracing::debug!(
                         "LoRA weights updated in {}: A={}, B={}",
-                        module_name, a_changed, b_changed
+                        module_name,
+                        a_changed,
+                        b_changed
                     );
                     return Ok(true);
                 }
             }
         }
-        
+
         Ok(false)
     }
 }
 
 /// Model architecture information extracted from config.json.
-/// 
+///
 /// This struct holds the key dimensions needed for creating adapter layers
 /// with correct sizes, regardless of the specific model (SmolLM2-135M, TinyLlama, LLaMA-7B, etc.).
 #[derive(Debug, Clone)]
@@ -321,13 +327,15 @@ impl ModelInfo {
             hidden_size: config.hidden_size,
             num_layers: config.num_hidden_layers,
             num_attention_heads: config.num_attention_heads,
-            num_kv_heads: config.num_key_value_heads.unwrap_or(config.num_attention_heads),
+            num_kv_heads: config
+                .num_key_value_heads
+                .unwrap_or(config.num_attention_heads),
             intermediate_size: config.intermediate_size,
         }
     }
-    
+
     /// Get the input/output dimensions for a target module.
-    /// 
+    ///
     /// Different projection layers have different dimensions:
     /// - q_proj: hidden_size -> hidden_size
     /// - k_proj, v_proj: hidden_size -> hidden_size * (kv_heads / attn_heads)
@@ -342,7 +350,7 @@ impl ModelInfo {
             "k_proj" | "v_proj" => {
                 let kv_dim = self.hidden_size * self.num_kv_heads / self.num_attention_heads;
                 (self.hidden_size, kv_dim)
-            },
+            }
             // MLP projections
             "gate_proj" | "up_proj" => (self.hidden_size, self.intermediate_size),
             "down_proj" => (self.intermediate_size, self.hidden_size),
@@ -350,7 +358,7 @@ impl ModelInfo {
             _ => (self.hidden_size, self.hidden_size),
         }
     }
-    
+
     /// Create a default ModelInfo for testing (7B-like dimensions).
     #[cfg(test)]
     pub fn default_7b() -> Self {
@@ -381,7 +389,7 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
         "Loaded tokenizer with vocab size: {}",
         tokenizer.get_vocab_size(true)
     );
-    
+
     // Load model info from config.json for adapter layer dimensions
     let model_info = load_model_info(&model_path)?;
     tracing::info!(
@@ -395,7 +403,7 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
     // Note: Force F32 for now as candle's RoPE doesn't handle F16 well
     // TODO: Enable F16 once candle fixes the rope dtype handling
     let dtype = DType::F32;
-    
+
     if config.quantization.is_some() {
         tracing::info!("QLoRA mode: using F32 for model (quantization applied to weights)");
     }
@@ -415,7 +423,7 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
             let quant_settings = config.quantization.as_ref().ok_or_else(|| {
                 AxolotlError::Config("QLoRA requires quantization settings".into())
             })?;
-            
+
             let qlora_config = qlora_rs::QLoraConfig {
                 lora: peft_rs::LoraConfig {
                     r: config.lora.r,
@@ -435,7 +443,7 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
                 target_modules: config.lora.target_modules.clone(),
                 cache_dequantized: false, // On-the-fly dequant for training (memory optimal)
             };
-            
+
             let model = load_qlora_model(
                 config,
                 &model_path,
@@ -444,14 +452,14 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
                 &qlora_config,
                 &trainable_params,
             )?;
-            
+
             // AdapterLayers will be empty since adapters are embedded in QLoraLlama
             (model, None)
         }
         #[cfg(not(all(feature = "peft", feature = "qlora")))]
         {
             return Err(AxolotlError::Model(
-                "QLoRA requested but peft and/or qlora features not enabled".into()
+                "QLoRA requested but peft and/or qlora features not enabled".into(),
             ));
         }
     } else if use_lora_model {
@@ -466,15 +474,22 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
                 target_modules: config.lora.target_modules.clone(),
                 ..Default::default()
             };
-            
-            let model = load_model_architecture(config, &model_path, device, dtype, None, Some((&model_info, &trainable_params, &lora_config)))?;
+
+            let model = load_model_architecture(
+                config,
+                &model_path,
+                device,
+                dtype,
+                None,
+                Some((&model_info, &trainable_params, &lora_config)),
+            )?;
             // AdapterLayers will be empty since LoRA is embedded in model
             (model, None)
         }
         #[cfg(not(feature = "peft"))]
         {
             return Err(AxolotlError::Model(
-                "LoRA requested but peft feature not enabled".into()
+                "LoRA requested but peft feature not enabled".into(),
             ));
         }
     } else {
@@ -485,7 +500,11 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
     };
 
     let adapter_count = adapter_layers.as_ref().map_or(0, AdapterLayers::len);
-    let trainable_count: usize = trainable_params.all_vars().iter().map(|v| v.elem_count()).sum();
+    let trainable_count: usize = trainable_params
+        .all_vars()
+        .iter()
+        .map(|v| v.elem_count())
+        .sum();
 
     tracing::info!(
         "Model loaded on {:?} with dtype {:?}, {} adapter layers, {} trainable params",
@@ -522,7 +541,7 @@ fn create_adapter_layers(
             #[cfg(feature = "peft")]
             {
                 let mut layers = AdapterLayers::new(false);
-                
+
                 // Create LoRA config from settings
                 let lora_config = PeftLoraConfig {
                     r: config.lora.r,
@@ -539,10 +558,10 @@ fn create_adapter_layers(
                 // Create LoRA layers for each target module with correct dimensions
                 for target in &config.lora.target_modules {
                     let (in_features, out_features) = model_info.get_target_dims(target);
-                    
+
                     for layer_idx in 0..model_info.num_layers {
                         let layer_name = format!("model.layers.{}.self_attn.{}", layer_idx, target);
-                        
+
                         // Use VarBuilder with layer-specific prefix for unique variable names
                         let layer_vb = vb.pp(&layer_name);
                         let lora_layer = LoraLayer::new(
@@ -550,10 +569,14 @@ fn create_adapter_layers(
                             out_features,
                             lora_config.clone(),
                             layer_vb,
-                        ).map_err(|e| AxolotlError::Model(format!(
-                            "Failed to create LoRA layer {}: {}", layer_name, e
-                        )))?;
-                        
+                        )
+                        .map_err(|e| {
+                            AxolotlError::Model(format!(
+                                "Failed to create LoRA layer {}: {}",
+                                layer_name, e
+                            ))
+                        })?;
+
                         layers.lora_layers.insert(layer_name, lora_layer);
                     }
                 }
@@ -564,7 +587,7 @@ fn create_adapter_layers(
                     config.lora.r,
                     config.lora.alpha
                 );
-                
+
                 Ok(Some(layers))
             }
             #[cfg(not(feature = "peft"))]
@@ -581,7 +604,7 @@ fn create_adapter_layers(
                 })?;
 
                 let mut layers = AdapterLayers::new(true);
-                
+
                 // Create QLoRA config
                 let qlora_config = QLoraConfig {
                     lora: peft_rs::LoraConfig {
@@ -606,17 +629,21 @@ fn create_adapter_layers(
                 // Create QLoRA layers for each target module with correct dimensions
                 for target in &config.lora.target_modules {
                     let (in_features, out_features) = model_info.get_target_dims(target);
-                    
+
                     for layer_idx in 0..model_info.num_layers {
                         let layer_name = format!("model.layers.{}.self_attn.{}", layer_idx, target);
-                        
+
                         // Create zero-initialized weight tensor for quantization
                         // In real usage, this should load actual model weights
-                        let weight = Tensor::zeros(&[out_features, in_features], DType::F32, device)
-                            .map_err(|e| AxolotlError::Model(format!(
-                                "Failed to create weight tensor for {}: {}", layer_name, e
-                            )))?;
-                        
+                        let weight =
+                            Tensor::zeros(&[out_features, in_features], DType::F32, device)
+                                .map_err(|e| {
+                                    AxolotlError::Model(format!(
+                                        "Failed to create weight tensor for {}: {}",
+                                        layer_name, e
+                                    ))
+                                })?;
+
                         // Use VarBuilder for gradient tracking of LoRA weights
                         let layer_vb = vb.pp(&layer_name);
                         let qlora_layer = QuantizedLinear::from_weight_with_varbuilder(
@@ -624,10 +651,14 @@ fn create_adapter_layers(
                             None,
                             &qlora_config,
                             layer_vb,
-                        ).map_err(|e| AxolotlError::Model(format!(
-                            "Failed to create QLoRA layer {}: {}", layer_name, e
-                        )))?;
-                        
+                        )
+                        .map_err(|e| {
+                            AxolotlError::Model(format!(
+                                "Failed to create QLoRA layer {}: {}",
+                                layer_name, e
+                            ))
+                        })?;
+
                         layers.qlora_layers.insert(layer_name, qlora_layer);
                     }
                 }
@@ -639,7 +670,7 @@ fn create_adapter_layers(
                     config.lora.alpha,
                     quant_settings.bits
                 );
-                
+
                 Ok(Some(layers))
             }
             #[cfg(not(feature = "qlora"))]
@@ -654,7 +685,7 @@ fn create_adapter_layers(
 /// Load model info from config.json file.
 fn load_model_info(model_path: &PathBuf) -> Result<ModelInfo> {
     let config_path = model_path.join("config.json");
-    
+
     if config_path.exists() {
         let config_str = std::fs::read_to_string(&config_path)
             .map_err(|e| AxolotlError::Model(format!("Failed to read config.json: {}", e)))?;
@@ -724,10 +755,8 @@ fn load_model_architecture(
     device: &Device,
     dtype: DType,
     _adapter_layers: Option<&AdapterLayers>,
-    #[cfg(feature = "peft")]
-    lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
-    #[cfg(not(feature = "peft"))]
-    lora_params: Option<(&ModelInfo, &VarMap)>,
+    #[cfg(feature = "peft")] lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
+    #[cfg(not(feature = "peft"))] lora_params: Option<(&ModelInfo, &VarMap)>,
 ) -> Result<Box<dyn Module>> {
     // Check config.json for architecture type
     let config_path = model_path.join("config.json");
@@ -738,7 +767,9 @@ fn load_model_architecture(
     } else {
         // Fallback to name-based detection
         let name_lower = config.base_model.to_lowercase();
-        name_lower.contains("llama") || name_lower.contains("smollm") || name_lower.contains("tinyllama")
+        name_lower.contains("llama")
+            || name_lower.contains("smollm")
+            || name_lower.contains("tinyllama")
     };
 
     if is_llama_arch {
@@ -761,10 +792,8 @@ fn load_llama_model(
     model_path: &PathBuf,
     device: &Device,
     dtype: DType,
-    #[cfg(feature = "peft")]
-    lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
-    #[cfg(not(feature = "peft"))]
-    lora_params: Option<(&ModelInfo, &VarMap)>,
+    #[cfg(feature = "peft")] lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
+    #[cfg(not(feature = "peft"))] lora_params: Option<(&ModelInfo, &VarMap)>,
 ) -> Result<Box<dyn Module>> {
     // Try to load config.json first
     let config_path = model_path.join("config.json");
@@ -828,28 +857,29 @@ fn load_llama_model(
     };
 
     #[cfg(feature = "peft")]
-    let model: Box<dyn Module> = if let Some((_model_info, trainable_params, lora_config)) = lora_params {
-        tracing::info!("Loading LoraLlama with per-layer LoRA injection");
-        
-        // Create LoraLlama with internal adapters
-        let model = LoraLlama::new_with_lora(&config, vb, lora_config, trainable_params)
-            .map_err(|e| AxolotlError::Model(format!("Failed to create LoraLlama: {}", e)))?;
-        
-        Box::new(model)
-    } else {
-        // Use standard Llama model wrapped for training
-        let model = Llama::load(vb, &config)
-            .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {}", e)))?;
-        
-        Box::new(LlamaWrapper::new(model, &config, device)?)
-    };
+    let model: Box<dyn Module> =
+        if let Some((_model_info, trainable_params, lora_config)) = lora_params {
+            tracing::info!("Loading LoraLlama with per-layer LoRA injection");
+
+            // Create LoraLlama with internal adapters
+            let model = LoraLlama::new_with_lora(&config, vb, lora_config, trainable_params)
+                .map_err(|e| AxolotlError::Model(format!("Failed to create LoraLlama: {}", e)))?;
+
+            Box::new(model)
+        } else {
+            // Use standard Llama model wrapped for training
+            let model = Llama::load(vb, &config)
+                .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {}", e)))?;
+
+            Box::new(LlamaWrapper::new(model, &config, device)?)
+        };
 
     #[cfg(not(feature = "peft"))]
     let model: Box<dyn Module> = {
         // Use standard Llama model wrapped for training
         let model = Llama::load(vb, &config)
             .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {}", e)))?;
-        
+
         Box::new(LlamaWrapper::new(model, &config, device)?)
     };
 
@@ -951,7 +981,11 @@ fn load_qlora_model(
     prepare_for_qlora_training(&model, trainable_params)
         .map_err(|e| AxolotlError::Model(format!("Failed to prepare QLoRA for training: {}", e)))?;
 
-    let trainable_count: usize = trainable_params.all_vars().iter().map(|v| v.elem_count()).sum();
+    let trainable_count: usize = trainable_params
+        .all_vars()
+        .iter()
+        .map(|v| v.elem_count())
+        .sum();
     let total_params = model.total_param_count();
     let trainable_pct = 100.0 * trainable_count as f64 / total_params as f64;
 
@@ -984,7 +1018,7 @@ impl Module for SimpleModel {
 }
 
 /// Wrapper for LLaMA model that implements the Module trait.
-/// 
+///
 /// For training, we need logits for ALL positions, not just the last token.
 /// The default candle Llama only returns last-token logits for inference.
 pub struct LlamaWrapper {
@@ -1010,7 +1044,7 @@ impl LlamaWrapper {
             training_mode: true, // Default to training mode
         })
     }
-    
+
     /// Set whether to use training mode (all positions) or inference mode (last position)
     #[allow(dead_code)]
     pub fn set_training_mode(&mut self, training: bool) {
@@ -1021,7 +1055,7 @@ impl LlamaWrapper {
 impl Module for LlamaWrapper {
     fn forward(&self, xs: &Tensor) -> candle_core::Result<Tensor> {
         let mut cache = self.cache.borrow_mut();
-        
+
         // Use standard forward - returns logits for last position only
         // For training, we compute loss on the last token prediction
         // This is simpler and faster than computing all-position logits
@@ -1031,37 +1065,33 @@ impl Module for LlamaWrapper {
 
 impl LlamaWrapper {
     /// Forward pass that returns logits for all positions (for training).
-    /// 
+    ///
     /// Candle's Llama.forward() only returns logits for the last token,
     /// but for training we need logits for all positions to compute loss
     /// across the entire sequence.
     #[allow(dead_code)]
-    fn forward_all_positions(
-        &self,
-        xs: &Tensor,
-        cache: &mut Cache,
-    ) -> candle_core::Result<Tensor> {
+    fn forward_all_positions(&self, xs: &Tensor, cache: &mut Cache) -> candle_core::Result<Tensor> {
         // Get sequence length for later
         let (_b_sz, seq_len) = xs.dims2()?;
-        
+
         // Embed input tokens
         // Access wte (word token embeddings) through public interface
         // Since we can't directly access model internals, we need a workaround
-        
+
         // For training, we'll compute logits position-by-position
         // This is inefficient but works as a starting point
         let mut all_logits = Vec::new();
-        
+
         for pos in 0..seq_len {
             // Get logits at each position by running forward with truncated input
             let input_slice = xs.i((.., 0..=pos))?;
             let logits = self.model.forward(&input_slice, 0, cache)?;
             all_logits.push(logits);
-            
+
             // Clear cache between positions to avoid accumulation issues
             // (This is inefficient but correct for initial validation)
         }
-        
+
         // Stack all logits: [batch, seq_len, vocab]
         let stacked = Tensor::stack(&all_logits, 1)?;
         Ok(stacked)
@@ -1122,22 +1152,22 @@ mod tests {
             num_kv_heads: 3,
             intermediate_size: 1536,
         };
-        
+
         // q_proj and o_proj: hidden_size -> hidden_size
         assert_eq!(smollm2.get_target_dims("q_proj"), (576, 576));
         assert_eq!(smollm2.get_target_dims("o_proj"), (576, 576));
-        
+
         // k_proj and v_proj: hidden_size -> kv_dim (with GQA)
         // kv_dim = 576 * 3 / 9 = 192
         assert_eq!(smollm2.get_target_dims("k_proj"), (576, 192));
         assert_eq!(smollm2.get_target_dims("v_proj"), (576, 192));
-        
+
         // MLP projections
         assert_eq!(smollm2.get_target_dims("gate_proj"), (576, 1536));
         assert_eq!(smollm2.get_target_dims("up_proj"), (576, 1536));
         assert_eq!(smollm2.get_target_dims("down_proj"), (1536, 576));
     }
-    
+
     /// Test ModelInfo for TinyLlama-1.1B dimensions.
     #[test]
     fn test_model_info_tinyllama() {
@@ -1148,22 +1178,22 @@ mod tests {
             num_kv_heads: 4,
             intermediate_size: 5632,
         };
-        
+
         // q_proj: full hidden_size
         assert_eq!(tinyllama.get_target_dims("q_proj"), (2048, 2048));
-        
+
         // k_proj with GQA: 2048 * 4 / 32 = 256
         assert_eq!(tinyllama.get_target_dims("k_proj"), (2048, 256));
-        
+
         // MLP
         assert_eq!(tinyllama.get_target_dims("gate_proj"), (2048, 5632));
     }
-    
+
     /// Test ModelInfo for LLaMA-7B dimensions (no GQA).
     #[test]
     fn test_model_info_llama7b() {
         let llama7b = ModelInfo::default_7b();
-        
+
         // No GQA, so kv_heads == attn_heads
         assert_eq!(llama7b.get_target_dims("q_proj"), (4096, 4096));
         assert_eq!(llama7b.get_target_dims("k_proj"), (4096, 4096));
@@ -1434,8 +1464,14 @@ mod tests {
         let device = Device::Cpu;
         let dtype = DType::F32;
 
-        let result =
-            load_model_architecture(&config, &temp_dir.path().to_path_buf(), &device, dtype, None, None);
+        let result = load_model_architecture(
+            &config,
+            &temp_dir.path().to_path_buf(),
+            &device,
+            dtype,
+            None,
+            None,
+        );
         assert!(result.is_ok());
 
         let model = result.unwrap();

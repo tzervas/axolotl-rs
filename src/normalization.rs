@@ -26,8 +26,8 @@
 //! # }
 //! ```
 
-use candle_core::{Device, Tensor};
 use crate::error::Result;
+use candle_core::{Device, Tensor};
 
 #[cfg(feature = "unsloth")]
 use unsloth_rs::kernels::RmsNorm;
@@ -50,14 +50,15 @@ impl RmsNormWrapper {
         #[cfg(feature = "unsloth")]
         {
             let inner = if device.is_cuda() {
-                Some(RmsNorm::new(hidden_size, eps, device)
-                    .map_err(|e| crate::error::AxolotlError::Model(format!("Failed to create RmsNorm: {}", e)))?)
+                Some(RmsNorm::new(hidden_size, eps, device).map_err(|e| {
+                    crate::error::AxolotlError::Model(format!("Failed to create RmsNorm: {}", e))
+                })?)
             } else {
                 None
             };
             Ok(Self { inner, eps })
         }
-        
+
         #[cfg(not(feature = "unsloth"))]
         {
             let weight = Tensor::ones((hidden_size,), candle_core::DType::F32, device)?;
@@ -70,13 +71,14 @@ impl RmsNormWrapper {
         #[cfg(feature = "unsloth")]
         {
             if let Some(ref inner) = self.inner {
-                inner.forward(x)
-                    .map_err(|e| crate::error::AxolotlError::Model(format!("RmsNorm forward failed: {}", e)))
+                inner.forward(x).map_err(|e| {
+                    crate::error::AxolotlError::Model(format!("RmsNorm forward failed: {}", e))
+                })
             } else {
                 self.forward_cpu(x)
             }
         }
-        
+
         #[cfg(not(feature = "unsloth"))]
         {
             self.forward_cpu(x)
@@ -89,16 +91,20 @@ impl RmsNormWrapper {
         let x_sq = x.sqr()?;
         let mean_sq = x_sq.mean_keepdim(x.rank() - 1)?;
         let rms = (mean_sq + self.eps)?.sqrt()?;
-        
+
         #[cfg(feature = "unsloth")]
         {
             let normalized = x.broadcast_div(&rms)?;
             // Create weight tensor if not using unsloth
-            let weight = Tensor::ones((x.shape().dims()[x.rank() - 1],), candle_core::DType::F32, x.device())?;
+            let weight = Tensor::ones(
+                (x.shape().dims()[x.rank() - 1],),
+                candle_core::DType::F32,
+                x.device(),
+            )?;
             let output = normalized.broadcast_mul(&weight)?;
             Ok(output)
         }
-        
+
         #[cfg(not(feature = "unsloth"))]
         {
             let normalized = x.broadcast_div(&rms)?;

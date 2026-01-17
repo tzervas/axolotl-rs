@@ -137,8 +137,8 @@ fn test_checkpoint_save() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
 
@@ -152,17 +152,17 @@ fn test_checkpoint_save() {
 
             if checkpoint_5.exists() {
                 gpu_test_status("✓ Checkpoint-5 created");
-                
+
                 // Verify checkpoint contents
                 let training_state = checkpoint_5.join("training_state.json");
                 let adapter_config = checkpoint_5.join("adapter_config.json");
-                
+
                 if training_state.exists() {
                     gpu_test_status("✓ training_state.json present");
                 } else {
                     gpu_test_status("⚠️  training_state.json missing");
                 }
-                
+
                 if adapter_config.exists() {
                     gpu_test_status("✓ adapter_config.json present");
                 } else {
@@ -233,15 +233,16 @@ fn test_checkpoint_resume() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, &config_content).unwrap();
 
-    let config1 = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config1 =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     let mut trainer1 = Trainer::new(config1).expect("Failed to create trainer");
     let result1 = trainer1.train();
 
     match result1 {
         Ok(()) => {
-            let phase1_losses: Vec<f64> = trainer1.training_metrics.iter().map(|m| m.loss).collect();
+            let phase1_losses: Vec<f64> =
+                trainer1.training_metrics.iter().map(|m| m.loss).collect();
             let checkpoint_path = output_dir.join("checkpoint-10");
 
             if !checkpoint_path.exists() {
@@ -261,7 +262,8 @@ fn test_checkpoint_resume() {
             let mut trainer2 = Trainer::new(config2).expect("Failed to create trainer for resume");
 
             // Load checkpoint
-            trainer2.load_checkpoint(checkpoint_path.to_str().unwrap())
+            trainer2
+                .load_checkpoint(checkpoint_path.to_str().unwrap())
                 .expect("Failed to load checkpoint");
 
             gpu_test_status(&format!("Checkpoint loaded: step={}", trainer2.step()));
@@ -271,7 +273,8 @@ fn test_checkpoint_resume() {
 
             match result2 {
                 Ok(()) => {
-                    let phase2_losses: Vec<f64> = trainer2.training_metrics.iter().map(|m| m.loss).collect();
+                    let phase2_losses: Vec<f64> =
+                        trainer2.training_metrics.iter().map(|m| m.loss).collect();
 
                     gpu_test_status(&format!(
                         "Phase 2 completed: {} more steps",

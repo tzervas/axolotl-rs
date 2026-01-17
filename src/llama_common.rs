@@ -33,27 +33,32 @@ impl Cache {
     ///
     /// # Errors
     /// Returns error if tensor creation fails.
-    pub fn new(use_kv_cache: bool, dtype: DType, config: &Config, device: &Device) -> CandleResult<Self> {
+    pub fn new(
+        use_kv_cache: bool,
+        dtype: DType,
+        config: &Config,
+        device: &Device,
+    ) -> CandleResult<Self> {
         let num_layers = config.num_hidden_layers;
         let rope_theta = config.rope_theta;
         let head_dim = config.hidden_size / config.num_attention_heads;
-        
+
         // Precompute rotary embeddings - use step_by(2) like candle-transformers
         let theta: Vec<f32> = (0..head_dim)
             .step_by(2)
             .map(|i| 1.0 / rope_theta.powf(i as f32 / head_dim as f32))
             .collect();
-        
+
         let theta = Tensor::from_vec(theta, (head_dim / 2,), device)?;
-        
+
         let idx_theta = Tensor::arange(0, config.max_position_embeddings as u32, device)?
             .to_dtype(DType::F32)?
             .reshape((config.max_position_embeddings, 1))?
             .matmul(&theta.reshape((1, theta.elem_count()))?)?;
-        
+
         let cos = idx_theta.cos()?.to_dtype(dtype)?;
         let sin = idx_theta.sin()?.to_dtype(dtype)?;
-        
+
         Ok(Self {
             cos,
             sin,
@@ -63,7 +68,7 @@ impl Cache {
             device: device.clone(),
         })
     }
-    
+
     /// Get or create a causal attention mask for the given sequence length.
     ///
     /// # Errors
@@ -80,7 +85,7 @@ impl Cache {
             Ok(mask)
         }
     }
-    
+
     /// Reset KV cache (useful when starting a new sequence).
     pub fn reset(&mut self) {
         for kv in &mut self.kvs {
@@ -208,7 +213,7 @@ pub fn linear_no_bias(
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     fn create_test_config() -> Config {
         Config {
             hidden_size: 64,
@@ -227,38 +232,44 @@ mod tests {
             tie_word_embeddings: false,
         }
     }
-    
+
     #[test]
     fn test_cache_creation() {
         let config = create_test_config();
         let device = Device::Cpu;
         let cache = Cache::new(false, DType::F32, &config, &device);
         assert!(cache.is_ok());
-        
+
         let cache = cache.unwrap();
         assert_eq!(cache.kvs.len(), config.num_hidden_layers);
         assert!(!cache.use_kv_cache);
     }
-    
+
     #[test]
     fn test_cache_mask() {
         let config = create_test_config();
         let device = Device::Cpu;
         let mut cache = Cache::new(false, DType::F32, &config, &device).unwrap();
-        
+
         let mask = cache.mask(4).unwrap();
         assert_eq!(mask.dims(), &[4, 4]);
     }
-    
+
     #[test]
     fn test_rotary_emb_shapes() {
         let config = create_test_config();
         let device = Device::Cpu;
         let cache = Cache::new(false, DType::F32, &config, &device).unwrap();
-        
+
         // cos/sin should be [max_pos, head_dim/2]
         let head_dim = config.hidden_size / config.num_attention_heads;
-        assert_eq!(cache.cos.dims(), &[config.max_position_embeddings, head_dim / 2]);
-        assert_eq!(cache.sin.dims(), &[config.max_position_embeddings, head_dim / 2]);
+        assert_eq!(
+            cache.cos.dims(),
+            &[config.max_position_embeddings, head_dim / 2]
+        );
+        assert_eq!(
+            cache.sin.dims(),
+            &[config.max_position_embeddings, head_dim / 2]
+        );
     }
 }

@@ -32,7 +32,8 @@ fn create_lora_config(
     rank: usize,
     target_modules: Vec<&str>,
 ) -> String {
-    let modules_yaml = target_modules.iter()
+    let modules_yaml = target_modules
+        .iter()
         .map(|m| format!("    - {}", m))
         .collect::<Vec<_>>()
         .join("\n");
@@ -130,20 +131,20 @@ fn test_lora_target_minimal() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
 
     match trainer.train() {
         Ok(()) => {
             let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
-            
+
             gpu_test_status(&format!(
                 "✅ Minimal LoRA test passed ({} steps)",
                 losses.len()
             ));
-            
+
             if losses.len() >= 2 {
                 let change = (losses[0] - losses[losses.len() - 1]) / losses[0];
                 gpu_test_status(&format!("   Loss change: {:.1}%", change * 100.0));
@@ -198,20 +199,20 @@ fn test_lora_target_standard() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
 
     match trainer.train() {
         Ok(()) => {
             let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
-            
+
             gpu_test_status(&format!(
                 "✅ Standard LoRA test passed ({} steps)",
                 losses.len()
             ));
-            
+
             if losses.len() >= 2 {
                 let change = (losses[0] - losses[losses.len() - 1]) / losses[0];
                 gpu_test_status(&format!("   Loss change: {:.1}%", change * 100.0));
@@ -247,7 +248,9 @@ fn test_lora_target_full_attention() {
         return;
     }
 
-    gpu_test_status("Testing LoRA with full attention target modules (q_proj, k_proj, v_proj, o_proj)");
+    gpu_test_status(
+        "Testing LoRA with full attention target modules (q_proj, k_proj, v_proj, o_proj)",
+    );
 
     let temp_dir = TempDir::new().unwrap();
     let output_dir = temp_dir.path().join("outputs");
@@ -266,20 +269,20 @@ fn test_lora_target_full_attention() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
 
     match trainer.train() {
         Ok(()) => {
             let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
-            
+
             gpu_test_status(&format!(
                 "✅ Full attention LoRA test passed ({} steps)",
                 losses.len()
             ));
-            
+
             if losses.len() >= 2 {
                 let change = (losses[0] - losses[losses.len() - 1]) / losses[0];
                 gpu_test_status(&format!("   Loss change: {:.1}%", change * 100.0));
@@ -334,20 +337,17 @@ fn test_lora_target_mlp() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
 
     match trainer.train() {
         Ok(()) => {
             let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
-            
-            gpu_test_status(&format!(
-                "✅ MLP LoRA test passed ({} steps)",
-                losses.len()
-            ));
-            
+
+            gpu_test_status(&format!("✅ MLP LoRA test passed ({} steps)", losses.len()));
+
             if losses.len() >= 2 {
                 let change = (losses[0] - losses[losses.len() - 1]) / losses[0];
                 gpu_test_status(&format!("   Loss change: {:.1}%", change * 100.0));
