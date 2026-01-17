@@ -11,9 +11,9 @@ use std::path::Path;
 use candle_core::Device;
 use candle_nn::VarMap;
 
-use crate::config::{AdapterType, AxolotlConfig, LoraSettings};
 #[cfg(feature = "qlora")]
 use crate::config::QuantizationSettings;
+use crate::config::{AdapterType, AxolotlConfig, LoraSettings};
 use crate::error::{AxolotlError, Result};
 
 // Re-export based on features
@@ -174,9 +174,10 @@ impl AdapterWrapper {
         let mut all_tensors: Vec<(String, Tensor)> = Vec::new();
 
         for (name, layer) in layers {
-            let state = layer.state_dict()
-                .map_err(|e| AxolotlError::Model(format!("Failed to get state dict for {}: {}", name, e)))?;
-            
+            let state = layer.state_dict().map_err(|e| {
+                AxolotlError::Model(format!("Failed to get state dict for {}: {}", name, e))
+            })?;
+
             for (key, tensor) in state {
                 all_tensors.push((format!("{}.{}", name, key), tensor));
             }
@@ -189,13 +190,15 @@ impl AdapterWrapper {
             .map(|(name, tensor)| (name.as_str(), tensor.clone()))
             .collect();
 
-        safetensors::tensor::serialize_to_file(tensors_ref, &None, &weights_path)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to save adapter weights: {}", e)))?;
+        safetensors::tensor::serialize_to_file(tensors_ref, &None, &weights_path).map_err(|e| {
+            AxolotlError::Checkpoint(format!("Failed to save adapter weights: {}", e))
+        })?;
 
         // Save config to JSON
         let config_path = dir.join("adapter_config.json");
-        let config_json = serde_json::to_string_pretty(lora_config)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to serialize adapter config: {}", e)))?;
+        let config_json = serde_json::to_string_pretty(lora_config).map_err(|e| {
+            AxolotlError::Checkpoint(format!("Failed to serialize adapter config: {}", e))
+        })?;
         std::fs::write(&config_path, config_json)?;
 
         tracing::info!("Saved adapter with {} layers to {:?}", layers.len(), dir);
@@ -221,17 +224,24 @@ impl AdapterWrapper {
 
         // Load config
         let config_path = dir.join("adapter_config.json");
-        let config_json = std::fs::read_to_string(&config_path)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to read adapter config: {}", e)))?;
-        let config: PeftLoraConfig = serde_json::from_str(&config_json)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to parse adapter config: {}", e)))?;
+        let config_json = std::fs::read_to_string(&config_path).map_err(|e| {
+            AxolotlError::Checkpoint(format!("Failed to read adapter config: {}", e))
+        })?;
+        let config: PeftLoraConfig = serde_json::from_str(&config_json).map_err(|e| {
+            AxolotlError::Checkpoint(format!("Failed to parse adapter config: {}", e))
+        })?;
 
         // Load weights
         let weights_path = dir.join("adapter_model.safetensors");
-        let tensors = candle_core::safetensors::load(&weights_path, &self.device)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to load adapter weights: {}", e)))?;
+        let tensors = candle_core::safetensors::load(&weights_path, &self.device).map_err(|e| {
+            AxolotlError::Checkpoint(format!("Failed to load adapter weights: {}", e))
+        })?;
 
-        tracing::info!("Loaded adapter with {} tensors from {:?}", tensors.len(), dir);
+        tracing::info!(
+            "Loaded adapter with {} tensors from {:?}",
+            tensors.len(),
+            dir
+        );
         Ok((config, tensors))
     }
 }
@@ -346,7 +356,9 @@ mod tests {
         let mut layers = HashMap::new();
         layers.insert("model.layers.0.self_attn.q_proj".to_string(), layer);
 
-        wrapper.save_adapter(temp_dir.path(), &lora_config, &layers).unwrap();
+        wrapper
+            .save_adapter(temp_dir.path(), &lora_config, &layers)
+            .unwrap();
 
         // Verify files exist
         assert!(temp_dir.path().join("adapter_model.safetensors").exists());

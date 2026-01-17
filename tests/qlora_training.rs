@@ -38,7 +38,10 @@ mod qlora_tests {
         assert_eq!(config.lora.r, 64);
         assert_eq!(config.lora.alpha, 16);
         assert_eq!(config.target_modules.len(), 7);
-        assert!(!config.cache_dequantized, "Training should use on-the-fly dequant");
+        assert!(
+            !config.cache_dequantized,
+            "Training should use on-the-fly dequant"
+        );
 
         // Verify all expected targets
         assert!(config.is_target("q_proj"));
@@ -283,7 +286,11 @@ mod qlora_tests {
             total_loss += loss.to_scalar::<f32>().unwrap();
 
             if step % 5 == 0 {
-                println!("Step {}: loss = {:.4}", step, total_loss / (step + 1) as f32);
+                println!(
+                    "Step {}: loss = {:.4}",
+                    step,
+                    total_loss / (step + 1) as f32
+                );
             }
         }
 

@@ -196,8 +196,8 @@ fn test_gpu_quick_iteration() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     gpu_test_status(&format!(
         "Config: model={}, adapter={:?}",
@@ -215,13 +215,13 @@ fn test_gpu_quick_iteration() {
         Ok(()) => {
             // Extract losses from training metrics
             let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
-            
+
             gpu_test_status(&format!(
                 "✅ Quick iteration passed in {:.1}s ({} steps collected)",
                 elapsed.as_secs_f64(),
                 losses.len()
             ));
-            
+
             if losses.is_empty() {
                 panic!("No loss values collected during training");
             }
@@ -285,8 +285,8 @@ fn test_gpu_loss_convergence_100_steps() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
 
@@ -298,31 +298,31 @@ fn test_gpu_loss_convergence_100_steps() {
         Ok(()) => {
             // Extract losses from training metrics
             let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
-            
+
             gpu_test_status(&format!(
                 "Loss convergence test completed in {:.1}s ({} steps)",
                 elapsed.as_secs_f64(),
                 losses.len()
             ));
-            
+
             if losses.is_empty() {
                 panic!("No loss values collected during training");
             }
-            
+
             // Validate loss convergence (at least 30% decrease)
             let initial_loss = losses[0];
             let final_loss = losses[losses.len() - 1];
             let loss_decrease = (initial_loss - final_loss) / initial_loss;
-            
+
             gpu_test_status(&format!(
                 "Loss: {:.4} -> {:.4} (decrease: {:.1}%)",
                 initial_loss,
                 final_loss,
                 loss_decrease * 100.0
             ));
-            
+
             assert_loss_convergence(&losses, 0.3, 10);
-            
+
             gpu_test_status("✅ Loss convergence test passed");
         }
         Err(e) => {
@@ -383,8 +383,8 @@ fn test_lora_loss_convergence_100_steps() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     gpu_test_status(&format!(
         "Config: model={}, adapter={:?}",
@@ -401,31 +401,31 @@ fn test_lora_loss_convergence_100_steps() {
         Ok(()) => {
             // Extract losses from training metrics
             let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
-            
+
             gpu_test_status(&format!(
                 "LoRA loss convergence test completed in {:.1}s ({} steps)",
                 elapsed.as_secs_f64(),
                 losses.len()
             ));
-            
+
             if losses.is_empty() {
                 panic!("No loss values collected during training");
             }
-            
+
             // Validate loss convergence (at least 30% decrease)
             let initial_loss = losses[0];
             let final_loss = losses[losses.len() - 1];
             let loss_decrease = (initial_loss - final_loss) / initial_loss;
-            
+
             gpu_test_status(&format!(
                 "Loss: {:.4} -> {:.4} (decrease: {:.1}%)",
                 initial_loss,
                 final_loss,
                 loss_decrease * 100.0
             ));
-            
+
             assert_loss_convergence(&losses, 0.3, 10);
-            
+
             gpu_test_status("✅ LoRA loss convergence test passed");
         }
         Err(e) => {
@@ -488,8 +488,8 @@ fn test_gpu_tinyllama_memory_validation() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
 
@@ -500,15 +500,19 @@ fn test_gpu_tinyllama_memory_validation() {
     match result {
         Ok(()) => {
             let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
-            
+
             gpu_test_status(&format!(
                 "✅ TinyLlama memory validation passed in {:.1}s ({} steps)",
                 elapsed.as_secs_f64(),
                 losses.len()
             ));
-            
+
             if !losses.is_empty() {
-                gpu_test_status(&format!("Loss range: {:.4} -> {:.4}", losses[0], losses[losses.len() - 1]));
+                gpu_test_status(&format!(
+                    "Loss range: {:.4} -> {:.4}",
+                    losses[0],
+                    losses[losses.len() - 1]
+                ));
             }
         }
         Err(e) => {
@@ -566,8 +570,8 @@ fn test_gpu_tinyllama_extended_training() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
 
@@ -578,14 +582,14 @@ fn test_gpu_tinyllama_extended_training() {
     match result {
         Ok(()) => {
             let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
-            
+
             gpu_test_status(&format!(
                 "✅ TinyLlama extended training passed in {:.1}s ({:.1} steps/sec, {} steps)",
                 elapsed.as_secs_f64(),
                 losses.len() as f64 / elapsed.as_secs_f64(),
                 losses.len()
             ));
-            
+
             if losses.len() >= 2 {
                 let loss_decrease = (losses[0] - losses[losses.len() - 1]) / losses[0];
                 gpu_test_status(&format!(
@@ -672,8 +676,8 @@ fn test_gpu_llama7b_full_validation() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
 
@@ -684,14 +688,14 @@ fn test_gpu_llama7b_full_validation() {
     match result {
         Ok(()) => {
             let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
-            
+
             gpu_test_status(&format!(
                 "✅ LLaMA-7B full validation passed in {:.1}m ({:.1} steps/sec, {} steps)",
                 elapsed.as_secs_f64() / 60.0,
                 losses.len() as f64 / elapsed.as_secs_f64(),
                 losses.len()
             ));
-            
+
             if losses.len() >= 2 {
                 let loss_decrease = (losses[0] - losses[losses.len() - 1]) / losses[0];
                 gpu_test_status(&format!(
@@ -725,7 +729,7 @@ fn test_gpu_llama7b_full_validation() {
 #[cfg(feature = "cuda")]
 fn test_gpu_gradient_flow() {
     use axolotl_rs::{AxolotlConfig, Trainer};
-    
+
     if !cuda_available() {
         skip_gpu_test("CUDA not available");
         return;
@@ -758,8 +762,8 @@ fn test_gpu_gradient_flow() {
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
 
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
 
@@ -768,18 +772,15 @@ fn test_gpu_gradient_flow() {
     match result {
         Ok(()) => {
             let losses: Vec<f64> = trainer.training_metrics.iter().map(|m| m.loss).collect();
-            
-            gpu_test_status(&format!(
-                "Training completed: {} steps",
-                losses.len()
-            ));
+
+            gpu_test_status(&format!("Training completed: {} steps", losses.len()));
 
             if losses.len() >= 2 {
                 // Check that loss changed (gradient flowed)
                 let first_loss = losses[0];
                 let last_loss = losses[losses.len() - 1];
                 let loss_change = (first_loss - last_loss).abs();
-                
+
                 gpu_test_status(&format!(
                     "Loss trajectory: {:.4} -> {:.4} (change: {:.4})",
                     first_loss, last_loss, loss_change
@@ -788,7 +789,9 @@ fn test_gpu_gradient_flow() {
                 if loss_change > 0.0001 {
                     gpu_test_status("✅ Gradient flow verified (loss changed)");
                 } else {
-                    gpu_test_status("⚠️  Warning: Loss changed minimally, gradients may not be flowing");
+                    gpu_test_status(
+                        "⚠️  Warning: Loss changed minimally, gradients may not be flowing",
+                    );
                 }
             } else {
                 panic!("❌ Not enough training steps collected");

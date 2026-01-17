@@ -171,8 +171,9 @@ impl QLoraAttention {
         } else {
             // Not targeted - create without trainable LoRA
             // Still quantize the base weight for memory savings
-            QuantizedLinear::from_weight(&weight, None, qlora_config, base_vb.device())
-                .map_err(|e| candle_core::Error::Msg(format!("Quantized {name} creation failed: {e}")))
+            QuantizedLinear::from_weight(&weight, None, qlora_config, base_vb.device()).map_err(
+                |e| candle_core::Error::Msg(format!("Quantized {name} creation failed: {e}")),
+            )
         }
     }
 
@@ -187,11 +188,17 @@ impl QLoraAttention {
         let (b_sz, seq_len, _hidden_size) = x.dims3()?;
 
         // Q/K/V projections through quantized+LoRA layers
-        let q = self.q_proj.forward(x)
+        let q = self
+            .q_proj
+            .forward(x)
             .map_err(|e| candle_core::Error::Msg(format!("q_proj forward failed: {e}")))?;
-        let k = self.k_proj.forward(x)
+        let k = self
+            .k_proj
+            .forward(x)
             .map_err(|e| candle_core::Error::Msg(format!("k_proj forward failed: {e}")))?;
-        let v = self.v_proj.forward(x)
+        let v = self
+            .v_proj
+            .forward(x)
             .map_err(|e| candle_core::Error::Msg(format!("v_proj forward failed: {e}")))?;
 
         // Reshape for multi-head attention
@@ -243,10 +250,14 @@ impl QLoraAttention {
         let y = att.matmul(&v.contiguous()?)?.to_dtype(in_dtype)?;
 
         // Reshape back
-        let y = y.transpose(1, 2)?.reshape(&[b_sz, seq_len, self.hidden_size])?;
+        let y = y
+            .transpose(1, 2)?
+            .reshape(&[b_sz, seq_len, self.hidden_size])?;
 
         // O projection through quantized+LoRA layer
-        let output = self.o_proj.forward(&y)
+        let output = self
+            .o_proj
+            .forward(&y)
             .map_err(|e| candle_core::Error::Msg(format!("o_proj forward failed: {e}")))?;
 
         Ok(output)
@@ -321,27 +332,34 @@ impl QLoraMlp {
             )
             .map_err(|e| candle_core::Error::Msg(format!("QLoRA {name} creation failed: {e}")))
         } else {
-            QuantizedLinear::from_weight(&weight, None, qlora_config, base_vb.device())
-                .map_err(|e| candle_core::Error::Msg(format!("Quantized {name} creation failed: {e}")))
+            QuantizedLinear::from_weight(&weight, None, qlora_config, base_vb.device()).map_err(
+                |e| candle_core::Error::Msg(format!("Quantized {name} creation failed: {e}")),
+            )
         }
     }
 
     /// Forward pass through QLoRA MLP.
     pub fn forward(&self, x: &Tensor) -> CandleResult<Tensor> {
         // Gate projection with SiLU activation
-        let gate = self.gate_proj.forward(x)
+        let gate = self
+            .gate_proj
+            .forward(x)
             .map_err(|e| candle_core::Error::Msg(format!("gate_proj forward failed: {e}")))?;
         let gate = candle_nn::ops::silu(&gate)?;
 
         // Up projection
-        let up = self.up_proj.forward(x)
+        let up = self
+            .up_proj
+            .forward(x)
             .map_err(|e| candle_core::Error::Msg(format!("up_proj forward failed: {e}")))?;
 
         // Gated activation
         let hidden = (gate * up)?;
 
         // Down projection
-        let output = self.down_proj.forward(&hidden)
+        let output = self
+            .down_proj
+            .forward(&hidden)
             .map_err(|e| candle_core::Error::Msg(format!("down_proj forward failed: {e}")))?;
 
         Ok(output)
@@ -391,8 +409,11 @@ impl QLoraTransformerBlock {
         // Layer norms - loaded in original precision, will be upcasted during prepare_for_training
         let input_layernorm =
             candle_nn::rms_norm(hidden_size, rms_norm_eps, base_vb.pp("input_layernorm"))?;
-        let post_attention_layernorm =
-            candle_nn::rms_norm(hidden_size, rms_norm_eps, base_vb.pp("post_attention_layernorm"))?;
+        let post_attention_layernorm = candle_nn::rms_norm(
+            hidden_size,
+            rms_norm_eps,
+            base_vb.pp("post_attention_layernorm"),
+        )?;
 
         Ok(Self {
             attention,
@@ -415,7 +436,9 @@ impl QLoraTransformerBlock {
         // Pre-norm for attention
         // CRITICAL: Use forward_diff() to preserve gradient tracking
         let normed = self.input_layernorm.forward_diff(x)?;
-        let attn_output = self.attention.forward(&normed, index_pos, block_idx, cache)?;
+        let attn_output = self
+            .attention
+            .forward(&normed, index_pos, block_idx, cache)?;
         let x = (x + attn_output)?;
 
         // Pre-norm for MLP
@@ -510,10 +533,7 @@ impl QLoraLlama {
         let lm_head = if config.tie_word_embeddings {
             Linear::new(embed_tokens.embeddings().clone(), None)
         } else {
-            let weight = base_vb.get(
-                (config.vocab_size, config.hidden_size),
-                "lm_head.weight",
-            )?;
+            let weight = base_vb.get((config.vocab_size, config.hidden_size), "lm_head.weight")?;
             Linear::new(weight, None)
         };
 
@@ -584,12 +604,12 @@ impl QLoraLlama {
             let attn_params = hidden * hidden  // q_proj
                 + hidden * kv_dim              // k_proj
                 + hidden * kv_dim              // v_proj
-                + hidden * hidden;             // o_proj
+                + hidden * hidden; // o_proj
 
             // MLP: gate, up, down projections
             let mlp_params = hidden * intermediate  // gate_proj
                 + hidden * intermediate             // up_proj
-                + intermediate * hidden;            // down_proj
+                + intermediate * hidden; // down_proj
 
             // Layer norms
             let norm_params = hidden * 2;
@@ -649,10 +669,7 @@ impl Module for QLoraLlama {
 /// let mut model = QLoraLlama::new_with_qlora(&config, base_vb, &qlora_config, &lora_varmap)?;
 /// prepare_for_qlora_training(&model, &lora_varmap)?;
 /// ```
-pub fn prepare_for_qlora_training(
-    _model: &QLoraLlama,
-    lora_varmap: &VarMap,
-) -> CandleResult<()> {
+pub fn prepare_for_qlora_training(_model: &QLoraLlama, lora_varmap: &VarMap) -> CandleResult<()> {
     // Validate that LoRA parameters are registered
     let vars = lora_varmap.all_vars();
     if vars.is_empty() {
