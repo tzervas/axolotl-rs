@@ -25,7 +25,21 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1.0"
 
 # Adapter and quantization dependencies
-# TODO: Re-enable when these dependencies are available
+# 
+# For production use (importing from crates.io):
+# Uncomment these lines when packages are published to crates.io
+# peft-rs = { version = "0.1", optional = true }
+# qlora-rs = { version = "0.1", optional = true }
+# unsloth-rs = { version = "0.1", optional = true }
+#
+# For active development (importing from GitHub):
+# Uncomment these lines to use development branches from GitHub repos
+# peft-rs = { git = "https://github.com/tzervas/peft-rs", branch = "main", optional = true }
+# qlora-rs = { git = "https://github.com/tzervas/qlora-rs", branch = "main", optional = true }
+# unsloth-rs = { git = "https://github.com/tzervas/unsloth-rs", branch = "main", optional = true }
+#
+# For local development (importing from local paths):
+# Uncomment these lines to use local sister project directories
 # peft-rs = { path = "../peft-rs", optional = true }
 # qlora-rs = { path = "../qlora-rs", optional = true }
 # unsloth-rs = { path = "../unsloth-rs", optional = true }
@@ -48,16 +62,22 @@ predicates = "3.0"
 [features]
 default = ["download"]
 download = ["reqwest"]
-# Enable real adapter/quantization libraries
-# TODO: Re-enable when dependencies are available
+
+# Real adapter/quantization libraries (requires dependencies to be uncommented above)
+# Uncomment these features when you've enabled peft-rs, qlora-rs, or unsloth-rs dependencies
 # peft = ["peft-rs"]
 # qlora = ["qlora-rs", "peft"]
 # unsloth = ["unsloth-rs"]
-# Mock features for testing without real deps
+
+# Mock features for testing without real dependencies
 mock-peft = []
 mock-qlora = []
 mock-unsloth = []
+
+# Hardware acceleration
 cuda = ["candle-core/cuda"]
+
+# Performance optimizations
 optimized = []
 
 [lints.rust]
