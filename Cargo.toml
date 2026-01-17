@@ -33,10 +33,10 @@ anyhow = "1.0"
 # unsloth-rs = { version = "0.1", optional = true }
 #
 # For active development (importing from GitHub):
-# Uncomment these lines to use development branches from GitHub repos
-# peft-rs = { git = "https://github.com/tzervas/peft-rs", branch = "main", optional = true }
-# qlora-rs = { git = "https://github.com/tzervas/qlora-rs", branch = "main", optional = true }
-# unsloth-rs = { git = "https://github.com/tzervas/unsloth-rs", branch = "main", optional = true }
+# Using development branches from GitHub repos for CI (default for development)
+peft-rs = { git = "https://github.com/tzervas/peft-rs", branch = "main", optional = true }
+qlora-rs = { git = "https://github.com/tzervas/qlora-rs", branch = "main", optional = true }
+unsloth-rs = { git = "https://github.com/tzervas/unsloth-rs", branch = "main", optional = true }
 #
 # For local development (importing from local paths):
 # Uncomment these lines to use local sister project directories
@@ -63,11 +63,10 @@ predicates = "3.0"
 default = ["download"]
 download = ["reqwest"]
 
-# Real adapter/quantization libraries (requires dependencies to be uncommented above)
-# Uncomment these features when you've enabled peft-rs, qlora-rs, or unsloth-rs dependencies
-# peft = ["peft-rs"]
-# qlora = ["qlora-rs", "peft"]
-# unsloth = ["unsloth-rs"]
+# Real adapter/quantization libraries
+peft = ["peft-rs"]
+qlora = ["qlora-rs", "peft"]
+unsloth = ["unsloth-rs"]
 
 # Mock features for testing without real dependencies
 mock-peft = []
