@@ -341,6 +341,9 @@ fn test_gpu_loss_convergence_100_steps() {
 /// Success criteria:
 /// - Loss decreases by at least 30% from initial
 ///
+/// Expected runtime: ~70-100 seconds (100 steps at ~0.7-1.0s/step in release mode)
+/// Resource requirements: CUDA-capable GPU with ~2GB VRAM, SmolLM2-135M model downloaded
+///
 /// Run with: `cargo test --features 'peft cuda' -- --ignored test_lora_loss_convergence`
 #[test]
 #[ignore]

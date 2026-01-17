@@ -2,6 +2,29 @@
 //!
 //! This module provides wrappers around normalization operations that automatically
 //! handle GPU/CPU conversions to support operations that don't have full GPU implementations.
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! use candle_core::{Device, Tensor};
+//! use axolotl_rs::normalization::RmsNormWrapper;
+//!
+//! # fn main() -> anyhow::Result<()> {
+//! let device = Device::Cpu;
+//! let hidden_size = 768;
+//! let eps = 1e-5;
+//!
+//! // Create an RMS normalization layer
+//! let rms_norm = RmsNormWrapper::new(hidden_size, eps, &device)?;
+//!
+//! // Dummy input with shape [batch, seq_len, hidden_size]
+//! let x = Tensor::zeros((1, 4, hidden_size), candle_core::DType::F32, &device)?;
+//!
+//! // Apply normalization
+//! let y = rms_norm.forward(&x)?;
+//! # Ok(())
+//! # }
+//! ```
 
 use candle_core::{Device, Tensor};
 use crate::error::Result;

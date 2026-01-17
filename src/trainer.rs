@@ -88,6 +88,7 @@ impl Trainer {
         config.validate()?;
 
         // Determine device
+        // TODO: Revisit device selection once Candle supports RMS-Norm on GPU or a custom GPU kernel is available.
         // NOTE: Temporary workaround for Candle not supporting RMS-Norm on GPU
         // Use CPU for model inference until Candle or custom GPU kernel is available
         let use_gpu = cfg!(feature = "cuda") && candle_core::utils::cuda_is_available();

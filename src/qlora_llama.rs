@@ -66,6 +66,8 @@ pub struct QLoraAttention {
     num_key_value_heads: usize,
     head_dim: usize,
     hidden_size: usize,
+    // Reserved for future use (e.g., RoPE / KV cache / attention masking) to enforce or
+    // reason about the maximum supported sequence length for this attention module.
     #[allow(dead_code)]
     max_position_embeddings: usize,
 }
