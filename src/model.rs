@@ -458,17 +458,25 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
         // LoraLlama creates its own adapters internally during construction
         // Pass lora_config through model_info
         #[cfg(feature = "peft")]
-        let lora_config = PeftLoraConfig {
-            r: config.lora.r,
-            alpha: config.lora.alpha,
-            dropout: config.lora.dropout,
-            target_modules: config.lora.target_modules.clone(),
-            ..Default::default()
-        };
-        
-        let model = load_model_architecture(config, &model_path, device, dtype, None, Some((&model_info, &trainable_params, &lora_config)))?;
-        // AdapterLayers will be empty since LoRA is embedded in model
-        (model, None)
+        {
+            let lora_config = PeftLoraConfig {
+                r: config.lora.r,
+                alpha: config.lora.alpha,
+                dropout: config.lora.dropout,
+                target_modules: config.lora.target_modules.clone(),
+                ..Default::default()
+            };
+            
+            let model = load_model_architecture(config, &model_path, device, dtype, None, Some((&model_info, &trainable_params, &lora_config)))?;
+            // AdapterLayers will be empty since LoRA is embedded in model
+            (model, None)
+        }
+        #[cfg(not(feature = "peft"))]
+        {
+            return Err(AxolotlError::Model(
+                "LoRA requested but peft feature not enabled".into()
+            ));
+        }
     } else {
         // Standard model + separate adapter layers
         let model = load_model_architecture(config, &model_path, device, dtype, None, None)?;
@@ -716,7 +724,10 @@ fn load_model_architecture(
     device: &Device,
     dtype: DType,
     _adapter_layers: Option<&AdapterLayers>,
+    #[cfg(feature = "peft")]
     lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
+    #[cfg(not(feature = "peft"))]
+    lora_params: Option<(&ModelInfo, &VarMap)>,
 ) -> Result<Box<dyn Module>> {
     // Check config.json for architecture type
     let config_path = model_path.join("config.json");
@@ -750,7 +761,10 @@ fn load_llama_model(
     model_path: &PathBuf,
     device: &Device,
     dtype: DType,
+    #[cfg(feature = "peft")]
     lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
+    #[cfg(not(feature = "peft"))]
+    lora_params: Option<(&ModelInfo, &VarMap)>,
 ) -> Result<Box<dyn Module>> {
     // Try to load config.json first
     let config_path = model_path.join("config.json");
@@ -813,22 +827,25 @@ fn load_llama_model(
         tie_word_embeddings: llama_config.tie_word_embeddings.unwrap_or(false),
     };
 
+    #[cfg(feature = "peft")]
     let model: Box<dyn Module> = if let Some((_model_info, trainable_params, lora_config)) = lora_params {
-        #[cfg(feature = "peft")]
-        {
-            tracing::info!("Loading LoraLlama with per-layer LoRA injection");
-            
-            // Create LoraLlama with internal adapters
-            let model = LoraLlama::new_with_lora(&config, vb, lora_config, trainable_params)
-                .map_err(|e| AxolotlError::Model(format!("Failed to create LoraLlama: {}", e)))?;
-            
-            Box::new(model)
-        }
-        #[cfg(not(feature = "peft"))]
-        {
-            return Err(AxolotlError::Model("LoRA requested but peft feature not enabled".into()));
-        }
+        tracing::info!("Loading LoraLlama with per-layer LoRA injection");
+        
+        // Create LoraLlama with internal adapters
+        let model = LoraLlama::new_with_lora(&config, vb, lora_config, trainable_params)
+            .map_err(|e| AxolotlError::Model(format!("Failed to create LoraLlama: {}", e)))?;
+        
+        Box::new(model)
     } else {
+        // Use standard Llama model wrapped for training
+        let model = Llama::load(vb, &config)
+            .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {}", e)))?;
+        
+        Box::new(LlamaWrapper::new(model, &config, device)?)
+    };
+
+    #[cfg(not(feature = "peft"))]
+    let model: Box<dyn Module> = {
         // Use standard Llama model wrapped for training
         let model = Llama::load(vb, &config)
             .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {}", e)))?;

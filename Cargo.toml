@@ -25,9 +25,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1.0"
 
 # Adapter and quantization dependencies
-peft-rs = { path = "../peft-rs", optional = true }
-qlora-rs = { path = "../qlora-rs", optional = true }
-unsloth-rs = { path = "../unsloth-rs", optional = true }
+# TODO: Re-enable when these dependencies are available
+# peft-rs = { path = "../peft-rs", optional = true }
+# qlora-rs = { path = "../qlora-rs", optional = true }
+# unsloth-rs = { path = "../unsloth-rs", optional = true }
 
 # CLI
 clap = { version = "4.5", features = ["derive"] }
@@ -48,14 +49,15 @@ predicates = "3.0"
 default = ["download"]
 download = ["reqwest"]
 # Enable real adapter/quantization libraries
-peft = ["peft-rs"]
-qlora = ["qlora-rs", "peft"]
-unsloth = ["unsloth-rs"]
+# TODO: Re-enable when dependencies are available
+# peft = ["peft-rs"]
+# qlora = ["qlora-rs", "peft"]
+# unsloth = ["unsloth-rs"]
 # Mock features for testing without real deps
 mock-peft = []
 mock-qlora = []
 mock-unsloth = []
-cuda = ["candle-core/cuda", "peft-rs?/cuda", "qlora-rs?/cuda", "unsloth-rs?/cuda"]
+cuda = ["candle-core/cuda"]
 optimized = []
 
 [lints.rust]
