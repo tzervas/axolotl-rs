@@ -187,8 +187,7 @@ impl Default for PrepareForTrainingConfig {
 /// - PEFT: `prepare_model_for_kbit_training` upcasts all 1D params to FP32
 /// - QLoRA paper Section 4.1: FP16 compute causes 20% training failure rate
 ///
-/// # Errors
-/// Returns error if dtype conversion fails.
+/// This function does not return errors in the current implementation.
 pub fn upcast_rms_norm(norm: &RmsNorm, _device: &Device) -> CandleResult<RmsNorm> {
     // NOTE: Real upcasting should be handled when creating `RmsNorm`
     // via the `VarBuilder` dtype. Here we simply return a clone to
