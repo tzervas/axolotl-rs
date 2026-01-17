@@ -614,6 +614,8 @@ impl LoraLlama {
         // CRITICAL: Use forward_diff() instead of forward() because the optimized rms_norm
         // kernel uses apply_op_no_bwd which doesn't track gradients!
         // forward_diff() falls back to the slower but gradient-tracking implementation.
+        // For background, see the Candle repository discussions/issues on `apply_op_no_bwd`
+        // and rms_norm gradient tracking in candle-core/candle-transformers.
         hidden_states = self.norm.forward_diff(&hidden_states)?;
 
         // Project to vocabulary logits for ALL positions
