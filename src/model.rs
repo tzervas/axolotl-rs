@@ -39,20 +39,20 @@ pub struct LoadedModel {
     pub dtype: DType,
     /// Adapter layers (if using LoRA/QLoRA)
     pub adapter_layers: Option<AdapterLayers>,
-    /// Trainable parameters (LoRA weights)
+    /// Trainable parameters (`LoRA` weights)
     pub trainable_params: VarMap,
 }
 
 /// Container for adapter layers organized by module name.
 #[derive(Default)]
 pub struct AdapterLayers {
-    /// LoRA layers keyed by module path (e.g., "model.layers.0.self_attn.q_proj")
+    /// `LoRA` layers keyed by module path (e.g., "`model.layers.0.self_attn.q_proj`")
     #[cfg(feature = "peft")]
     pub lora_layers: HashMap<String, LoraLayer>,
     /// QLoRA layers keyed by module path
     #[cfg(feature = "qlora")]
     pub qlora_layers: HashMap<String, QuantizedLinear>,
-    /// Whether this is a QLoRA model (quantized base)
+    /// Whether this is a `QLoRA` model (quantized base)
     #[allow(dead_code)]
     pub is_quantized: bool,
 }
@@ -109,17 +109,17 @@ impl LoadedModel {
     pub fn forward(&self, input_ids: &Tensor) -> Result<Tensor> {
         self.model
             .forward(input_ids)
-            .map_err(|e| AxolotlError::Model(format!("Forward pass failed: {}", e)))
+            .map_err(|e| AxolotlError::Model(format!("Forward pass failed: {e}")))
     }
 
     /// Run forward pass with adapter layers.
     ///
     /// **IMPORTANT**: Current implementation does NOT properly integrate adapters.
-    /// LoRA adapters need to be injected at each attention/MLP layer, not applied
-    /// post-hoc to logits. This requires custom model architecture (LoraLlama).
+    /// `LoRA` adapters need to be injected at each attention/MLP layer, not applied
+    /// post-hoc to logits. This requires custom model architecture (`LoraLlama`).
     ///
     /// For now, this returns base model output. Gradient flow is maintained through
-    /// the trainable LoRA parameters in `trainable_params` VarMap.
+    /// the trainable `LoRA` parameters in `trainable_params` `VarMap`.
     ///
     /// # Errors
     ///
@@ -140,7 +140,7 @@ impl LoadedModel {
 
     /// Get trainable parameters for optimizer.
     ///
-    /// Returns only the LoRA A/B matrices, not the frozen base model weights.
+    /// Returns only the `LoRA` A/B matrices, not the frozen base model weights.
     #[must_use]
     #[allow(dead_code)]
     pub fn trainable_tensors(&self) -> Vec<candle_core::Var> {
@@ -179,7 +179,7 @@ impl LoadedModel {
             // Get LoRA A and B weights
             if let Ok(state) = layer.state_dict() {
                 for (key, tensor) in state {
-                    all_tensors.push((format!("{}.{}", name, key), tensor));
+                    all_tensors.push((format!("{name}.{key}"), tensor));
                 }
             }
         }
@@ -192,7 +192,7 @@ impl LoadedModel {
             .collect();
 
         safetensors::tensor::serialize_to_file(tensors_ref, &None, &weights_path).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to save adapter: {}", e).into())
+            AxolotlError::Checkpoint(format!("Failed to save adapter: {e}"))
         })?;
 
         tracing::info!("Saved {} adapter layers to {:?}", adapter_layers.len(), dir);
@@ -210,7 +210,7 @@ impl LoadedModel {
         let weights_path = dir.join("adapter_model.safetensors");
 
         let tensors = candle_core::safetensors::load(&weights_path, &self.device).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to load adapter: {}", e).into())
+            AxolotlError::Checkpoint(format!("Failed to load adapter: {e}"))
         })?;
 
         tracing::info!("Loaded {} adapter tensors from {:?}", tensors.len(), dir);
@@ -219,9 +219,9 @@ impl LoadedModel {
         Ok(())
     }
 
-    /// Capture current LoRA weight matrices for gradient flow verification.
+    /// Capture current `LoRA` weight matrices for gradient flow verification.
     ///
-    /// Returns a HashMap of module name to (A_matrix, B_matrix) weights.
+    /// Returns a `HashMap` of module name to (`A_matrix`, `B_matrix`) weights.
     /// This is used to verify that weights change after backward pass.
     #[cfg(feature = "peft")]
     pub fn capture_lora_weights(
@@ -232,7 +232,7 @@ impl LoadedModel {
         let mut weights = HashMap::new();
 
         if let Some(adapter_layers) = &self.adapter_layers {
-            for (module_name, _lora_layer) in &adapter_layers.lora_layers {
+            for module_name in adapter_layers.lora_layers.keys() {
                 // Capture A and B matrix values
                 // This is a placeholder - in production would extract actual values from lora_layer
                 weights.insert(module_name.clone(), (Vec::new(), Vec::new()));
@@ -242,10 +242,10 @@ impl LoadedModel {
         Ok(weights)
     }
 
-    /// Verify that LoRA weights have been updated after a training step.
+    /// Verify that `LoRA` weights have been updated after a training step.
     ///
     /// Compares captured weights with current weights to detect if gradients
-    /// flowed through the LoRA layers and were applied by the optimizer.
+    /// flowed through the `LoRA` layers and were applied by the optimizer.
     #[cfg(feature = "peft")]
     pub fn verify_lora_weight_updates(
         &self,
@@ -265,7 +265,7 @@ impl LoadedModel {
                     let diff: f64 = initial_a
                         .iter()
                         .zip(current_a.iter())
-                        .map(|(i, c)| ((i - c) as f64).abs())
+                        .map(|(i, c)| f64::from(i - c).abs())
                         .sum();
                     diff > 0.0
                 } else {
@@ -277,7 +277,7 @@ impl LoadedModel {
                     let diff: f64 = initial_b
                         .iter()
                         .zip(current_b.iter())
-                        .map(|(i, c)| ((i - c) as f64).abs())
+                        .map(|(i, c)| f64::from(i - c).abs())
                         .sum();
                     diff > 0.0
                 } else {
@@ -303,7 +303,7 @@ impl LoadedModel {
 /// Model architecture information extracted from config.json.
 ///
 /// This struct holds the key dimensions needed for creating adapter layers
-/// with correct sizes, regardless of the specific model (SmolLM2-135M, TinyLlama, LLaMA-7B, etc.).
+/// with correct sizes, regardless of the specific model (SmolLM2-135M, `TinyLlama`, LLaMA-7B, etc.).
 #[derive(Debug, Clone)]
 pub struct ModelInfo {
     /// Hidden size / embedding dimension
@@ -321,7 +321,8 @@ pub struct ModelInfo {
 }
 
 impl ModelInfo {
-    /// Create ModelInfo from a LlamaConfig.
+    /// Create `ModelInfo` from a `LlamaConfig`.
+    #[must_use] 
     pub fn from_llama_config(config: &LlamaConfig) -> Self {
         Self {
             hidden_size: config.hidden_size,
@@ -337,12 +338,13 @@ impl ModelInfo {
     /// Get the input/output dimensions for a target module.
     ///
     /// Different projection layers have different dimensions:
-    /// - q_proj: hidden_size -> hidden_size
-    /// - k_proj, v_proj: hidden_size -> hidden_size * (kv_heads / attn_heads)
-    /// - o_proj: hidden_size -> hidden_size
-    /// - gate_proj, up_proj: hidden_size -> intermediate_size
-    /// - down_proj: intermediate_size -> hidden_size
+    /// - `q_proj`: `hidden_size` -> `hidden_size`
+    /// - `k_proj`, `v_proj`: `hidden_size` -> `hidden_size` * (`kv_heads` / `attn_heads`)
+    /// - `o_proj`: `hidden_size` -> `hidden_size`
+    /// - `gate_proj`, `up_proj`: `hidden_size` -> `intermediate_size`
+    /// - `down_proj`: `intermediate_size` -> `hidden_size`
     #[allow(dead_code)]
+    #[must_use] 
     pub fn get_target_dims(&self, target: &str) -> (usize, usize) {
         match target {
             // Attention projections
@@ -413,10 +415,10 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
 
     // Check adapter type for model loading strategy
     let use_lora_model = config.adapter == AdapterType::Lora;
-    let use_qlora_model = config.adapter == AdapterType::Qlora;
+    let is_qlora = config.adapter == AdapterType::Qlora;
 
     // Load model weights based on architecture and adapter type
-    let (model, adapter_layers) = if use_qlora_model {
+    let (model, adapter_layers) = if is_qlora {
         // QLoraLlama: combines quantized base with trainable LoRA adapters
         #[cfg(all(feature = "peft", feature = "qlora"))]
         {
@@ -526,7 +528,7 @@ pub fn load_model(config: &AxolotlConfig, device: &Device) -> Result<LoadedModel
 
 /// Create adapter layers based on configuration.
 ///
-/// Uses VarBuilder backed by VarMap to ensure LoRA weights are tracked
+/// Uses `VarBuilder` backed by `VarMap` to ensure `LoRA` weights are tracked
 /// for gradient computation and optimizer updates.
 #[allow(unused_variables)]
 fn create_adapter_layers(
@@ -560,7 +562,7 @@ fn create_adapter_layers(
                     let (in_features, out_features) = model_info.get_target_dims(target);
 
                     for layer_idx in 0..model_info.num_layers {
-                        let layer_name = format!("model.layers.{}.self_attn.{}", layer_idx, target);
+                        let layer_name = format!("model.layers.{layer_idx}.self_attn.{target}");
 
                         // Use VarBuilder with layer-specific prefix for unique variable names
                         let layer_vb = vb.pp(&layer_name);
@@ -572,8 +574,7 @@ fn create_adapter_layers(
                         )
                         .map_err(|e| {
                             AxolotlError::Model(format!(
-                                "Failed to create LoRA layer {}: {}",
-                                layer_name, e
+                                "Failed to create LoRA layer {layer_name}: {e}"
                             ))
                         })?;
 
@@ -688,9 +689,9 @@ fn load_model_info(model_path: &PathBuf) -> Result<ModelInfo> {
 
     if config_path.exists() {
         let config_str = std::fs::read_to_string(&config_path)
-            .map_err(|e| AxolotlError::Model(format!("Failed to read config.json: {}", e)))?;
+            .map_err(|e| AxolotlError::Model(format!("Failed to read config.json: {e}")))?;
         let llama_config: LlamaConfig = serde_json::from_str(&config_str)
-            .map_err(|e| AxolotlError::Model(format!("Failed to parse config.json: {}", e)))?;
+            .map_err(|e| AxolotlError::Model(format!("Failed to parse config.json: {e}")))?;
         Ok(ModelInfo::from_llama_config(&llama_config))
     } else {
         // Return default 7B-like config for testing
@@ -705,7 +706,7 @@ fn load_model_info(model_path: &PathBuf) -> Result<ModelInfo> {
     }
 }
 
-/// Resolve model path from HuggingFace model ID or local path.
+/// Resolve model path from `HuggingFace` model ID or local path.
 fn resolve_model_path(model_id: &str) -> Result<PathBuf> {
     // Check if it's a local path
     let path = PathBuf::from(model_id);
@@ -715,21 +716,20 @@ fn resolve_model_path(model_id: &str) -> Result<PathBuf> {
 
     // Try HuggingFace cache directory
     let cache_dir = std::env::var("HF_HOME")
-        .or_else(|_| std::env::var("HOME").map(|h| format!("{}/.cache/huggingface", h)))
+        .or_else(|_| std::env::var("HOME").map(|h| format!("{h}/.cache/huggingface")))
         .unwrap_or_else(|_| "/tmp/huggingface".to_string());
 
     let hf_path = PathBuf::from(format!(
         "{}/hub/models--{}",
         cache_dir,
-        model_id.replace("/", "--")
+        model_id.replace('/', "--")
     ));
 
     if hf_path.exists() {
         Ok(hf_path)
     } else {
         Err(AxolotlError::Model(format!(
-            "Model not found at '{}' or in HF cache at '{:?}'. Use `huggingface-cli download {}` to download.",
-            model_id, hf_path, model_id
+            "Model not found at '{model_id}' or in HF cache at '{hf_path:?}'. Use `huggingface-cli download {model_id}` to download."
         )))
     }
 }
@@ -740,12 +740,12 @@ fn load_tokenizer(model_path: &PathBuf) -> Result<tokenizers::Tokenizer> {
 
     if !tokenizer_file.exists() {
         return Err(AxolotlError::Tokenizer(
-            format!("tokenizer.json not found in {:?}", model_path).into(),
+            format!("tokenizer.json not found in {model_path:?}").into(),
         ));
     }
 
     tokenizers::Tokenizer::from_file(&tokenizer_file)
-        .map_err(|e| AxolotlError::Tokenizer(format!("Failed to load tokenizer: {}", e).into()))
+        .map_err(|e| AxolotlError::Tokenizer(format!("Failed to load tokenizer: {e}").into()))
 }
 
 /// Load model architecture based on config.
@@ -786,9 +786,9 @@ fn load_model_architecture(
     }
 }
 
-/// Load a LLaMA model from the given path.
+/// Load a `LLaMA` model from the given path.
 fn load_llama_model(
-    axolotl_config: &AxolotlConfig,
+    _axolotl_config: &AxolotlConfig,
     model_path: &PathBuf,
     device: &Device,
     dtype: DType,
@@ -799,9 +799,9 @@ fn load_llama_model(
     let config_path = model_path.join("config.json");
     let llama_config: LlamaConfig = if config_path.exists() {
         let config_str = std::fs::read_to_string(&config_path)
-            .map_err(|e| AxolotlError::Model(format!("Failed to read config.json: {}", e)))?;
+            .map_err(|e| AxolotlError::Model(format!("Failed to read config.json: {e}")))?;
         let parsed: LlamaConfig = serde_json::from_str(&config_str)
-            .map_err(|e| AxolotlError::Model(format!("Failed to parse config.json: {}", e)))?;
+            .map_err(|e| AxolotlError::Model(format!("Failed to parse config.json: {e}")))?;
         parsed
     } else {
         // Use default config for LLaMA 2 7B
@@ -826,11 +826,11 @@ fn load_llama_model(
     // Load model weights
     let vb = if model_path.join("model.safetensors").exists() {
         let tensors = candle_core::safetensors::load(model_path.join("model.safetensors"), device)
-            .map_err(|e| AxolotlError::Model(format!("Failed to load safetensors: {}", e)))?;
+            .map_err(|e| AxolotlError::Model(format!("Failed to load safetensors: {e}")))?;
         VarBuilder::from_tensors(tensors, dtype, device)
     } else if model_path.join("pytorch_model.bin").exists() {
         VarBuilder::from_pth(model_path.join("pytorch_model.bin"), dtype, device)
-            .map_err(|e| AxolotlError::Model(format!("Failed to load pytorch model: {}", e)))?
+            .map_err(|e| AxolotlError::Model(format!("Failed to load pytorch model: {e}")))?
     } else {
         return Err(AxolotlError::Model(format!(
             "No model weights found in {}. Expected model.safetensors or pytorch_model.bin",
@@ -863,13 +863,13 @@ fn load_llama_model(
 
             // Create LoraLlama with internal adapters
             let model = LoraLlama::new_with_lora(&config, vb, lora_config, trainable_params)
-                .map_err(|e| AxolotlError::Model(format!("Failed to create LoraLlama: {}", e)))?;
+                .map_err(|e| AxolotlError::Model(format!("Failed to create LoraLlama: {e}")))?;
 
             Box::new(model)
         } else {
             // Use standard Llama model wrapped for training
             let model = Llama::load(vb, &config)
-                .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {}", e)))?;
+                .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {e}")))?;
 
             Box::new(LlamaWrapper::new(model, &config, device)?)
         };
@@ -1017,7 +1017,7 @@ impl Module for SimpleModel {
     }
 }
 
-/// Wrapper for LLaMA model that implements the Module trait.
+/// Wrapper for `LLaMA` model that implements the Module trait.
 ///
 /// For training, we need logits for ALL positions, not just the last token.
 /// The default candle Llama only returns last-token logits for inference.
@@ -1030,14 +1030,14 @@ pub struct LlamaWrapper {
 }
 
 impl LlamaWrapper {
-    /// Create a new LlamaWrapper in training mode by default.
+    /// Create a new `LlamaWrapper` in training mode by default.
     pub fn new(
         model: Llama,
         config: &candle_transformers::models::llama::Config,
         device: &Device,
     ) -> Result<Self> {
         let cache = Cache::new(false, DType::F32, config, device)
-            .map_err(|e| AxolotlError::Model(format!("Failed to create cache: {}", e)))?;
+            .map_err(|e| AxolotlError::Model(format!("Failed to create cache: {e}")))?;
         Ok(Self {
             model,
             cache: std::cell::RefCell::new(cache),
@@ -1066,7 +1066,7 @@ impl Module for LlamaWrapper {
 impl LlamaWrapper {
     /// Forward pass that returns logits for all positions (for training).
     ///
-    /// Candle's Llama.forward() only returns logits for the last token,
+    /// Candle's `Llama.forward()` only returns logits for the last token,
     /// but for training we need logits for all positions to compute loss
     /// across the entire sequence.
     #[allow(dead_code)]
@@ -1125,10 +1125,10 @@ pub fn merge_adapter(
     ))
 }
 
-/// Download model from HuggingFace Hub.
+/// Download model from `HuggingFace` Hub.
 #[cfg(feature = "download")]
 #[allow(dead_code)]
-pub async fn download_model(_model_id: &str, _cache_dir: &str) -> Result<String> {
+pub fn download_model(_model_id: &str, _cache_dir: &str) -> Result<String> {
     // TODO: Implement model download
     Err(AxolotlError::Model(
         "Model download not yet implemented".into(),

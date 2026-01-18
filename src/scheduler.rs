@@ -36,6 +36,7 @@ pub struct LRScheduler {
 
 impl LRScheduler {
     /// Create a new scheduler.
+    #[must_use] 
     pub fn new(scheduler_type: SchedulerType, base_lr: f64) -> Self {
         Self {
             scheduler_type,
@@ -45,6 +46,7 @@ impl LRScheduler {
     }
 
     /// Get learning rate for current step.
+    #[must_use] 
     pub fn get_lr(&self) -> f64 {
         match &self.scheduler_type {
             SchedulerType::Constant => self.base_lr,

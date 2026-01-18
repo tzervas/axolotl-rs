@@ -34,11 +34,11 @@ pub struct AxolotlConfig {
     #[serde(default)]
     pub adapter: AdapterType,
 
-    /// LoRA configuration (if using LoRA/QLoRA).
+    /// `LoRA` configuration (if using LoRA/QLoRA).
     #[serde(default)]
     pub lora: LoraSettings,
 
-    /// Quantization configuration (if using QLoRA).
+    /// Quantization configuration (if using `QLoRA`).
     #[serde(default)]
     pub quantization: Option<QuantizationSettings>,
 
@@ -115,7 +115,7 @@ pub struct LoraSettings {
     #[serde(default)]
     pub dropout: f64,
 
-    /// Target modules for LoRA.
+    /// Target modules for `LoRA`.
     #[serde(default = "default_target_modules")]
     pub target_modules: Vec<String>,
 }
@@ -455,9 +455,9 @@ impl AxolotlConfig {
     /// Create a configuration from a preset.
     ///
     /// Available presets:
-    /// - `"llama2-7b"` - LLaMA 2 7B with QLoRA
-    /// - `"mistral-7b"` - Mistral 7B with QLoRA
-    /// - `"phi3-mini"` - Phi-3 Mini with LoRA
+    /// - `"llama2-7b"` - `LLaMA` 2 7B with `QLoRA`
+    /// - `"mistral-7b"` - Mistral 7B with `QLoRA`
+    /// - `"phi3-mini"` - Phi-3 Mini with `LoRA`
     ///
     /// # Example
     ///
@@ -567,9 +567,9 @@ impl AxolotlConfig {
     /// Validate the configuration.
     ///
     /// Checks for:
-    /// - Required fields are set (base_model, dataset path)
-    /// - LoRA rank is valid
-    /// - QLoRA has quantization config
+    /// - Required fields are set (`base_model`, dataset path)
+    /// - `LoRA` rank is valid
+    /// - `QLoRA` has quantization config
     ///
     /// # Example
     ///

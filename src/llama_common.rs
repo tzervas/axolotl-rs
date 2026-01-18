@@ -1,4 +1,4 @@
-//! Shared utilities for LLaMA model implementations.
+//! Shared utilities for `LLaMA` model implementations.
 //!
 //! This module contains common code shared between `LoraLlama` and `QLoraLlama`:
 //! - Cache structure for KV cache and rotary embeddings
@@ -149,7 +149,7 @@ pub trait UpcastToFp32 {
     fn upcast_to_fp32(&mut self) -> CandleResult<()>;
 }
 
-/// Model preparation configuration for QLoRA training.
+/// Model preparation configuration for `QLoRA` training.
 #[derive(Debug, Clone)]
 pub struct PrepareForTrainingConfig {
     /// Whether to enable gradient checkpointing (future work).
@@ -158,7 +158,7 @@ pub struct PrepareForTrainingConfig {
     pub upcast_layernorms: bool,
     /// Whether to upcast embeddings to FP32.
     pub upcast_embeddings: bool,
-    /// Whether to upcast lm_head to FP32.
+    /// Whether to upcast `lm_head` to FP32.
     pub upcast_lm_head: bool,
 }
 
@@ -173,9 +173,9 @@ impl Default for PrepareForTrainingConfig {
     }
 }
 
-/// Upcast an RmsNorm layer to FP32.
+/// Upcast an `RmsNorm` layer to FP32.
 ///
-/// Layer norms require FP32 for numerical stability during QLoRA training.
+/// Layer norms require FP32 for numerical stability during `QLoRA` training.
 /// Using FP16/BF16 for layer norms can cause NaN losses.
 ///
 /// In this implementation, the effective dtype of the `RmsNorm` parameters
@@ -190,7 +190,7 @@ impl Default for PrepareForTrainingConfig {
 ///
 /// # References
 /// - PEFT: `prepare_model_for_kbit_training` upcasts all 1D params to FP32
-/// - QLoRA paper Section 4.1: FP16 compute causes 20% training failure rate
+/// - `QLoRA` paper Section 4.1: FP16 compute causes 20% training failure rate
 ///
 /// This function does not return errors in the current implementation.
 pub fn upcast_rms_norm(norm: &RmsNorm, _device: &Device) -> CandleResult<RmsNorm> {
@@ -200,7 +200,7 @@ pub fn upcast_rms_norm(norm: &RmsNorm, _device: &Device) -> CandleResult<RmsNorm
     Ok(norm.clone())
 }
 
-/// Helper to create linear layer without bias (LLaMA models don't use bias).
+/// Helper to create linear layer without bias (`LLaMA` models don't use bias).
 pub fn linear_no_bias(
     in_dim: usize,
     out_dim: usize,
