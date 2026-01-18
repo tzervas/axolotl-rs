@@ -66,6 +66,18 @@ For developers working on sister projects locally:
 # unsloth = ["unsloth-rs"]
 ```
 
+#### CI Dependency Configuration
+
+When submitting PRs that require testing against specific versions of sister projects, you can specify the desired branches/tags/commits in your PR description:
+
+```markdown
+peft-rs: feature-branch
+qlora-rs: v1.0.0
+unsloth-rs: commit-sha
+```
+
+See [CI Dependency Configuration](.github/CI_DEPENDENCY_CONFIGURATION.md) for detailed documentation on configuring sister project dependencies in CI workflows.
+
 ## Development Workflow
 
 ### Branch Strategy
