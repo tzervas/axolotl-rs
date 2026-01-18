@@ -40,27 +40,32 @@ pub struct Cache {
 }
 
 impl Cache {
-    pub fn new(use_kv_cache: bool, dtype: DType, config: &Config, device: &Device) -> CandleResult<Self> {
+    pub fn new(
+        use_kv_cache: bool,
+        dtype: DType,
+        config: &Config,
+        device: &Device,
+    ) -> CandleResult<Self> {
         let num_layers = config.num_hidden_layers;
         let rope_theta = config.rope_theta;
         let head_dim = config.hidden_size / config.num_attention_heads;
-        
+
         // Precompute rotary embeddings - use step_by(2) like candle-transformers
         let theta: Vec<f32> = (0..head_dim)
             .step_by(2)
             .map(|i| 1.0 / rope_theta.powf(i as f32 / head_dim as f32))
             .collect();
-        
+
         let theta = Tensor::from_vec(theta, (head_dim / 2,), device)?;
-        
+
         let idx_theta = Tensor::arange(0, config.max_position_embeddings as u32, device)?
             .to_dtype(DType::F32)?
             .reshape((config.max_position_embeddings, 1))?
             .matmul(&theta.reshape((1, theta.elem_count()))?)?;
-        
+
         let cos = idx_theta.cos()?.to_dtype(dtype)?;
         let sin = idx_theta.sin()?.to_dtype(dtype)?;
-        
+
         Ok(Self {
             cos,
             sin,
@@ -70,7 +75,7 @@ impl Cache {
             device: device.clone(),
         })
     }
-    
+
     fn mask(&mut self, t: usize) -> CandleResult<Tensor> {
         if let Some(mask) = self.masks.get(&t) {
             Ok(mask.clone())
@@ -131,7 +136,8 @@ impl LoraAttention {
 
         // Create LoRA adapters if config provided
         #[cfg(feature = "peft")]
-        let (q_lora, k_lora, v_lora, o_lora) = if let (Some(cfg), Some(vb)) = (lora_config, lora_vb) {
+        let (q_lora, k_lora, v_lora, o_lora) = if let (Some(cfg), Some(vb)) = (lora_config, lora_vb)
+        {
             let mut q_lora = None;
             let mut k_lora = None;
             let mut v_lora = None;
@@ -139,23 +145,35 @@ impl LoraAttention {
 
             if cfg.target_modules.contains(&"q_proj".to_string()) {
                 let name = format!("model.layers.{}.self_attn.q_proj", layer_idx);
-                q_lora = Some(LoraLayer::new(hidden_size, size_q, cfg.clone(), vb.pp(&name))
-                    .map_err(|e| candle_core::Error::Msg(format!("Failed to create q_lora: {}", e)))?);
+                q_lora = Some(
+                    LoraLayer::new(hidden_size, size_q, cfg.clone(), vb.pp(&name)).map_err(
+                        |e| candle_core::Error::Msg(format!("Failed to create q_lora: {}", e)),
+                    )?,
+                );
             }
             if cfg.target_modules.contains(&"k_proj".to_string()) {
                 let name = format!("model.layers.{}.self_attn.k_proj", layer_idx);
-                k_lora = Some(LoraLayer::new(hidden_size, size_kv, cfg.clone(), vb.pp(&name))
-                    .map_err(|e| candle_core::Error::Msg(format!("Failed to create k_lora: {}", e)))?);
+                k_lora = Some(
+                    LoraLayer::new(hidden_size, size_kv, cfg.clone(), vb.pp(&name)).map_err(
+                        |e| candle_core::Error::Msg(format!("Failed to create k_lora: {}", e)),
+                    )?,
+                );
             }
             if cfg.target_modules.contains(&"v_proj".to_string()) {
                 let name = format!("model.layers.{}.self_attn.v_proj", layer_idx);
-                v_lora = Some(LoraLayer::new(hidden_size, size_kv, cfg.clone(), vb.pp(&name))
-                    .map_err(|e| candle_core::Error::Msg(format!("Failed to create v_lora: {}", e)))?);
+                v_lora = Some(
+                    LoraLayer::new(hidden_size, size_kv, cfg.clone(), vb.pp(&name)).map_err(
+                        |e| candle_core::Error::Msg(format!("Failed to create v_lora: {}", e)),
+                    )?,
+                );
             }
             if cfg.target_modules.contains(&"o_proj".to_string()) {
                 let name = format!("model.layers.{}.self_attn.o_proj", layer_idx);
-                o_lora = Some(LoraLayer::new(size_q, hidden_size, cfg.clone(), vb.pp(&name))
-                    .map_err(|e| candle_core::Error::Msg(format!("Failed to create o_lora: {}", e)))?);
+                o_lora = Some(
+                    LoraLayer::new(size_q, hidden_size, cfg.clone(), vb.pp(&name)).map_err(
+                        |e| candle_core::Error::Msg(format!("Failed to create o_lora: {}", e)),
+                    )?,
+                );
             }
 
             (q_lora, k_lora, v_lora, o_lora)
@@ -185,7 +203,12 @@ impl LoraAttention {
     }
 
     /// Apply rotary embeddings using precomputed cos/sin from cache.
-    fn apply_rotary_emb(&self, x: &Tensor, index_pos: usize, cache: &Cache) -> CandleResult<Tensor> {
+    fn apply_rotary_emb(
+        &self,
+        x: &Tensor,
+        index_pos: usize,
+        cache: &Cache,
+    ) -> CandleResult<Tensor> {
         let (_b_sz, _, seq_len, _hidden_size) = x.dims4()?;
         let cos = cache.cos.narrow(0, index_pos, seq_len)?;
         let sin = cache.sin.narrow(0, index_pos, seq_len)?;
@@ -207,8 +230,9 @@ impl LoraAttention {
         let base_q = self.q_proj.forward(x)?;
         #[cfg(feature = "peft")]
         let q = if let Some(lora) = &self.q_lora {
-            lora.forward(x, Some(&base_q))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA q_proj forward failed: {}", e)))?
+            lora.forward(x, Some(&base_q)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA q_proj forward failed: {}", e))
+            })?
         } else {
             base_q
         };
@@ -219,8 +243,9 @@ impl LoraAttention {
         let base_k = self.k_proj.forward(x)?;
         #[cfg(feature = "peft")]
         let k = if let Some(lora) = &self.k_lora {
-            lora.forward(x, Some(&base_k))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA k_proj forward failed: {}", e)))?
+            lora.forward(x, Some(&base_k)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA k_proj forward failed: {}", e))
+            })?
         } else {
             base_k
         };
@@ -231,8 +256,9 @@ impl LoraAttention {
         let base_v = self.v_proj.forward(x)?;
         #[cfg(feature = "peft")]
         let v = if let Some(lora) = &self.v_lora {
-            lora.forward(x, Some(&base_v))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA v_proj forward failed: {}", e)))?
+            lora.forward(x, Some(&base_v)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA v_proj forward failed: {}", e))
+            })?
         } else {
             base_v
         };
@@ -264,13 +290,21 @@ impl LoraAttention {
                 let k_seq_len = k.dims()[1];
                 if k_seq_len > self.max_position_embeddings {
                     k = k
-                        .narrow(D::Minus1, k_seq_len - self.max_position_embeddings, self.max_position_embeddings)?
+                        .narrow(
+                            D::Minus1,
+                            k_seq_len - self.max_position_embeddings,
+                            self.max_position_embeddings,
+                        )?
                         .contiguous()?;
                 }
                 let v_seq_len = v.dims()[1];
                 if v_seq_len > 2 * self.max_position_embeddings {
                     v = v
-                        .narrow(D::Minus1, v_seq_len - self.max_position_embeddings, self.max_position_embeddings)?
+                        .narrow(
+                            D::Minus1,
+                            v_seq_len - self.max_position_embeddings,
+                            self.max_position_embeddings,
+                        )?
                         .contiguous()?;
                 }
             }
@@ -299,14 +333,17 @@ impl LoraAttention {
         let y = att.matmul(&v.contiguous()?)?.to_dtype(in_dtype)?;
 
         // Reshape back
-        let y = y.transpose(1, 2)?.reshape(&[b_sz, seq_len, self.hidden_size])?;
+        let y = y
+            .transpose(1, 2)?
+            .reshape(&[b_sz, seq_len, self.hidden_size])?;
 
         // O projection with optional LoRA
         let base_output = self.o_proj.forward(&y)?;
         #[cfg(feature = "peft")]
         let output = if let Some(lora) = &self.o_lora {
-            lora.forward(&y, Some(&base_output))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA o_proj forward failed: {}", e)))?
+            lora.forward(&y, Some(&base_output)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA o_proj forward failed: {}", e))
+            })?
         } else {
             base_output
         };
@@ -318,7 +355,10 @@ impl LoraAttention {
 
     /// Repeat KV heads for grouped-query attention.
     fn repeat_kv(&self, x: Tensor) -> CandleResult<Tensor> {
-        candle_transformers::utils::repeat_kv(x, self.num_attention_heads / self.num_key_value_heads)
+        candle_transformers::utils::repeat_kv(
+            x,
+            self.num_attention_heads / self.num_key_value_heads,
+        )
     }
 }
 
@@ -359,25 +399,38 @@ impl LoraMlp {
 
         // Create LoRA adapters if config provided
         #[cfg(feature = "peft")]
-        let (gate_lora, up_lora, down_lora) = if let (Some(cfg), Some(vb)) = (lora_config, lora_vb) {
+        let (gate_lora, up_lora, down_lora) = if let (Some(cfg), Some(vb)) = (lora_config, lora_vb)
+        {
             let mut gate_lora = None;
             let mut up_lora = None;
             let mut down_lora = None;
 
             if cfg.target_modules.contains(&"gate_proj".to_string()) {
                 let name = format!("model.layers.{}.mlp.gate_proj", layer_idx);
-                gate_lora = Some(LoraLayer::new(hidden_size, intermediate_size, cfg.clone(), vb.pp(&name))
-                    .map_err(|e| candle_core::Error::Msg(format!("Failed to create gate_lora: {}", e)))?);
+                gate_lora = Some(
+                    LoraLayer::new(hidden_size, intermediate_size, cfg.clone(), vb.pp(&name))
+                        .map_err(|e| {
+                            candle_core::Error::Msg(format!("Failed to create gate_lora: {}", e))
+                        })?,
+                );
             }
             if cfg.target_modules.contains(&"up_proj".to_string()) {
                 let name = format!("model.layers.{}.mlp.up_proj", layer_idx);
-                up_lora = Some(LoraLayer::new(hidden_size, intermediate_size, cfg.clone(), vb.pp(&name))
-                    .map_err(|e| candle_core::Error::Msg(format!("Failed to create up_lora: {}", e)))?);
+                up_lora = Some(
+                    LoraLayer::new(hidden_size, intermediate_size, cfg.clone(), vb.pp(&name))
+                        .map_err(|e| {
+                            candle_core::Error::Msg(format!("Failed to create up_lora: {}", e))
+                        })?,
+                );
             }
             if cfg.target_modules.contains(&"down_proj".to_string()) {
                 let name = format!("model.layers.{}.mlp.down_proj", layer_idx);
-                down_lora = Some(LoraLayer::new(intermediate_size, hidden_size, cfg.clone(), vb.pp(&name))
-                    .map_err(|e| candle_core::Error::Msg(format!("Failed to create down_lora: {}", e)))?);
+                down_lora = Some(
+                    LoraLayer::new(intermediate_size, hidden_size, cfg.clone(), vb.pp(&name))
+                        .map_err(|e| {
+                            candle_core::Error::Msg(format!("Failed to create down_lora: {}", e))
+                        })?,
+                );
             }
 
             (gate_lora, up_lora, down_lora)
@@ -404,8 +457,9 @@ impl LoraMlp {
         let base_gate = self.gate_proj.forward(x)?;
         #[cfg(feature = "peft")]
         let gate = if let Some(lora) = &self.gate_lora {
-            lora.forward(x, Some(&base_gate))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA gate_proj forward failed: {}", e)))?
+            lora.forward(x, Some(&base_gate)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA gate_proj forward failed: {}", e))
+            })?
         } else {
             base_gate
         };
@@ -417,8 +471,9 @@ impl LoraMlp {
         let base_up = self.up_proj.forward(x)?;
         #[cfg(feature = "peft")]
         let up = if let Some(lora) = &self.up_lora {
-            lora.forward(x, Some(&base_up))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA up_proj forward failed: {}", e)))?
+            lora.forward(x, Some(&base_up)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA up_proj forward failed: {}", e))
+            })?
         } else {
             base_up
         };
@@ -432,8 +487,9 @@ impl LoraMlp {
         let base_output = self.down_proj.forward(&hidden)?;
         #[cfg(feature = "peft")]
         let output = if let Some(lora) = &self.down_lora {
-            lora.forward(&hidden, Some(&base_output))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA down_proj forward failed: {}", e)))?
+            lora.forward(&hidden, Some(&base_output)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA down_proj forward failed: {}", e))
+            })?
         } else {
             base_output
         };
@@ -487,8 +543,10 @@ impl LoraTransformerBlock {
             layer_idx,
         )?;
 
-        let input_layernorm = candle_nn::rms_norm(hidden_size, rms_norm_eps, vb.pp("input_layernorm"))?;
-        let post_attention_layernorm = candle_nn::rms_norm(hidden_size, rms_norm_eps, vb.pp("post_attention_layernorm"))?;
+        let input_layernorm =
+            candle_nn::rms_norm(hidden_size, rms_norm_eps, vb.pp("input_layernorm"))?;
+        let post_attention_layernorm =
+            candle_nn::rms_norm(hidden_size, rms_norm_eps, vb.pp("post_attention_layernorm"))?;
 
         Ok(Self {
             attention,
@@ -509,7 +567,9 @@ impl LoraTransformerBlock {
         // Pre-norm for attention
         // Use forward_diff to preserve gradient tracking (regular forward uses no-grad kernel)
         let normed = self.input_layernorm.forward_diff(x)?;
-        let attn_output = self.attention.forward(&normed, index_pos, block_idx, cache)?;
+        let attn_output = self
+            .attention
+            .forward(&normed, index_pos, block_idx, cache)?;
         let x = (x + attn_output)?;
 
         // Pre-norm for MLP
@@ -555,7 +615,7 @@ impl LoraLlama {
         let mut layers = Vec::with_capacity(config.num_hidden_layers);
         let vb_layers = vb.pp("model").pp("layers");
         let lora_vb_layers = lora_vb.pp("model").pp("layers");
-        
+
         for layer_idx in 0..config.num_hidden_layers {
             let layer = LoraTransformerBlock::new(
                 layer_idx,
@@ -581,11 +641,7 @@ impl LoraLlama {
         let lm_head = if config.tie_word_embeddings {
             Linear::new(embed_tokens.embeddings().clone(), None)
         } else {
-            linear_no_bias(
-                config.hidden_size,
-                config.vocab_size,
-                vb.pp("lm_head"),
-            )?
+            linear_no_bias(config.hidden_size, config.vocab_size, vb.pp("lm_head"))?
         };
 
         Ok(Self {
@@ -599,7 +655,12 @@ impl LoraLlama {
     }
 
     /// Forward pass through the model, returning logits for all positions.
-    pub fn forward(&self, input_ids: &Tensor, index_pos: usize, cache: &mut Cache) -> CandleResult<Tensor> {
+    pub fn forward(
+        &self,
+        input_ids: &Tensor,
+        index_pos: usize,
+        cache: &mut Cache,
+    ) -> CandleResult<Tensor> {
         let (_batch_size, seq_len) = input_ids.dims2()?;
 
         // Embed input tokens
@@ -614,6 +675,8 @@ impl LoraLlama {
         // CRITICAL: Use forward_diff() instead of forward() because the optimized rms_norm
         // kernel uses apply_op_no_bwd which doesn't track gradients!
         // forward_diff() falls back to the slower but gradient-tracking implementation.
+        // For background, see the Candle repository discussions/issues on `apply_op_no_bwd`
+        // and rms_norm gradient tracking in candle-core/candle-transformers.
         hidden_states = self.norm.forward_diff(&hidden_states)?;
 
         // Project to vocabulary logits for ALL positions

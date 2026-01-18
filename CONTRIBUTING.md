@@ -10,7 +10,7 @@ axolotl-rs is in early development. The configuration system, CLI interface, and
 
 ### Prerequisites
 
-- Rust 1.75 or later
+- Rust 1.92 or later
 - Git
 - (Optional) CUDA 12.0+ for GPU support
 
@@ -22,6 +22,61 @@ cd axolotl-rs
 cargo build
 cargo test
 ```
+
+### Sister Project Dependencies
+
+axolotl-rs integrates with three sister projects for adapter and quantization support:
+- **peft-rs**: PEFT adapters (LoRA, DoRA, etc.)
+- **qlora-rs**: 4-bit quantization (NF4, FP4)
+- **unsloth-rs**: Optimized kernels
+
+The `Cargo.toml` file provides three dependency configuration options:
+
+#### 1. Production Use (crates.io)
+For users importing axolotl-rs as a library dependency:
+```toml
+# Uncomment in Cargo.toml when packages are published
+# peft-rs = { version = "0.1", optional = true }
+# qlora-rs = { version = "0.1", optional = true }
+# unsloth-rs = { version = "0.1", optional = true }
+```
+
+#### 2. Active Development (GitHub)
+For developers working with development branches:
+```toml
+# Uncomment in Cargo.toml to use GitHub branches
+# peft-rs = { git = "https://github.com/tzervas/peft-rs", branch = "main", optional = true }
+# qlora-rs = { git = "https://github.com/tzervas/qlora-rs", branch = "main", optional = true }
+# unsloth-rs = { git = "https://github.com/tzervas/unsloth-rs", branch = "main", optional = true }
+```
+
+#### 3. Local Development (Path)
+For developers working on sister projects locally:
+```toml
+# Uncomment in Cargo.toml to use local directories
+# peft-rs = { path = "../peft-rs", optional = true }
+# qlora-rs = { path = "../qlora-rs", optional = true }
+# unsloth-rs = { path = "../unsloth-rs", optional = true }
+```
+
+**Note**: After uncommenting dependencies, also uncomment the corresponding features in the `[features]` section:
+```toml
+# peft = ["peft-rs"]
+# qlora = ["qlora-rs", "peft"]
+# unsloth = ["unsloth-rs"]
+```
+
+#### CI Dependency Configuration
+
+When submitting PRs that require testing against specific versions of sister projects, you can specify the desired branches/tags/commits in your PR description:
+
+```markdown
+peft-rs: feature-branch
+qlora-rs: v1.0.0
+unsloth-rs: commit-sha
+```
+
+See [CI Dependency Configuration](.github/CI_DEPENDENCY_CONFIGURATION.md) for detailed documentation on configuring sister project dependencies in CI workflows.
 
 ## Development Workflow
 

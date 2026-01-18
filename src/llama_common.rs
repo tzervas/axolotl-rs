@@ -33,27 +33,32 @@ impl Cache {
     ///
     /// # Errors
     /// Returns error if tensor creation fails.
-    pub fn new(use_kv_cache: bool, dtype: DType, config: &Config, device: &Device) -> CandleResult<Self> {
+    pub fn new(
+        use_kv_cache: bool,
+        dtype: DType,
+        config: &Config,
+        device: &Device,
+    ) -> CandleResult<Self> {
         let num_layers = config.num_hidden_layers;
         let rope_theta = config.rope_theta;
         let head_dim = config.hidden_size / config.num_attention_heads;
-        
+
         // Precompute rotary embeddings - use step_by(2) like candle-transformers
         let theta: Vec<f32> = (0..head_dim)
             .step_by(2)
             .map(|i| 1.0 / rope_theta.powf(i as f32 / head_dim as f32))
             .collect();
-        
+
         let theta = Tensor::from_vec(theta, (head_dim / 2,), device)?;
-        
+
         let idx_theta = Tensor::arange(0, config.max_position_embeddings as u32, device)?
             .to_dtype(DType::F32)?
             .reshape((config.max_position_embeddings, 1))?
             .matmul(&theta.reshape((1, theta.elem_count()))?)?;
-        
+
         let cos = idx_theta.cos()?.to_dtype(dtype)?;
         let sin = idx_theta.sin()?.to_dtype(dtype)?;
-        
+
         Ok(Self {
             cos,
             sin,
@@ -63,7 +68,7 @@ impl Cache {
             device: device.clone(),
         })
     }
-    
+
     /// Get or create a causal attention mask for the given sequence length.
     ///
     /// # Errors
@@ -80,7 +85,7 @@ impl Cache {
             Ok(mask)
         }
     }
-    
+
     /// Reset KV cache (useful when starting a new sequence).
     pub fn reset(&mut self) {
         for kv in &mut self.kvs {
@@ -173,20 +178,26 @@ impl Default for PrepareForTrainingConfig {
 /// Layer norms require FP32 for numerical stability during QLoRA training.
 /// Using FP16/BF16 for layer norms can cause NaN losses.
 ///
+/// In this implementation, the effective dtype of the `RmsNorm` parameters
+/// is controlled at construction time via the `VarBuilder`'s `DType`
+/// (e.g. using `DType::F32` for layer norms). Because the `RmsNorm` type
+/// does not currently expose its internal weight tensor, this helper
+/// cannot safely recreate the layer with a different dtype.
+///
+/// As a result, this function is currently a no-op "upcast": it returns a
+/// cloned `RmsNorm` and assumes that the caller has already constructed
+/// the layer with an appropriate dtype.
+///
 /// # References
 /// - PEFT: `prepare_model_for_kbit_training` upcasts all 1D params to FP32
 /// - QLoRA paper Section 4.1: FP16 compute causes 20% training failure rate
 ///
-/// # Errors
-/// Returns error if dtype conversion fails.
-pub fn upcast_rms_norm(norm: &RmsNorm, device: &Device) -> CandleResult<RmsNorm> {
-    // Get weight tensor, convert to FP32, create new RmsNorm
-    // Note: RmsNorm doesn't expose the weight directly, so we use into_inner
-    // For now, this function is a placeholder - actual upcasting happens at construction time
-    // via VarBuilder dtype selection
-    let _ = (norm, device);
-    // TODO: Implement proper upcasting when candle provides better API
-    Err(candle_core::Error::Msg("RmsNorm upcasting not yet implemented - use F32 VarBuilder instead".into()))
+/// This function does not return errors in the current implementation.
+pub fn upcast_rms_norm(norm: &RmsNorm, _device: &Device) -> CandleResult<RmsNorm> {
+    // NOTE: Real upcasting should be handled when creating `RmsNorm`
+    // via the `VarBuilder` dtype. Here we simply return a clone to
+    // provide a stable, non-erroring helper.
+    Ok(norm.clone())
 }
 
 /// Helper to create linear layer without bias (LLaMA models don't use bias).
@@ -202,7 +213,7 @@ pub fn linear_no_bias(
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     fn create_test_config() -> Config {
         Config {
             hidden_size: 64,
@@ -221,38 +232,44 @@ mod tests {
             tie_word_embeddings: false,
         }
     }
-    
+
     #[test]
     fn test_cache_creation() {
         let config = create_test_config();
         let device = Device::Cpu;
         let cache = Cache::new(false, DType::F32, &config, &device);
         assert!(cache.is_ok());
-        
+
         let cache = cache.unwrap();
         assert_eq!(cache.kvs.len(), config.num_hidden_layers);
         assert!(!cache.use_kv_cache);
     }
-    
+
     #[test]
     fn test_cache_mask() {
         let config = create_test_config();
         let device = Device::Cpu;
         let mut cache = Cache::new(false, DType::F32, &config, &device).unwrap();
-        
+
         let mask = cache.mask(4).unwrap();
         assert_eq!(mask.dims(), &[4, 4]);
     }
-    
+
     #[test]
     fn test_rotary_emb_shapes() {
         let config = create_test_config();
         let device = Device::Cpu;
         let cache = Cache::new(false, DType::F32, &config, &device).unwrap();
-        
+
         // cos/sin should be [max_pos, head_dim/2]
         let head_dim = config.hidden_size / config.num_attention_heads;
-        assert_eq!(cache.cos.dims(), &[config.max_position_embeddings, head_dim / 2]);
-        assert_eq!(cache.sin.dims(), &[config.max_position_embeddings, head_dim / 2]);
+        assert_eq!(
+            cache.cos.dims(),
+            &[config.max_position_embeddings, head_dim / 2]
+        );
+        assert_eq!(
+            cache.sin.dims(),
+            &[config.max_position_embeddings, head_dim / 2]
+        );
     }
 }

@@ -5,10 +5,28 @@ on:
     branches: [main, dev, ci/**]
   pull_request:
     branches: [main, dev]
+  workflow_dispatch:
+    inputs:
+      peft_rs_ref:
+        description: 'peft-rs git ref (branch, tag, or commit SHA)'
+        required: false
+        default: 'main'
+      qlora_rs_ref:
+        description: 'qlora-rs git ref (branch, tag, or commit SHA)'
+        required: false
+        default: 'main'
+      unsloth_rs_ref:
+        description: 'unsloth-rs git ref (branch, tag, or commit SHA)'
+        required: false
+        default: 'main'
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # Default refs for sister projects (can be overridden by PR description or workflow inputs)
+  PEFT_RS_REF: ${{ github.event.inputs.peft_rs_ref || 'main' }}
+  QLORA_RS_REF: ${{ github.event.inputs.qlora_rs_ref || 'main' }}
+  UNSLOTH_RS_REF: ${{ github.event.inputs.unsloth_rs_ref || 'main' }}
 
 jobs:
   test:
@@ -20,13 +38,31 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@v6.0.2
+
+      - name: Extract PR dependency overrides
+        if: github.event_name == 'pull_request'
+        id: pr-deps
+        run: |
+          echo "PR_BODY<<EOF" >> $GITHUB_ENV
+          echo "${{ github.event.pull_request.body }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Patch sister project dependencies
+        run: |
+          bash .github/scripts/patch-dependencies.sh
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
+
+      - name: Fetch dependencies (including sister projects)
+        run: cargo fetch
+        continue-on-error: true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
@@ -53,26 +89,42 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@v6.0.2
+
+      - name: Extract PR dependency overrides
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "PR_BODY<<EOF" >> $GITHUB_ENV
+          echo "${{ github.event.pull_request.body }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Patch sister project dependencies
+        run: bash .github/scripts/patch-dependencies.sh
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
 
+      - name: Fetch dependencies (including sister projects)
+        run: cargo fetch
+        continue-on-error: true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+
       - name: Setup Rust cache
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+        uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-on-failure: true
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@2c3e0724363fd59fd1c8efadcd11e7b12f4a5f1
+        uses: taiki-e/install-action@v2.62.33
 
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673
+        uses: codecov/codecov-action@v5.5.2
         with:
           files: lcov.info
           fail_ci_if_error: false
@@ -84,13 +136,29 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@v6.0.2
+
+      - name: Extract PR dependency overrides
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "PR_BODY<<EOF" >> $GITHUB_ENV
+          echo "${{ github.event.pull_request.body }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Patch sister project dependencies
+        run: bash .github/scripts/patch-dependencies.sh
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Fetch dependencies (including sister projects)
+        run: cargo fetch
+        continue-on-error: true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+
       - name: Setup Rust cache
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+        uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-on-failure: true
 
@@ -113,13 +181,28 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@v6.0.2
+
+      - name: Extract PR dependency overrides
+        run: |
+          echo "PR_BODY<<EOF" >> $GITHUB_ENV
+          echo "${{ github.event.pull_request.body }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Patch sister project dependencies
+        run: bash .github/scripts/patch-dependencies.sh
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Fetch dependencies (including sister projects)
+        run: cargo fetch
+        continue-on-error: true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+
       - name: Setup Rust cache
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+        uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-on-failure: true
 
@@ -132,15 +215,31 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@v6.0.2
+
+      - name: Extract PR dependency overrides
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "PR_BODY<<EOF" >> $GITHUB_ENV
+          echo "${{ github.event.pull_request.body }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Patch sister project dependencies
+        run: bash .github/scripts/patch-dependencies.sh
 
       - name: Setup Rust (MSRV)
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.75"
+          toolchain: "1.92"
+
+      - name: Fetch dependencies (including sister projects)
+        run: cargo fetch
+        continue-on-error: true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
       - name: Setup Rust cache
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+        uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-on-failure: true
 
