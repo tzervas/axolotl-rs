@@ -28,6 +28,12 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Fetch dependencies (including sister projects)
+        run: cargo fetch
+        continue-on-error: true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -64,6 +70,12 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Fetch dependencies (including sister projects)
+        run: cargo fetch
+        continue-on-error: true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2.7.8
         with:
@@ -98,6 +110,12 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Fetch dependencies (including sister projects)
+        run: cargo fetch
+        continue-on-error: true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2.7.8
