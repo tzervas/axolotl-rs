@@ -657,7 +657,8 @@ fn compute_last_position_loss(logits: &Tensor, labels: &Tensor, device: &Device)
 
     let (batch_size, vocab_size) = (dims[0], dims[1]);
     let label_dims = labels.dims();
-    let _seq_len = label_dims[1];
+    // seq_len not used, but kept for clarity of dimensions
+    let _ = label_dims[1];
 
     // For each sequence, get the last non-padding label
     // This is the target for predicting what comes after the last token

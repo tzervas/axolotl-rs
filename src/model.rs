@@ -4,7 +4,7 @@ use candle_core::{DType, Device, IndexOp, Tensor};
 use candle_nn::{Module, VarBuilder, VarMap};
 use candle_transformers::models::llama::{Cache, Llama, LlamaConfig, LlamaEosToks};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::config::{AdapterType, AxolotlConfig};
 use crate::error::{AxolotlError, Result};
@@ -729,7 +729,7 @@ fn resolve_model_path(model_id: &str) -> Result<PathBuf> {
         Ok(hf_path)
     } else {
         Err(AxolotlError::Model(format!(
-            "Model not found at '{model_id}' or in HF cache at '{hf_path:?}'. Use `huggingface-cli download {model_id}` to download."
+            "Model not found at '{model_id}' or in HF cache at '{}'. Use `huggingface-cli download {model_id}` to download.", hf_path.display()
         )))
     }
 }
@@ -740,7 +740,7 @@ fn load_tokenizer(model_path: &PathBuf) -> Result<tokenizers::Tokenizer> {
 
     if !tokenizer_file.exists() {
         return Err(AxolotlError::Tokenizer(
-            format!("tokenizer.json not found in {model_path:?}").into(),
+            format!("tokenizer.json not found in {}", model_path.display()).into(),
         ));
     }
 
@@ -793,7 +793,7 @@ fn load_llama_model(
     device: &Device,
     dtype: DType,
     #[cfg(feature = "peft")] lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
-    #[cfg(not(feature = "peft"))] lora_params: Option<(&ModelInfo, &VarMap)>,
+    #[cfg(not(feature = "peft"))] _lora_params: Option<(&ModelInfo, &VarMap)>,
 ) -> Result<Box<dyn Module>> {
     // Try to load config.json first
     let config_path = model_path.join("config.json");
@@ -878,7 +878,7 @@ fn load_llama_model(
     let model: Box<dyn Module> = {
         // Use standard Llama model wrapped for training
         let model = Llama::load(vb, &config)
-            .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {}", e)))?;
+            .map_err(|e| AxolotlError::Model(format!("Failed to create LLaMA model: {e}")))?;
 
         Box::new(LlamaWrapper::new(model, &config, device)?)
     };
