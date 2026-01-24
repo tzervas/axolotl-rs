@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-01-24
+
+### Fixed
+- Fixed `std::path::Path` import missing when `peft` feature enabled
+- Fixed `lora_params` variable reference in feature-gated code block
+- Compilation now succeeds with `--features "peft,qlora,unsloth"`
+
 ## [1.0.0] - 2026-01-24
 
 ### Added
@@ -99,5 +106,7 @@ Initial development release establishing project structure and core scaffolding.
 
 ---
 
-[Unreleased]: https://github.com/tzervas/axolotl-rs/compare/v0.1.0-dev...HEAD
+[Unreleased]: https://github.com/tzervas/axolotl-rs/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/tzervas/axolotl-rs/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/tzervas/axolotl-rs/compare/v0.1.0-dev...v1.0.0
 [0.1.0-dev]: https://github.com/tzervas/axolotl-rs/releases/tag/v0.1.0-dev
