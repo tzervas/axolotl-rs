@@ -8,7 +8,7 @@ description = "YAML-driven configurable fine-tuning toolkit for LLMs in Rust"
 authors = ["Tyler Zervas <tz-dev@vectorweight.com>"]
 repository = "https://github.com/tzervas/axolotl-rs"
 keywords = ["llm", "fine-tuning", "training", "configuration", "yaml"]
-categories = ["science", "machine-learning", "command-line-utilities"]
+categories = ["science", "command-line-utilities"]
 
 [dependencies]
 candle-core = "0.9"
