@@ -101,9 +101,9 @@ Before releasing, test against specific versions:
 ```markdown
 ## Pre-Release Testing
 
-peft-rs: v0.5.0-rc1
-qlora-rs: v0.3.0-rc1
-unsloth-rs: v0.2.0-rc1
+peft-rs: v1.0.0
+qlora-rs: v1.0.0
+unsloth-rs: v1.0.0
 ```
 
 ### Debugging CI Failures

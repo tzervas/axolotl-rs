@@ -4,7 +4,7 @@ use candle_core::{DType, Device, IndexOp, Tensor};
 use candle_nn::{Module, VarBuilder, VarMap};
 use candle_transformers::models::llama::{Cache, Llama, LlamaConfig, LlamaEosToks};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::config::{AdapterType, AxolotlConfig};
 use crate::error::{AxolotlError, Result};
@@ -794,7 +794,7 @@ fn load_llama_model(
     model_path: &PathBuf,
     device: &Device,
     dtype: DType,
-    #[cfg(feature = "peft")] _lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
+    #[cfg(feature = "peft")] lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
     #[cfg(not(feature = "peft"))] _lora_params: Option<(&ModelInfo, &VarMap)>,
 ) -> Result<Box<dyn Module>> {
     // Try to load config.json first

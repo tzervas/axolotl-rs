@@ -4,7 +4,7 @@ Thank you for your interest in contributing to axolotl-rs! This document provide
 
 ## Development Status
 
-axolotl-rs is in early development. The configuration system, CLI interface, and dataset loaders are functional, but core training functionality is planned for future releases. See the [README](README.md) for details on what's implemented vs. planned.
+axolotl-rs 1.0.0 provides YAML-driven fine-tuning with configuration parsing, dataset loading, CLI interface, and training loop support. See the [README](README.md) for features and usage.
 
 ## Getting Started
 
@@ -35,10 +35,9 @@ The `Cargo.toml` file provides three dependency configuration options:
 #### 1. Production Use (crates.io)
 For users importing axolotl-rs as a library dependency:
 ```toml
-# Uncomment in Cargo.toml when packages are published
-# peft-rs = { version = "0.1", optional = true }
-# qlora-rs = { version = "0.1", optional = true }
-# unsloth-rs = { version = "0.1", optional = true }
+peft-rs = { version = "1.0", optional = true }
+qlora-rs = { version = "1.0", optional = true }
+unsloth-rs = { version = "1.0", optional = true }
 ```
 
 #### 2. Active Development (GitHub)
