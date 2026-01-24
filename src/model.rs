@@ -4,7 +4,7 @@ use candle_core::{DType, Device, IndexOp, Tensor};
 use candle_nn::{Module, VarBuilder, VarMap};
 use candle_transformers::models::llama::{Cache, Llama, LlamaConfig, LlamaEosToks};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::config::{AdapterType, AxolotlConfig};
 use crate::error::{AxolotlError, Result};
@@ -38,6 +38,7 @@ pub struct LoadedModel {
     #[allow(dead_code)]
     pub dtype: DType,
     /// Adapter layers (if using LoRA/QLoRA)
+    #[allow(dead_code)]
     pub adapter_layers: Option<AdapterLayers>,
     /// Trainable parameters (LoRA weights)
     pub trainable_params: VarMap,
@@ -58,15 +59,16 @@ pub struct AdapterLayers {
 }
 
 #[cfg(not(feature = "peft"))]
+#[allow(dead_code)]
 impl AdapterLayers {
     /// Placeholder when peft feature is disabled
-    #[allow(dead_code)]
     pub fn lora_layers(&self) -> &HashMap<String, ()> {
         static EMPTY: std::sync::OnceLock<HashMap<String, ()>> = std::sync::OnceLock::new();
         EMPTY.get_or_init(HashMap::new)
     }
 }
 
+#[allow(dead_code)]
 impl AdapterLayers {
     /// Create new adapter layers container.
     #[must_use]
@@ -788,12 +790,12 @@ fn load_model_architecture(
 
 /// Load a LLaMA model from the given path.
 fn load_llama_model(
-    axolotl_config: &AxolotlConfig,
+    _axolotl_config: &AxolotlConfig,
     model_path: &PathBuf,
     device: &Device,
     dtype: DType,
-    #[cfg(feature = "peft")] lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
-    #[cfg(not(feature = "peft"))] lora_params: Option<(&ModelInfo, &VarMap)>,
+    #[cfg(feature = "peft")] _lora_params: Option<(&ModelInfo, &VarMap, &PeftLoraConfig)>,
+    #[cfg(not(feature = "peft"))] _lora_params: Option<(&ModelInfo, &VarMap)>,
 ) -> Result<Box<dyn Module>> {
     // Try to load config.json first
     let config_path = model_path.join("config.json");

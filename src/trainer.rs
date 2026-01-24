@@ -556,6 +556,7 @@ impl Trainer {
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(dead_code)]
     pub fn metrics(&self) -> &[StepMetrics] {
         &self.training_metrics
     }
@@ -578,6 +579,7 @@ impl Trainer {
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(dead_code)]
     pub fn losses(&self) -> Vec<f64> {
         self.training_metrics.iter().map(|m| m.loss).collect()
     }
@@ -585,6 +587,7 @@ impl Trainer {
     /// Get gradient norms for all training steps.
     ///
     /// Returns a vector of global gradient norms.
+    #[allow(dead_code)]
     pub fn grad_norms(&self) -> Vec<f64> {
         self.training_metrics.iter().map(|m| m.grad_norm).collect()
     }
@@ -592,16 +595,19 @@ impl Trainer {
     /// Get parameter norms for all training steps.
     ///
     /// Returns a vector of global parameter norms.
+    #[allow(dead_code)]
     pub fn param_norms(&self) -> Vec<f64> {
         self.training_metrics.iter().map(|m| m.param_norm).collect()
     }
 
     /// Get current training step.
+    #[allow(dead_code)]
     pub fn step(&self) -> usize {
         self.step
     }
 
     /// Get current epoch.
+    #[allow(dead_code)]
     pub fn epoch(&self) -> usize {
         self.epoch
     }
@@ -650,6 +656,7 @@ fn compute_global_param_norm(_varmap: &VarMap) -> Result<f64> {
 ///
 /// # Returns
 /// A scalar loss tensor that can be backpropagated through
+#[allow(dead_code)]
 fn compute_last_position_loss(logits: &Tensor, labels: &Tensor, device: &Device) -> Result<Tensor> {
     let dims = logits.dims();
 

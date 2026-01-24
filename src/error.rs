@@ -137,6 +137,7 @@ pub enum AxolotlError {
 
     /// Other errors.
     #[error("{0}")]
+    #[allow(dead_code)]
     Other(String),
 }
 

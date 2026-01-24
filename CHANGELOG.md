@@ -7,7 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-01-24
+
 ### Added
+- Dynamic CI dependency configuration for sister projects (peft-rs, qlora-rs, unsloth-rs)
+- GitHub-based dependency strategy with branch pinning for CI builds
+- Comprehensive LoRA target injection tests (per-layer configuration)
+- QLoRA training integration tests
+- GPU checkpoint save/load tests
+
+### Changed
+- Resolved all clippy warnings for production quality
+- Updated dependencies to use GitHub branches by default for development
+- Improved code organization with dead code annotations for future use
+
+### Fixed
+- Unused import and variable warnings cleaned up
+- All compilation warnings resolved
+
+---
+
+### Added (from 0.1.0-dev)
 - Initial project scaffold with Rust port of Axolotl
 - YAML configuration parsing with 3 presets (LLaMA-2, Mistral, Phi-3)
 - Dataset loaders for 4 formats: Alpaca, ShareGPT, Completion, Custom
