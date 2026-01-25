@@ -105,6 +105,8 @@ pub mod optimizer;
 pub mod qlora_llama;
 pub mod scheduler;
 pub mod trainer;
+#[cfg(feature = "vsa-optim")]
+pub mod vsa_accel;
 
 // Mock modules for testing without external dependencies
 #[cfg(any(
@@ -117,3 +119,6 @@ pub mod mocks;
 pub use config::{AxolotlConfig, TrainingConfig};
 pub use error::{AxolotlError, Result};
 pub use trainer::Trainer;
+
+#[cfg(feature = "vsa-optim")]
+pub use vsa_accel::{VSAAccelerator, VSAAcceleratorConfig, VSAStats, VSAStepInfo};

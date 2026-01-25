@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-01-27
+
+### Added
+- **VSA-Accelerated Training**: Integrated `vsa-optim-rs` for deterministic gradient prediction
+- `VSAAccelerator` wrapper with configurable training phases (WARMUP → FULL → PREDICT → CORRECT)
+- Deterministic phase training with closed-form weighted least squares gradient prediction
+- `VSAConfig` for fine-grained control over VSA dimensions, prediction windows, and memory budgets
+- Ternary gradient accumulation using balanced `{-1, 0, +1}` representation
+- Hyperdimensional bind/bundle/unbind operations for gradient compression
+- Comprehensive integration tests for VSA acceleration
+- Documentation for `vsa_accel` module with architecture overview
+
+### Changed
+- Enhanced `TrainingConfig` with optional `vsa_config` field
+- Improved memory efficiency through VSA gradient compression
+
 ## [1.0.1] - 2026-01-24
 
 ### Fixed

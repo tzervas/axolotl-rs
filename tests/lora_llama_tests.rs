@@ -441,7 +441,7 @@ mod lora_llama_tests {
     #[ignore = "Requires CUDA GPU"]
     #[cfg(feature = "cuda")]
     fn test_lora_llama_gpu_forward() {
-        use axolotl_rs::lora_llama::LoraLlama;
+        use axolotl_rs::lora_llama::{Cache, LoraLlama};
 
         let device = Device::cuda_if_available(0).expect("CUDA device required");
         let llama_config = create_test_llama_config();
@@ -458,9 +458,13 @@ mod lora_llama_tests {
 
         let model = model.unwrap();
 
+        // Create cache for forward pass
+        let mut cache =
+            Cache::new(false, DType::F32, &llama_config, &device).expect("Cache creation failed");
+
         // Test forward pass
         let input_ids = Tensor::zeros(&[2, 16], DType::U32, &device).unwrap();
-        let output = model.forward(&input_ids);
+        let output = model.forward(&input_ids, 0, &mut cache);
 
         assert!(output.is_ok(), "GPU forward pass should succeed");
         let output = output.unwrap();
