@@ -1,7 +1,7 @@
 # Axolotl-RS Architecture
 
-**Version:** 0.1.0-dev  
-**Status:** Foundation Phase Complete
+**Version:** 1.0.0
+**Status:** Initial Release
 
 ---
 

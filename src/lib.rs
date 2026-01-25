@@ -94,10 +94,19 @@ pub mod cli;
 pub mod config;
 pub mod dataset;
 pub mod error;
+#[cfg(feature = "peft")]
+pub mod llama_common;
+#[cfg(feature = "peft")]
+pub mod lora_llama;
 pub mod model;
+pub mod normalization;
 pub mod optimizer;
+#[cfg(all(feature = "peft", feature = "qlora"))]
+pub mod qlora_llama;
 pub mod scheduler;
 pub mod trainer;
+#[cfg(feature = "vsa-optim")]
+pub mod vsa_accel;
 
 // Mock modules for testing without external dependencies
 #[cfg(any(
@@ -110,3 +119,6 @@ pub mod mocks;
 pub use config::{AxolotlConfig, TrainingConfig};
 pub use error::{AxolotlError, Result};
 pub use trainer::Trainer;
+
+#[cfg(feature = "vsa-optim")]
+pub use vsa_accel::{VSAAccelerator, VSAAcceleratorConfig, VSAStats, VSAStepInfo};

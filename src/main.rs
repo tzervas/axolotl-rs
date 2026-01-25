@@ -7,8 +7,14 @@ mod cli;
 mod config;
 mod dataset;
 mod error;
+#[cfg(feature = "peft")]
+mod llama_common;
+#[cfg(feature = "peft")]
+mod lora_llama;
 mod model;
 mod optimizer;
+#[cfg(all(feature = "peft", feature = "qlora"))]
+mod qlora_llama;
 mod scheduler;
 mod trainer;
 

@@ -18,7 +18,8 @@ jobs:
   gpu-cuda:
     name: GPU Tests (CUDA)
     runs-on: self-hosted
-    if: github.repository == 'tzervas/axolotl-rs' # Adjust to your repo
+    # Temporarily disabled until GPU runners are available
+    if: false # github.repository == 'tzervas/axolotl-rs' # Adjust to your repo
     
     steps:
       - name: Checkout repository
@@ -26,6 +27,12 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Fetch dependencies (including sister projects)
+        run: cargo fetch
+        continue-on-error: true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -53,17 +60,24 @@ jobs:
   gpu-benchmarks:
     name: GPU Benchmarks
     runs-on: self-hosted
-    if: github.event_name == 'workflow_dispatch'
+    # Temporarily disabled until GPU runners are available
+    if: false # github.event_name == 'workflow_dispatch'
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Fetch dependencies (including sister projects)
+        run: cargo fetch
+        continue-on-error: true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+
       - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-on-failure: true
 
@@ -78,7 +92,7 @@ jobs:
           CUDA_VISIBLE_DEVICES: "0"
 
       - name: Archive benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.5.0
         with:
           name: gpu-benchmark-results
           path: target/criterion/
@@ -87,17 +101,24 @@ jobs:
   small-model-test:
     name: Small Model Tests
     runs-on: self-hosted
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    # Temporarily disabled until GPU runners are available
+    if: false # github.event_name == 'pull_request' || github.event_name == 'push'
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Fetch dependencies (including sister projects)
+        run: cargo fetch
+        continue-on-error: true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+
       - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-on-failure: true
 

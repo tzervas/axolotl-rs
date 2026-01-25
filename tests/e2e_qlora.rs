@@ -11,7 +11,7 @@
 //! For local dev: Can use full dataset for thorough validation
 //!
 //! ## Recommended Models for Validation
-//! 
+//!
 //! | Model | Params | VRAM (4-bit) | Use Case |
 //! |-------|--------|--------------|----------|
 //! | SmolLM2-135M | 135M | ~150 MB | Development/CPU |
@@ -65,7 +65,11 @@ fn create_smollm2_qlora_config(output_dir: &Path, dataset_path: &Path) -> String
 /// This is the recommended configuration for GPU validation.
 #[allow(dead_code)]
 fn create_tinyllama_qlora_config(output_dir: &Path, dataset_path: &Path) -> String {
-    create_qlora_config_for_model("TinyLlama/TinyLlama-1.1B-Chat-v1.0", output_dir, dataset_path)
+    create_qlora_config_for_model(
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        output_dir,
+        dataset_path,
+    )
 }
 
 /// Create a YAML config for QLoRA fine-tuning with a specific model.
@@ -133,8 +137,8 @@ mod qlora_e2e {
         fs::write(&config_path, config_content).unwrap();
 
         // Load and validate config
-        let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-            .expect("Failed to load config");
+        let config =
+            AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
 
         assert_eq!(config.adapter, axolotl_rs::config::AdapterType::Qlora);
         assert_eq!(config.lora.r, 8);
@@ -179,7 +183,7 @@ mod qlora_e2e {
         });
 
         let json_str = serde_json::to_string_pretty(&adapter_config).unwrap();
-        
+
         // Verify it's valid JSON with expected fields
         let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
         assert_eq!(parsed["r"], 8);
@@ -258,7 +262,7 @@ fn test_safetensors_format() {
 
     // Verify the path would use correct extension for HF compatibility
     assert!(safetensors_path.to_str().unwrap().ends_with(".safetensors"));
-    
+
     // Verify safetensors crate is available (it's a dev dependency)
     // The actual serialization uses safetensors::tensor::serialize_to_file
     // which is tested in the model.rs save_adapter_weights implementation
@@ -280,8 +284,8 @@ fn test_ci_smoke_100_samples() {
 
     // Verify each line is valid JSON
     for line in lines {
-        let parsed: serde_json::Value = serde_json::from_str(line)
-            .expect("Each line should be valid JSON");
+        let parsed: serde_json::Value =
+            serde_json::from_str(line).expect("Each line should be valid JSON");
         assert!(parsed.get("instruction").is_some());
         assert!(parsed.get("input").is_some());
         assert!(parsed.get("output").is_some());
@@ -299,11 +303,11 @@ fn test_smollm2_model_dimensions() {
     assert_eq!(SMOLLM2_NUM_LAYERS, 30);
     assert_eq!(SMOLLM2_NUM_HEADS, 9);
     assert_eq!(SMOLLM2_NUM_KV_HEADS, 3);
-    
+
     // Calculate expected LoRA layer count for q_proj + v_proj
     let expected_lora_layers = 2 * SMOLLM2_NUM_LAYERS; // 60 layers
     assert_eq!(expected_lora_layers, 60);
-    
+
     // Calculate KV dimension (for GQA)
     let kv_dim = SMOLLM2_HIDDEN_SIZE * SMOLLM2_NUM_KV_HEADS / SMOLLM2_NUM_HEADS;
     assert_eq!(kv_dim, 192);
@@ -317,11 +321,11 @@ fn test_tinyllama_model_dimensions() {
     assert_eq!(TINYLLAMA_NUM_LAYERS, 22);
     assert_eq!(TINYLLAMA_NUM_HEADS, 32);
     assert_eq!(TINYLLAMA_NUM_KV_HEADS, 4);
-    
+
     // Calculate expected LoRA layer count for q_proj + v_proj
     let expected_lora_layers = 2 * TINYLLAMA_NUM_LAYERS; // 44 layers
     assert_eq!(expected_lora_layers, 44);
-    
+
     // Calculate KV dimension (for GQA)
     let kv_dim = TINYLLAMA_HIDDEN_SIZE * TINYLLAMA_NUM_KV_HEADS / TINYLLAMA_NUM_HEADS;
     assert_eq!(kv_dim, 256);
@@ -337,8 +341,8 @@ fn test_qlora_vram_estimates() {
     let smollm2_base_4bit = 135_000_000 / 2; // ~67 MB
     let smollm2_lora_r8 = 60 * SMOLLM2_HIDDEN_SIZE * 8 * 2 * 4; // ~2.8 MB
     assert!(smollm2_base_4bit + smollm2_lora_r8 < 100_000_000); // < 100 MB
-    
-    // TinyLlama-1.1B QLoRA estimate  
+
+    // TinyLlama-1.1B QLoRA estimate
     // Base model (4-bit): ~550 MB (1.1B params * 0.5 bytes)
     // LoRA adapters (r=8): ~5.8 MB (44 layers * 2048 * 8 * 2 * 4 bytes)
     // Total: ~560 MB + activations
@@ -352,23 +356,23 @@ fn test_qlora_vram_estimates() {
 // =============================================================================
 
 /// Full E2E test with SmolLM2-135M using LoRA (CPU, 20 steps).
-/// 
+///
 /// This is the primary validation test for the training pipeline.
 /// Uses LoRA (not QLoRA) for simpler initial validation.
-/// 
+///
 /// Run with: cargo test --features 'peft' -- --ignored test_smollm2_lora_e2e_20_steps
 #[test]
 #[ignore]
 fn test_smollm2_lora_e2e_20_steps() {
     use axolotl_rs::{AxolotlConfig, Trainer};
-    
+
     let temp_dir = TempDir::new().unwrap();
     let output_dir = temp_dir.path().join("outputs");
     let dataset_path = temp_dir.path().join("dataset.jsonl");
-    
+
     // Create small test dataset (20 examples for 20 steps with batch_size=1)
     create_test_dataset(&dataset_path, 20);
-    
+
     // Create LoRA config (not QLoRA - simpler for initial validation)
     let config_content = format!(
         r#"
@@ -406,34 +410,42 @@ seed: 42
     );
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, &config_content).unwrap();
-    
+
     // Check if SmolLM2 model is downloaded
     let hf_cache = std::env::var("HOME")
-        .map(|h| format!("{}/.cache/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M", h))
+        .map(|h| {
+            format!(
+                "{}/.cache/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M",
+                h
+            )
+        })
         .unwrap_or_default();
-    
+
     if !Path::new(&hf_cache).exists() {
         println!("⚠️  SmolLM2-135M not found at {}", hf_cache);
         println!("   Download with: curl commands from setup script");
         println!("   Skipping E2E test.");
         return;
     }
-    
+
     println!("📦 Loading SmolLM2-135M from: {}", hf_cache);
-    
+
     // Load config and create trainer
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
-    
-    println!("✓ Config loaded: adapter={:?}, lora_r={}", config.adapter, config.lora.r);
-    
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
+
+    println!(
+        "✓ Config loaded: adapter={:?}, lora_r={}",
+        config.adapter, config.lora.r
+    );
+
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
     println!("✓ Trainer created");
-    
+
     // Run training
     println!("🚀 Starting training (20 steps)...");
     let result = trainer.train();
-    
+
     match result {
         Ok(()) => {
             println!("✓ Training completed successfully!");
@@ -450,51 +462,62 @@ seed: 42
 }
 
 /// Full E2E test with SmolLM2-135M using QLoRA (CPU, 20 steps).
-/// 
+///
 /// Run with: cargo test --features 'qlora' -- --ignored test_smollm2_qlora_e2e_20_steps
 #[test]
 #[ignore]
 fn test_smollm2_qlora_e2e_20_steps() {
     use axolotl_rs::{AxolotlConfig, Trainer};
-    
+
     let temp_dir = TempDir::new().unwrap();
     let output_dir = temp_dir.path().join("outputs");
     let dataset_path = temp_dir.path().join("dataset.jsonl");
-    
+
     // Create small test dataset
     create_test_dataset(&dataset_path, 20);
-    
+
     // Create QLoRA config
     let config_content = create_smollm2_qlora_config(&output_dir, &dataset_path);
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, &config_content).unwrap();
-    
+
     // Check if SmolLM2 model is downloaded
     let hf_cache = std::env::var("HOME")
-        .map(|h| format!("{}/.cache/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M", h))
+        .map(|h| {
+            format!(
+                "{}/.cache/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M",
+                h
+            )
+        })
         .unwrap_or_default();
-    
+
     if !Path::new(&hf_cache).exists() {
         println!("⚠️  SmolLM2-135M not found. Skipping E2E test.");
         return;
     }
-    
+
     println!("📦 Loading SmolLM2-135M (QLoRA) from: {}", hf_cache);
-    
+
     // Load config and create trainer
-    let config = AxolotlConfig::from_file(config_path.to_str().unwrap())
-        .expect("Failed to load config");
-    
-    assert!(config.quantization.is_some(), "QLoRA requires quantization config");
-    println!("✓ Config loaded: adapter={:?}, 4-bit quantization", config.adapter);
-    
+    let config =
+        AxolotlConfig::from_file(config_path.to_str().unwrap()).expect("Failed to load config");
+
+    assert!(
+        config.quantization.is_some(),
+        "QLoRA requires quantization config"
+    );
+    println!(
+        "✓ Config loaded: adapter={:?}, 4-bit quantization",
+        config.adapter
+    );
+
     let mut trainer = Trainer::new(config).expect("Failed to create trainer");
     println!("✓ Trainer created");
-    
+
     // Run training
     println!("🚀 Starting QLoRA training (20 steps)...");
     let result = trainer.train();
-    
+
     match result {
         Ok(()) => {
             println!("✓ QLoRA training completed!");
@@ -508,7 +531,7 @@ fn test_smollm2_qlora_e2e_20_steps() {
 }
 
 /// Full E2E test with SmolLM2-135M (requires model download).
-/// 
+///
 /// Run with: cargo test --features 'qlora' -- --ignored test_smollm2_e2e
 #[test]
 #[ignore]
@@ -516,19 +539,19 @@ fn test_smollm2_e2e_validation() {
     let temp_dir = TempDir::new().unwrap();
     let output_dir = temp_dir.path().join("outputs");
     let dataset_path = temp_dir.path().join("dataset.jsonl");
-    
+
     // Create small test dataset
     create_test_dataset(&dataset_path, 100);
-    
+
     // Create SmolLM2 config
     let config_content = create_smollm2_qlora_config(&output_dir, &dataset_path);
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
-    
+
     // This test will fail if model not downloaded
     // Download with: huggingface-cli download HuggingFaceTB/SmolLM2-135M
     println!("SmolLM2 E2E test config created at: {:?}", config_path);
-    
+
     // TODO: Once model loading is complete:
     // let config = AxolotlConfig::from_file(config_path.to_str().unwrap()).unwrap();
     // let mut trainer = Trainer::new(config).unwrap();
@@ -546,19 +569,19 @@ fn test_tinyllama_e2e_validation() {
     let temp_dir = TempDir::new().unwrap();
     let output_dir = temp_dir.path().join("outputs");
     let dataset_path = temp_dir.path().join("dataset.jsonl");
-    
+
     // Create small test dataset
     create_test_dataset(&dataset_path, 1000);
-    
+
     // Create TinyLlama config
     let config_content = create_tinyllama_qlora_config(&output_dir, &dataset_path);
     let config_path = temp_dir.path().join("config.yaml");
     fs::write(&config_path, config_content).unwrap();
-    
+
     // This test will fail if model not downloaded
     // Download with: huggingface-cli download TinyLlama/TinyLlama-1.1B-Chat-v1.0
     println!("TinyLlama E2E test config created at: {:?}", config_path);
-    
+
     // TODO: Once model loading is complete:
     // let config = AxolotlConfig::from_file(config_path.to_str().unwrap()).unwrap();
     // let mut trainer = Trainer::new(config).unwrap();

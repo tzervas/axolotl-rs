@@ -73,7 +73,7 @@ pub fn cuda_device_count() -> usize {
     #[cfg(feature = "cuda")]
     {
         candle_core::utils::get_num_threads() // This is actually thread count, not GPU count
-        // TODO: Use proper CUDA API when available in candle
+                                              // TODO: Use proper CUDA API when available in candle
     }
     #[cfg(not(feature = "cuda"))]
     {
@@ -117,10 +117,8 @@ pub fn assert_loss_convergence(losses: &[f64], min_decrease_ratio: f64, window_s
 
     // Compare first window average to last window average
     let first_window: f64 = losses[..window_size].iter().sum::<f64>() / window_size as f64;
-    let last_window: f64 = losses[losses.len() - window_size..]
-        .iter()
-        .sum::<f64>()
-        / window_size as f64;
+    let last_window: f64 =
+        losses[losses.len() - window_size..].iter().sum::<f64>() / window_size as f64;
 
     let decrease_ratio = (first_window - last_window) / first_window;
 
@@ -163,7 +161,10 @@ pub fn assert_monotonic_decrease(losses: &[f64], tolerance: f64) {
             );
         }
     }
-    println!("✓ Loss is monotonically decreasing (tolerance: {:.4})", tolerance);
+    println!(
+        "✓ Loss is monotonically decreasing (tolerance: {:.4})",
+        tolerance
+    );
 }
 
 /// Track training metrics for GPU tests.
