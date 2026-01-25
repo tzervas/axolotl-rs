@@ -3,7 +3,7 @@
 YAML-driven configurable fine-tuning toolkit for LLMs in Rust.
 
 [![Crates.io](https://img.shields.io/crates/v/axolotl-rs.svg)](https://crates.io/crates/axolotl-rs)
-
+[![Documentation](https://docs.rs/axolotl-rs/badge.svg)](https://docs.rs/axolotl-rs)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
 
 ## Overview
