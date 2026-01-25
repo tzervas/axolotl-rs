@@ -87,21 +87,37 @@ impl Trainer {
     pub fn new(config: AxolotlConfig) -> Result<Self> {
         config.validate()?;
 
-        // Determine device
-        // TODO: Revisit device selection once Candle supports RMS-Norm on GPU or a custom GPU kernel is available.
-        // NOTE: Temporary workaround for Candle not supporting RMS-Norm on GPU
-        // Use CPU for model inference until Candle or custom GPU kernel is available
-        let use_gpu = cfg!(feature = "cuda") && candle_core::utils::cuda_is_available();
-        let device = if use_gpu {
-            // For now, use CPU for model forward passes due to Candle GPU limitations
-            // Adapter weights can still use GPU if available
-            tracing::warn!("GPU CUDA available but using CPU for model forward passes due to RMS-Norm GPU support");
-            Device::Cpu
+        // Determine device (prefer CUDA, fallback to CPU with warning)
+        let force_cpu = std::env::var("AXOLOTL_FORCE_CPU")
+            .ok()
+            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+        let cuda_device = std::env::var("AXOLOTL_CUDA_DEVICE")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0);
+        let device = if !force_cpu && cfg!(feature = "cuda") {
+            match Device::cuda_if_available(cuda_device) {
+                Ok(device @ Device::Cuda(_)) => {
+                    tracing::info!("Training device: CUDA (device {})", cuda_device);
+                    device
+                }
+                Ok(_) => {
+                    tracing::warn!("CUDA not available; falling back to CPU. This is a compatibility path only.");
+                    Device::Cpu
+                }
+                Err(err) => {
+                    tracing::warn!("CUDA init failed ({err}); falling back to CPU. This is a compatibility path only.");
+                    Device::Cpu
+                }
+            }
         } else {
+            if force_cpu {
+                tracing::warn!("CPU mode forced via AXOLOTL_FORCE_CPU=1. GPU is the intended default.");
+            } else {
+                tracing::warn!("CUDA feature disabled; falling back to CPU. Enable with --features cuda.");
+            }
             Device::Cpu
         };
-
-        tracing::info!("Training device: {:?}", device);
 
         Ok(Self {
             config,
