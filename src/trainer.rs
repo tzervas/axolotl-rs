@@ -112,9 +112,13 @@ impl Trainer {
             }
         } else {
             if force_cpu {
-                tracing::warn!("CPU mode forced via AXOLOTL_FORCE_CPU=1. GPU is the intended default.");
+                tracing::warn!(
+                    "CPU mode forced via AXOLOTL_FORCE_CPU=1. GPU is the intended default."
+                );
             } else {
-                tracing::warn!("CUDA feature disabled; falling back to CPU. Enable with --features cuda.");
+                tracing::warn!(
+                    "CUDA feature disabled; falling back to CPU. Enable with --features cuda."
+                );
             }
             Device::Cpu
         };

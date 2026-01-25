@@ -488,7 +488,9 @@ impl AxolotlConfig {
         }
     }
 
-    fn llama2_7b_preset() -> Self {
+    /// Creates a configuration preset for LLaMA-2 7B model with QLoRA.
+    #[must_use]
+    pub fn llama2_7b_preset() -> Self {
         Self {
             base_model: "meta-llama/Llama-2-7b-hf".into(),
             adapter: AdapterType::Qlora,
@@ -511,7 +513,9 @@ impl AxolotlConfig {
         }
     }
 
-    fn mistral_7b_preset() -> Self {
+    /// Creates a configuration preset for Mistral 7B model with QLoRA.
+    #[must_use]
+    pub fn mistral_7b_preset() -> Self {
         Self {
             base_model: "mistralai/Mistral-7B-v0.1".into(),
             adapter: AdapterType::Qlora,
@@ -540,7 +544,9 @@ impl AxolotlConfig {
         }
     }
 
-    fn phi3_mini_preset() -> Self {
+    /// Creates a configuration preset for Phi-3 Mini model with LoRA.
+    #[must_use]
+    pub fn phi3_mini_preset() -> Self {
         Self {
             base_model: "microsoft/phi-3-mini-4k-instruct".into(),
             adapter: AdapterType::Lora,

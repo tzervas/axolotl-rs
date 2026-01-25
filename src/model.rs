@@ -4,7 +4,7 @@ use candle_core::{DType, Device, IndexOp, Tensor};
 use candle_nn::{Module, VarBuilder, VarMap};
 use candle_transformers::models::llama::{Cache, Llama, LlamaConfig, LlamaEosToks};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::config::{AdapterType, AxolotlConfig};
 use crate::error::{AxolotlError, Result};
