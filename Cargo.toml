@@ -35,7 +35,7 @@ anyhow = { workspace = true }
 peft-rs = { version = "1.0", optional = true }
 qlora-rs = { version = "1.0", optional = true }
 unsloth-rs = { version = "1.0", optional = true }
-# vsa-optim-rs = { version = "0.1", optional = true }
+vsa-optim-rs = { version = "0.1", optional = true }
 #
 # For active development (importing from GitHub):
 # Uncomment these lines to use development branches from GitHub repos
@@ -73,7 +73,7 @@ download = ["reqwest"]
 peft = ["peft-rs"]
 qlora = ["qlora-rs", "peft"]
 unsloth = ["unsloth-rs"]
-# vsa-optim = ["vsa-optim-rs"]
+vsa-optim = ["vsa-optim-rs"]
 
 # Mock features for testing without real dependencies
 mock-peft = []

@@ -178,6 +178,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unsloth-rs",
+ "vsa-optim-rs",
 ]
 
 [[package]]
@@ -4509,6 +4510,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "trit-vsa"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47bf9e84d0dc8257ea695d8131640d250671728e76e1fe739e4e1ff4f9143683"
+dependencies = [
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4701,6 +4712,20 @@ name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
+name = "vsa-optim-rs"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05d0b98fa1894ea6bb00593bef245c2e5533da9f32b5716af701a15efdf15257"
+dependencies = [
+ "candle-core",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "serde",
+ "thiserror 1.0.69",
+ "trit-vsa",
+]
 
 [[package]]
 name = "wait-timeout"
