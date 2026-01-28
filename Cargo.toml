@@ -32,7 +32,7 @@ anyhow = { workspace = true }
 # 
 # For production use (importing from crates.io):
 # These packages are published to crates.io for production builds
-peft-rs = { version = "1.0", optional = true }
+peft-rs = { version = "1.0.3", optional = true }
 qlora-rs = { version = "1.0", optional = true }
 unsloth-rs = { version = "1.0", optional = true }
 vsa-optim-rs = { version = "0.1", optional = true }
