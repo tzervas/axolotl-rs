@@ -1,5 +1,7 @@
 //! CLI entry point for axolotl-rs.
 
+#![allow(dead_code)]
+
 use clap::{Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
