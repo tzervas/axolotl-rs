@@ -35,7 +35,7 @@ jobs:
           CARGO_NET_GIT_FETCH_WITH_CLI: true
 
       - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-on-failure: true
 
