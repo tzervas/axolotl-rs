@@ -1,0 +1,109 @@
+name: Publish to crates.io
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (do not actually publish)'
+        required: false
+        type: boolean
+        default: true
+      version:
+        description: 'Version to publish (leave empty to use Cargo.toml version)'
+        required: false
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: [self-hosted, linux, x64, podman]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Verify package version
+        id: version
+        run: |
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$CARGO_VERSION" >> $GITHUB_OUTPUT
+          echo "Package version: $CARGO_VERSION"
+
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG_VERSION="${{ github.event.release.tag_name }}"
+            TAG_VERSION="${TAG_VERSION#v}"
+            echo "Release tag version: $TAG_VERSION"
+            if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+              echo "::error::Version mismatch! Cargo.toml has $CARGO_VERSION but release tag is v$TAG_VERSION"
+              exit 1
+            fi
+          fi
+
+      - name: Check if version already published
+        id: check_published
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PUBLISHED=$(cargo search axolotl-rs --limit 1 2>/dev/null | grep "^axolotl-rs = " | sed 's/.*"\(.*\)".*/\1/' || echo "")
+          echo "Published version: $PUBLISHED"
+          echo "Current version: $VERSION"
+          if [ "$PUBLISHED" = "$VERSION" ]; then
+            echo "::warning::Version $VERSION is already published to crates.io"
+            echo "already_published=true" >> $GITHUB_OUTPUT
+          else
+            echo "already_published=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify package
+        run: |
+          cargo package --list
+          cargo package --verify
+
+      - name: Dry run publish
+        if: github.event.inputs.dry_run == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "=== DRY RUN ==="
+          cargo publish --dry-run
+          echo "=== DRY RUN COMPLETE ==="
+          echo "To actually publish, run this workflow with dry_run=false or create a GitHub release"
+
+      - name: Publish to crates.io
+        if: |
+          (github.event_name == 'release' || github.event.inputs.dry_run == 'false') &&
+          steps.check_published.outputs.already_published != 'true'
+        run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish skipped (already published)
+        if: steps.check_published.outputs.already_published == 'true'
+        run: |
+          echo "::notice::Skipping publish - version ${{ steps.version.outputs.version }} is already on crates.io"
+
+  verify:
+    name: Verify Publication
+    needs: publish
+    runs-on: [self-hosted, linux, x64, podman]
+    if: github.event_name == 'release' || github.event.inputs.dry_run == 'false'
+
+    steps:
+      - name: Wait for crates.io index update
+        run: sleep 30
+
+      - name: Verify package is available
+        run: |
+          VERSION=$(cargo search axolotl-rs --limit 1 2>/dev/null | grep "^axolotl-rs = " | sed 's/.*"\(.*\)".*/\1/' || echo "not found")
+          echo "Latest published version: $VERSION"
