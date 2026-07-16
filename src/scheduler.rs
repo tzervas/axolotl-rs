@@ -71,6 +71,7 @@ impl LRScheduler {
     }
 
     /// Linear warmup then linear decay.
+    #[allow(clippy::cast_precision_loss)]
     fn linear_schedule(&self, warmup_steps: usize, total_steps: usize) -> f64 {
         if self.current_step < warmup_steps {
             // Linear warmup
@@ -84,6 +85,7 @@ impl LRScheduler {
     }
 
     /// Cosine annealing with linear warmup.
+    #[allow(clippy::cast_precision_loss)]
     fn cosine_schedule(&self, warmup_steps: usize, total_steps: usize) -> f64 {
         if self.current_step < warmup_steps {
             // Linear warmup
