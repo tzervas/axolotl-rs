@@ -22,7 +22,7 @@ env:
 jobs:
   publish:
     name: Publish to crates.io
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, podman]
 
     steps:
       - name: Checkout repository
@@ -96,7 +96,7 @@ jobs:
   verify:
     name: Verify Publication
     needs: publish
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, podman]
     if: github.event_name == 'release' || github.event.inputs.dry_run == 'false'
 
     steps:
