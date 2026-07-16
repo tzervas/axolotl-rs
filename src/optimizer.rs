@@ -1,4 +1,4 @@
-//! Optimizer implementations (AdamW, SGD).
+//! Optimizer implementations (`AdamW`, SGD).
 
 use candle_core::Tensor;
 use candle_nn::{Optimizer, ParamsAdamW, VarMap};
@@ -33,7 +33,7 @@ impl Default for OptimizerConfig {
 }
 
 impl OptimizerConfig {
-    /// Create AdamW optimizer with these parameters.
+    /// Create `AdamW` optimizer with these parameters.
     ///
     /// # Errors
     ///
@@ -49,13 +49,13 @@ impl OptimizerConfig {
         };
 
         let opt = candle_nn::AdamW::new(vars, params)
-            .map_err(|e| AxolotlError::Training(format!("Failed to create AdamW: {}", e)))?;
+            .map_err(|e| AxolotlError::Training(format!("Failed to create AdamW: {e}")))?;
 
         Ok(AdamWOptimizer { inner: opt })
     }
 }
 
-/// AdamW optimizer wrapper.
+/// `AdamW` optimizer wrapper.
 pub struct AdamWOptimizer {
     inner: candle_nn::AdamW,
 }
@@ -69,10 +69,11 @@ impl AdamWOptimizer {
     pub fn step(&mut self, loss: &Tensor) -> Result<()> {
         self.inner
             .backward_step(loss)
-            .map_err(|e| AxolotlError::Training(format!("Optimizer step failed: {}", e)))
+            .map_err(|e| AxolotlError::Training(format!("Optimizer step failed: {e}")))
     }
 
     /// Get current learning rate.
+    #[must_use] 
     pub fn learning_rate(&self) -> f64 {
         self.inner.learning_rate()
     }

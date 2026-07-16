@@ -34,11 +34,11 @@ pub struct AxolotlConfig {
     #[serde(default)]
     pub adapter: AdapterType,
 
-    /// LoRA configuration (if using LoRA/QLoRA).
+    /// `LoRA` configuration (if using LoRA/QLoRA).
     #[serde(default)]
     pub lora: LoraSettings,
 
-    /// Quantization configuration (if using QLoRA).
+    /// Quantization configuration (if using `QLoRA`).
     #[serde(default)]
     pub quantization: Option<QuantizationSettings>,
 
@@ -115,7 +115,7 @@ pub struct LoraSettings {
     #[serde(default)]
     pub dropout: f64,
 
-    /// Target modules for LoRA.
+    /// Target modules for `LoRA`.
     #[serde(default = "default_target_modules")]
     pub target_modules: Vec<String>,
 }
@@ -455,9 +455,9 @@ impl AxolotlConfig {
     /// Create a configuration from a preset.
     ///
     /// Available presets:
-    /// - `"llama2-7b"` - LLaMA 2 7B with QLoRA
-    /// - `"mistral-7b"` - Mistral 7B with QLoRA
-    /// - `"phi3-mini"` - Phi-3 Mini with LoRA
+    /// - `"llama2-7b"` - `LLaMA` 2 7B with `QLoRA`
+    /// - `"mistral-7b"` - Mistral 7B with `QLoRA`
+    /// - `"phi3-mini"` - Phi-3 Mini with `LoRA`
     ///
     /// # Example
     ///
@@ -488,9 +488,7 @@ impl AxolotlConfig {
         }
     }
 
-    /// Creates a configuration preset for LLaMA-2 7B model with QLoRA.
-    #[must_use]
-    pub fn llama2_7b_preset() -> Self {
+    fn llama2_7b_preset() -> Self {
         Self {
             base_model: "meta-llama/Llama-2-7b-hf".into(),
             adapter: AdapterType::Qlora,
@@ -513,9 +511,7 @@ impl AxolotlConfig {
         }
     }
 
-    /// Creates a configuration preset for Mistral 7B model with QLoRA.
-    #[must_use]
-    pub fn mistral_7b_preset() -> Self {
+    fn mistral_7b_preset() -> Self {
         Self {
             base_model: "mistralai/Mistral-7B-v0.1".into(),
             adapter: AdapterType::Qlora,
@@ -544,9 +540,7 @@ impl AxolotlConfig {
         }
     }
 
-    /// Creates a configuration preset for Phi-3 Mini model with LoRA.
-    #[must_use]
-    pub fn phi3_mini_preset() -> Self {
+    fn phi3_mini_preset() -> Self {
         Self {
             base_model: "microsoft/phi-3-mini-4k-instruct".into(),
             adapter: AdapterType::Lora,
@@ -573,9 +567,9 @@ impl AxolotlConfig {
     /// Validate the configuration.
     ///
     /// Checks for:
-    /// - Required fields are set (base_model, dataset path)
-    /// - LoRA rank is valid
-    /// - QLoRA has quantization config
+    /// - Required fields are set (`base_model`, dataset path)
+    /// - `LoRA` rank is valid
+    /// - `QLoRA` has quantization config
     ///
     /// # Example
     ///

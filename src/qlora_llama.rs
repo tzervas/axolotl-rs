@@ -178,6 +178,7 @@ impl QLoraAttention {
     }
 
     /// Forward pass through QLoRA attention.
+    #[allow(clippy::many_single_char_names)]
     pub fn forward(
         &self,
         x: &Tensor,
@@ -556,7 +557,7 @@ impl QLoraLlama {
         index_pos: usize,
         cache: &mut Cache,
     ) -> CandleResult<Tensor> {
-        let (_batch_size, seq_len) = input_ids.dims2()?;
+        let (_batch_size, _seq_len) = input_ids.dims2()?;
 
         // Embed input tokens
         let mut hidden_states = self.embed_tokens.forward(input_ids)?;

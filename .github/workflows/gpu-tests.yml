@@ -1,17 +1,13 @@
 name: GPU Tests
 
-# Manual only — no push/pull_request CI triggers
 on:
   push:
-    branches:
-      - main
-      - dev
-      - develop
+    branches: [main, dev]
   pull_request:
-    branches:
-      - main
-      - dev
-      - develop
+    branches: [main, dev]
+  schedule:
+    # Run GPU tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 env:
@@ -39,7 +35,7 @@ jobs:
           CARGO_NET_GIT_FETCH_WITH_CLI: true
 
       - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2.7.8
+        uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
 

@@ -73,7 +73,7 @@ impl Dataset {
     ///
     /// Supports multiple formats:
     /// - Alpaca: `{"instruction": "", "input": "", "output": ""}`
-    /// - ShareGPT: `{"conversations": [{"from": "human", "value": ""}, ...]}`
+    /// - `ShareGPT`: `{"conversations": [{"from": "human", "value": ""}, ...]}`
     /// - Completion: `{"text": ""}`
     /// - Custom: Configurable field names
     ///
@@ -96,7 +96,7 @@ impl Dataset {
     /// # }
     /// ```
     ///
-    /// # Example - ShareGPT Format
+    /// # Example - `ShareGPT` Format
     ///
     /// ```no_run
     /// use axolotl_rs::dataset::Dataset;
@@ -165,8 +165,8 @@ impl Dataset {
         let (train, validation) = examples.split_at(split_idx);
 
         Ok(Self {
-            train: train.iter().cloned().collect(),
-            validation: validation.iter().cloned().collect(),
+            train: train.to_vec(),
+            validation: validation.to_vec(),
             config: config.clone(),
         })
     }

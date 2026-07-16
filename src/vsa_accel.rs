@@ -34,7 +34,9 @@ use std::collections::HashMap;
 use candle_core::{Device, Tensor};
 use candle_nn::VarMap;
 
-use vsa_optim_rs::{DeterministicPhase, DeterministicPhaseConfig, DeterministicPhaseTrainer};
+use vsa_optim_rs::{
+    DeterministicPhase, DeterministicPhaseConfig, DeterministicPhaseTrainer,
+};
 
 use crate::error::{AxolotlError, Result};
 
@@ -133,7 +135,9 @@ impl VSAAccelerator {
             .all_vars()
             .iter()
             .enumerate()
-            .map(|(idx, var)| (format!("param_{idx}"), var.dims().to_vec()))
+            .map(|(idx, var)| {
+                (format!("param_{idx}"), var.dims().to_vec())
+            })
             .collect();
 
         if shapes.is_empty() {
@@ -154,10 +158,9 @@ impl VSAAccelerator {
             max_grad_norm: 1.0, // default grad norm
         };
 
-        let trainer =
-            DeterministicPhaseTrainer::new(&shapes, phase_config, device).map_err(|e| {
-                AxolotlError::Training(format!("Failed to create deterministic phase trainer: {e}"))
-            })?;
+        let trainer = DeterministicPhaseTrainer::new(&shapes, phase_config, device).map_err(|e| {
+            AxolotlError::Training(format!("Failed to create deterministic phase trainer: {e}"))
+        })?;
 
         Ok(Self { trainer, config })
     }

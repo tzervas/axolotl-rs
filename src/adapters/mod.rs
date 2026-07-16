@@ -1,6 +1,6 @@
 //! Adapter integration layer.
 //!
-//! This module provides unified access to PEFT adapters (LoRA, QLoRA, etc.)
+//! This module provides unified access to PEFT adapters (`LoRA`, `QLoRA`, etc.)
 //! using either the real peft-rs/qlora-rs crates or mock implementations.
 
 #[cfg(feature = "peft")]
@@ -32,7 +32,7 @@ pub struct AdapterWrapper {
     pub adapter_type: AdapterType,
     /// Whether quantization is enabled
     pub quantized: bool,
-    /// Trainable parameters (LoRA weights)
+    /// Trainable parameters (`LoRA` weights)
     pub trainable_params: VarMap,
     /// Device where adapter is loaded
     pub device: Device,
@@ -91,8 +91,9 @@ impl AdapterWrapper {
         }
     }
 
-    /// Convert axolotl LoRA settings to peft-rs config.
+    /// Convert axolotl `LoRA` settings to peft-rs config.
     #[cfg(feature = "peft")]
+    #[must_use] 
     pub fn to_peft_lora_config(settings: &LoraSettings) -> PeftLoraConfig {
         PeftLoraConfig {
             r: settings.r,
@@ -126,6 +127,7 @@ impl AdapterWrapper {
     }
 
     /// Get the number of trainable parameters.
+    #[must_use] 
     pub fn trainable_param_count(&self) -> usize {
         self.trainable_params
             .all_vars()
@@ -144,15 +146,15 @@ impl AdapterWrapper {
         vb: candle_nn::VarBuilder,
     ) -> Result<LoraLayer> {
         LoraLayer::new(in_features, out_features, lora_config.clone(), vb)
-            .map_err(|e| AxolotlError::Model(format!("Failed to create LoRA layer: {}", e)))
+            .map_err(|e| AxolotlError::Model(format!("Failed to create LoRA layer: {e}")))
     }
 
     /// Save adapter weights to a directory.
     ///
     /// # Arguments
     /// * `path` - Directory to save adapter files to
-    /// * `lora_config` - LoRA configuration to save
-    /// * `layers` - Map of layer names to LoraLayer instances
+    /// * `lora_config` - `LoRA` configuration to save
+    /// * `layers` - Map of layer names to `LoraLayer` instances
     ///
     /// # Errors
     /// Returns error if saving fails.
@@ -175,11 +177,11 @@ impl AdapterWrapper {
 
         for (name, layer) in layers {
             let state = layer.state_dict().map_err(|e| {
-                AxolotlError::Model(format!("Failed to get state dict for {}: {}", name, e))
+                AxolotlError::Model(format!("Failed to get state dict for {name}: {e}"))
             })?;
 
             for (key, tensor) in state {
-                all_tensors.push((format!("{}.{}", name, key), tensor));
+                all_tensors.push((format!("{name}.{key}"), tensor));
             }
         }
 
@@ -191,13 +193,13 @@ impl AdapterWrapper {
             .collect();
 
         safetensors::tensor::serialize_to_file(tensors_ref, &None, &weights_path).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to save adapter weights: {}", e))
+            AxolotlError::Checkpoint(format!("Failed to save adapter weights: {e}"))
         })?;
 
         // Save config to JSON
         let config_path = dir.join("adapter_config.json");
         let config_json = serde_json::to_string_pretty(lora_config).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to serialize adapter config: {}", e))
+            AxolotlError::Checkpoint(format!("Failed to serialize adapter config: {e}"))
         })?;
         std::fs::write(&config_path, config_json)?;
 
@@ -211,7 +213,7 @@ impl AdapterWrapper {
     /// * `path` - Directory containing adapter files
     ///
     /// # Returns
-    /// Tuple of (LoraConfig, HashMap of tensors)
+    /// Tuple of (`LoraConfig`, `HashMap` of tensors)
     ///
     /// # Errors
     /// Returns error if loading fails.
@@ -225,16 +227,16 @@ impl AdapterWrapper {
         // Load config
         let config_path = dir.join("adapter_config.json");
         let config_json = std::fs::read_to_string(&config_path).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to read adapter config: {}", e))
+            AxolotlError::Checkpoint(format!("Failed to read adapter config: {e}"))
         })?;
         let config: PeftLoraConfig = serde_json::from_str(&config_json).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to parse adapter config: {}", e))
+            AxolotlError::Checkpoint(format!("Failed to parse adapter config: {e}"))
         })?;
 
         // Load weights
         let weights_path = dir.join("adapter_model.safetensors");
         let tensors = candle_core::safetensors::load(&weights_path, &self.device).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to load adapter weights: {}", e))
+            AxolotlError::Checkpoint(format!("Failed to load adapter weights: {e}"))
         })?;
 
         tracing::info!(
@@ -249,13 +251,13 @@ impl AdapterWrapper {
 /// Configuration for applying adapters to a model.
 #[derive(Debug, Clone)]
 pub struct AdapterApplicationConfig {
-    /// Target module patterns (e.g., "q_proj", "v_proj")
+    /// Target module patterns (e.g., "`q_proj`", "`v_proj`")
     pub target_modules: Vec<String>,
-    /// LoRA rank
+    /// `LoRA` rank
     pub r: usize,
-    /// LoRA alpha scaling
+    /// `LoRA` alpha scaling
     pub alpha: usize,
-    /// LoRA dropout
+    /// `LoRA` dropout
     pub dropout: f32,
 }
 

@@ -36,6 +36,7 @@ pub struct LRScheduler {
 
 impl LRScheduler {
     /// Create a new scheduler.
+    #[must_use] 
     pub fn new(scheduler_type: SchedulerType, base_lr: f64) -> Self {
         Self {
             scheduler_type,
@@ -45,6 +46,7 @@ impl LRScheduler {
     }
 
     /// Get learning rate for current step.
+    #[must_use] 
     pub fn get_lr(&self) -> f64 {
         match &self.scheduler_type {
             SchedulerType::Constant => self.base_lr,
@@ -69,6 +71,7 @@ impl LRScheduler {
     }
 
     /// Linear warmup then linear decay.
+    #[allow(clippy::cast_precision_loss)]
     fn linear_schedule(&self, warmup_steps: usize, total_steps: usize) -> f64 {
         if self.current_step < warmup_steps {
             // Linear warmup
@@ -82,6 +85,7 @@ impl LRScheduler {
     }
 
     /// Cosine annealing with linear warmup.
+    #[allow(clippy::cast_precision_loss)]
     fn cosine_schedule(&self, warmup_steps: usize, total_steps: usize) -> f64 {
         if self.current_step < warmup_steps {
             // Linear warmup

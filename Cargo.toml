@@ -14,28 +14,28 @@ keywords = ["llm", "fine-tuning", "training", "configuration", "yaml"]
 categories = ["science", "command-line-utilities"]
 
 [dependencies]
-candle-core = { workspace = true }
-candle-nn = { workspace = true }
-candle-transformers = { workspace = true }
-tokenizers = { workspace = true }
-safetensors = { workspace = true }
-serde = { workspace = true }
-serde_yaml = { workspace = true }
-serde_json = { workspace = true }
-tokio = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-anyhow = { workspace = true }
+candle-core = "0.9"
+candle-nn = "0.9"
+candle-transformers = "0.9"
+tokenizers = "0.20"
+safetensors = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+tokio = { version = "1.35", features = ["full"] }
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
 
 # Adapter and quantization dependencies
 # 
 # For production use (importing from crates.io):
 # These packages are published to crates.io for production builds
-peft-rs = { version = "1.0.3", optional = true }
+peft-rs = { version = "1.0", optional = true }
 qlora-rs = { version = "1.0", optional = true }
 unsloth-rs = { version = "1.0", optional = true }
-vsa-optim-rs = { version = "0.1", optional = true }
+# vsa-optim-rs = { version = "0.1", optional = true }
 #
 # For active development (importing from GitHub):
 # Uncomment these lines to use development branches from GitHub repos
@@ -48,7 +48,7 @@ vsa-optim-rs = { version = "0.1", optional = true }
 # peft-rs = { path = "../peft-rs", optional = true }
 # qlora-rs = { path = "../qlora-rs", optional = true }
 # unsloth-rs = { path = "../unsloth-rs", optional = true }
-# vsa-optim-rs = { version = "0.1", path = "../vsa-optim-rs", optional = true }
+vsa-optim-rs = { version = "0.1", path = "../vsa-optim-rs", optional = true }
 
 # CLI
 clap = { version = "4.5", features = ["derive"] }
@@ -60,7 +60,7 @@ indicatif = "0.17"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"], optional = true }
 
 [dev-dependencies]
-criterion = { workspace = true }
+criterion = "0.5"
 tempfile = "3.10"
 assert_cmd = "2.0"
 predicates = "3.0"
@@ -99,21 +99,3 @@ path = "src/main.rs"
 [[bench]]
 name = "config_parsing"
 harness = false
-
-[workspace]
-
-[workspace.dependencies]
-candle-core = "0.9"
-candle-nn = "0.9"
-candle-transformers = "0.9"
-tokenizers = "0.20"
-safetensors = "0.7"
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.9"
-serde_json = "1.0"
-tokio = { version = "1", features = ["full"] }
-thiserror = "1.0"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-anyhow = "1.0"
-criterion = { version = "0.5", features = ["html_reports"] }
