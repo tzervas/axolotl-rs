@@ -1,10 +1,7 @@
 name: CI
 
+# Manual only — no push/pull_request CI triggers
 on:
-  push:
-    branches: [main, dev, ci/**]
-  pull_request:
-    branches: [main, dev]
   workflow_dispatch:
     inputs:
       peft_rs_ref:
