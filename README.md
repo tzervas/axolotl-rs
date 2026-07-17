@@ -1,5 +1,10 @@
 # axolotl-rs
 
+<!-- FLEET-BADGES:BEGIN -->
+[![CI](https://github.com/tzervas/axolotl-rs/actions/workflows/fleet-ci.yml/badge.svg?branch=main)](https://github.com/tzervas/axolotl-rs/actions/workflows/fleet-ci.yml?query=branch%3Amain)
+[![Security](https://github.com/tzervas/axolotl-rs/actions/workflows/fleet-security.yml/badge.svg?branch=main)](https://github.com/tzervas/axolotl-rs/actions/workflows/fleet-security.yml?query=branch%3Amain)
+<!-- FLEET-BADGES:END -->
+
 YAML-driven configurable fine-tuning toolkit for LLMs in Rust.
 
 [![Crates.io](https://img.shields.io/crates/v/axolotl-rs.svg)](https://crates.io/crates/axolotl-rs)
