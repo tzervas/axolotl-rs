@@ -36,7 +36,7 @@ pub struct LRScheduler {
 
 impl LRScheduler {
     /// Create a new scheduler.
-    #[must_use] 
+    #[must_use]
     pub fn new(scheduler_type: SchedulerType, base_lr: f64) -> Self {
         Self {
             scheduler_type,
@@ -46,7 +46,7 @@ impl LRScheduler {
     }
 
     /// Get learning rate for current step.
-    #[must_use] 
+    #[must_use]
     pub fn get_lr(&self) -> f64 {
         match &self.scheduler_type {
             SchedulerType::Constant => self.base_lr,
@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn test_constant_scheduler() {
         let scheduler = LRScheduler::new(SchedulerType::Constant, 1e-3);
-        assert_eq!(scheduler.get_lr(), 1e-3);
+        assert!((scheduler.get_lr() - 1e-3).abs() < 1e-10);
     }
 
     #[test]
@@ -121,7 +121,7 @@ mod tests {
         );
 
         // At step 0, should be 0
-        assert_eq!(scheduler.get_lr(), 0.0);
+        assert!((scheduler.get_lr() - 0.0).abs() < 1e-10);
 
         // At step 50, should be half of base_lr
         scheduler.current_step = 50;

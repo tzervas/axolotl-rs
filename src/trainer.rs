@@ -108,9 +108,13 @@ impl Trainer {
             }
         } else {
             if force_cpu {
-                tracing::warn!("CPU mode forced via AXOLOTL_FORCE_CPU=1. GPU is the intended default.");
+                tracing::warn!(
+                    "CPU mode forced via AXOLOTL_FORCE_CPU=1. GPU is the intended default."
+                );
             } else {
-                tracing::warn!("CUDA feature disabled; falling back to CPU. Enable with --features cuda.");
+                tracing::warn!(
+                    "CUDA feature disabled; falling back to CPU. Enable with --features cuda."
+                );
             }
             Device::Cpu
         };
@@ -359,9 +363,7 @@ impl Trainer {
             let encoding = model
                 .tokenizer
                 .encode(example.text.as_str(), true)
-                .map_err(|e| {
-                    AxolotlError::Tokenizer(format!("Tokenization failed: {e}").into())
-                })?;
+                .map_err(|e| AxolotlError::Tokenizer(format!("Tokenization failed: {e}").into()))?;
 
             let mut ids = encoding.get_ids().to_vec();
             let original_len = ids.len();
@@ -412,9 +414,10 @@ impl Trainer {
         // For language model training, we compute loss at each position
         // comparing prediction at position i with target at position i+1
         let loss = compute_cross_entropy_loss(&logits, &label_tensor, &self.device)?;
-        let loss_val = f64::from(loss
-            .to_vec0::<f32>()
-            .map_err(|e| AxolotlError::Training(format!("Failed to get loss value: {e}")))?);
+        let loss_val = f64::from(
+            loss.to_vec0::<f32>()
+                .map_err(|e| AxolotlError::Training(format!("Failed to get loss value: {e}")))?,
+        );
 
         // 5. Backward pass and optimizer step
         let optimizer = self
@@ -456,9 +459,8 @@ impl Trainer {
             learning_rate: optimizer.learning_rate(),
         };
         let state_path = format!("{checkpoint_dir}/training_state.json");
-        let state_json = serde_json::to_string_pretty(&training_state).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to serialize state: {e}"))
-        })?;
+        let state_json = serde_json::to_string_pretty(&training_state)
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to serialize state: {e}")))?;
         std::fs::write(&state_path, state_json)?;
 
         // Save config for reproducibility
@@ -501,9 +503,8 @@ impl Trainer {
         let state_path = format!("{checkpoint_path}/training_state.json");
         let state_json = std::fs::read_to_string(&state_path)
             .map_err(|e| AxolotlError::Checkpoint(format!("Failed to read state: {e}")))?;
-        let state: TrainingState = serde_json::from_str(&state_json).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to parse state: {e}"))
-        })?;
+        let state: TrainingState = serde_json::from_str(&state_json)
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to parse state: {e}")))?;
 
         self.step = state.step;
         self.epoch = state.epoch;
@@ -907,13 +908,13 @@ mod tests {
 
     /// Helper to create a test dataset file
     fn create_test_dataset(path: &str, num_examples: usize) -> std::io::Result<()> {
+        use std::fmt::Write as _;
         let mut content = String::new();
         for i in 0..num_examples {
-            content.push_str(&format!(
-                r#"{{"instruction":"Test instruction {}","input":"","output":"Test output {}"}}"#,
-                i, i
-            ));
-            content.push('\n');
+            let _ = writeln!(
+                content,
+                r#"{{"instruction":"Test instruction {i}","input":"","output":"Test output {i}"}}"#
+            );
         }
         fs::write(path, content)
     }
@@ -1093,7 +1094,7 @@ mod tests {
         assert_eq!(trainer2.step, 100);
         assert_eq!(trainer2.epoch, 2);
         // Verify learning rate was restored from checkpoint
-        assert_eq!(trainer2.optimizer.as_ref().unwrap().learning_rate(), 0.001);
+        assert!((trainer2.optimizer.as_ref().unwrap().learning_rate() - 0.001).abs() < 1e-6);
     }
 
     #[test]

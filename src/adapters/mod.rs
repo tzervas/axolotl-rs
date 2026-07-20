@@ -93,7 +93,7 @@ impl AdapterWrapper {
 
     /// Convert axolotl `LoRA` settings to peft-rs config.
     #[cfg(feature = "peft")]
-    #[must_use] 
+    #[must_use]
     pub fn to_peft_lora_config(settings: &LoraSettings) -> PeftLoraConfig {
         PeftLoraConfig {
             r: settings.r,
@@ -127,7 +127,7 @@ impl AdapterWrapper {
     }
 
     /// Get the number of trainable parameters.
-    #[must_use] 
+    #[must_use]
     pub fn trainable_param_count(&self) -> usize {
         self.trainable_params
             .all_vars()
@@ -226,9 +226,8 @@ impl AdapterWrapper {
 
         // Load config
         let config_path = dir.join("adapter_config.json");
-        let config_json = std::fs::read_to_string(&config_path).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to read adapter config: {e}"))
-        })?;
+        let config_json = std::fs::read_to_string(&config_path)
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to read adapter config: {e}")))?;
         let config: PeftLoraConfig = serde_json::from_str(&config_json).map_err(|e| {
             AxolotlError::Checkpoint(format!("Failed to parse adapter config: {e}"))
         })?;
