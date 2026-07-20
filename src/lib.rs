@@ -16,6 +16,8 @@
 #![allow(clippy::io_other_error)]
 #![allow(clippy::must_use_candidate)]
 #![allow(clippy::doc_markdown)]
+#![allow(clippy::manual_midpoint)]
+#![allow(clippy::manual_is_variant_and)]
 
 //! # axolotl-rs
 //!

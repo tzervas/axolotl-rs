@@ -193,8 +193,9 @@ impl LoadedModel {
             .map(|(name, tensor)| (name.as_str(), tensor.clone()))
             .collect();
 
-        safetensors::tensor::serialize_to_file(tensors_ref, &None, &weights_path)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to save adapter: {e}")))?;
+        safetensors::tensor::serialize_to_file(tensors_ref, &None, &weights_path).map_err(|e| {
+            AxolotlError::Checkpoint(format!("Failed to save adapter: {e}"))
+        })?;
 
         tracing::info!("Saved {} adapter layers to {:?}", adapter_layers.len(), dir);
         Ok(())
@@ -210,8 +211,9 @@ impl LoadedModel {
         let dir = path.as_ref();
         let weights_path = dir.join("adapter_model.safetensors");
 
-        let tensors = candle_core::safetensors::load(&weights_path, &self.device)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to load adapter: {e}")))?;
+        let tensors = candle_core::safetensors::load(&weights_path, &self.device).map_err(|e| {
+            AxolotlError::Checkpoint(format!("Failed to load adapter: {e}"))
+        })?;
 
         tracing::info!("Loaded {} adapter tensors from {:?}", tensors.len(), dir);
 

@@ -6,7 +6,7 @@
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 vulnerability = "warn"  # Changed to warn to not block CI
-unmaintained = "warn"
+unmaintained = "transitive"
 yanked = "warn"
 notice = "warn"
 ignore = []
