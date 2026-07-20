@@ -10,6 +10,14 @@
 #![allow(clippy::unnecessary_wraps)]
 #![allow(dead_code)]
 #![allow(clippy::match_same_arms)]
+#![allow(clippy::float_cmp)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::io_other_error)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::manual_midpoint)]
+#![allow(clippy::manual_is_variant_and)]
 
 //! # axolotl-rs
 //!

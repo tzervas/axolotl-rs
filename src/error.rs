@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn test_multiple_error_variants() {
-        let errors = vec![
+        let errors = [
             AxolotlError::Config("config".to_string()),
             AxolotlError::Model("model".to_string()),
             AxolotlError::Dataset("dataset".to_string()),

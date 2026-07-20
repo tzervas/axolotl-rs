@@ -324,7 +324,7 @@ pub struct ModelInfo {
 
 impl ModelInfo {
     /// Create `ModelInfo` from a `LlamaConfig`.
-    #[must_use] 
+    #[must_use]
     pub fn from_llama_config(config: &LlamaConfig) -> Self {
         Self {
             hidden_size: config.hidden_size,
@@ -346,7 +346,7 @@ impl ModelInfo {
     /// - `gate_proj`, `up_proj`: `hidden_size` -> `intermediate_size`
     /// - `down_proj`: `intermediate_size` -> `hidden_size`
     #[allow(dead_code)]
-    #[must_use] 
+    #[must_use]
     pub fn get_target_dims(&self, target: &str) -> (usize, usize) {
         match target {
             // Attention projections
@@ -1202,7 +1202,7 @@ mod tests {
         assert_eq!(llama7b.get_target_dims("v_proj"), (4096, 4096));
     }
 
-    /// Test loading a LLaMA 2 model configuration.
+    /// Test loading a `LLaMA` 2 model configuration.
     ///
     /// Currently tests that the function can be called with a valid config
     /// and returns the expected "not implemented" error.
@@ -1289,7 +1289,7 @@ mod tests {
         }
     }
 
-    /// Test merging a LoRA adapter into a base model.
+    /// Test merging a `LoRA` adapter into a base model.
     ///
     /// Currently tests that the function can be called with valid parameters
     /// and returns the expected "not implemented" error.
@@ -1321,13 +1321,13 @@ mod tests {
         let err = result.unwrap_err();
         match err {
             AxolotlError::Model(msg) => {
-                assert!(msg.contains("Adapter merging not yet implemented"))
+                assert!(msg.contains("Adapter merging not yet implemented"));
             }
-            _ => panic!("Expected Model error, got {:?}", err),
+            _ => panic!("Expected Model error, got {err:?}"),
         }
     }
 
-    /// Test merging a QLoRA adapter with quantization.
+    /// Test merging a `QLoRA` adapter with quantization.
     ///
     /// Currently tests that the function can be called with valid parameters
     /// and returns the expected "not implemented" error.
@@ -1364,9 +1364,9 @@ mod tests {
         let err = result.unwrap_err();
         match err {
             AxolotlError::Model(msg) => {
-                assert!(msg.contains("Adapter merging not yet implemented"))
+                assert!(msg.contains("Adapter merging not yet implemented"));
             }
-            _ => panic!("Expected Model error, got {:?}", err),
+            _ => panic!("Expected Model error, got {err:?}"),
         }
     }
 
@@ -1397,13 +1397,13 @@ mod tests {
         let err = result.unwrap_err();
         match err {
             AxolotlError::Model(msg) => {
-                assert!(msg.contains("Adapter merging not yet implemented"))
+                assert!(msg.contains("Adapter merging not yet implemented"));
             }
-            _ => panic!("Expected Model error, got {:?}", err),
+            _ => panic!("Expected Model error, got {err:?}"),
         }
     }
 
-    /// Test downloading model from HuggingFace Hub.
+    /// Test downloading model from `HuggingFace` Hub.
     ///
     /// Currently tests that the function can be called with valid parameters
     /// and returns the expected "not implemented" error.
@@ -1416,7 +1416,7 @@ mod tests {
         let err = result.unwrap_err();
         match err {
             AxolotlError::Model(msg) => assert!(msg.contains("Model download not yet implemented")),
-            _ => panic!("Expected Model error, got {:?}", err),
+            _ => panic!("Expected Model error, got {err:?}"),
         }
     }
 
@@ -1428,7 +1428,7 @@ mod tests {
         let err = result.unwrap_err();
         match err {
             AxolotlError::Model(msg) => assert!(msg.contains("Model not found")),
-            _ => panic!("Expected Model error, got {:?}", err),
+            _ => panic!("Expected Model error, got {err:?}"),
         }
     }
 
@@ -1441,9 +1441,9 @@ mod tests {
         let err = result.unwrap_err();
         match err {
             AxolotlError::Tokenizer(e) => {
-                assert!(e.to_string().contains("tokenizer.json not found"))
+                assert!(e.to_string().contains("tokenizer.json not found"));
             }
-            _ => panic!("Expected Tokenizer error, got {:?}", err),
+            _ => panic!("Expected Tokenizer error, got {err:?}"),
         }
     }
 

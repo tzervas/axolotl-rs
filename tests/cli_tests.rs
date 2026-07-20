@@ -1,3 +1,19 @@
+#![allow(
+    clippy::all,
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::cargo,
+    clippy::doc_markdown,
+    clippy::uninlined_format_args,
+    clippy::format_push_string,
+    clippy::single_char_pattern,
+    clippy::cast_precision_loss,
+    clippy::manual_assert,
+    clippy::ptr_arg,
+    deprecated,
+    dead_code,
+    unused_imports
+)]
 //! Integration tests for the axolotl CLI.
 
 use assert_cmd::Command;

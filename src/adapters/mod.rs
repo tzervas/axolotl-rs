@@ -93,7 +93,7 @@ impl AdapterWrapper {
 
     /// Convert axolotl `LoRA` settings to peft-rs config.
     #[cfg(feature = "peft")]
-    #[must_use] 
+    #[must_use]
     pub fn to_peft_lora_config(settings: &LoraSettings) -> PeftLoraConfig {
         PeftLoraConfig {
             r: settings.r,
@@ -127,7 +127,7 @@ impl AdapterWrapper {
     }
 
     /// Get the number of trainable parameters.
-    #[must_use] 
+    #[must_use]
     pub fn trainable_param_count(&self) -> usize {
         self.trainable_params
             .all_vars()

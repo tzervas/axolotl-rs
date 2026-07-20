@@ -73,7 +73,7 @@ impl AdamWOptimizer {
     }
 
     /// Get current learning rate.
-    #[must_use] 
+    #[must_use]
     pub fn learning_rate(&self) -> f64 {
         self.inner.learning_rate()
     }
@@ -91,10 +91,10 @@ mod tests {
     #[test]
     fn test_optimizer_config_default() {
         let config = OptimizerConfig::default();
-        assert_eq!(config.learning_rate, 5e-5);
-        assert_eq!(config.beta1, 0.9);
-        assert_eq!(config.beta2, 0.999);
-        assert_eq!(config.weight_decay, 0.01);
+        assert!((config.learning_rate - 5e-5).abs() < 1e-10);
+        assert!((config.beta1 - 0.9).abs() < 1e-10);
+        assert!((config.beta2 - 0.999).abs() < 1e-10);
+        assert!((config.weight_decay - 0.01).abs() < 1e-10);
     }
 
     #[test]
@@ -103,7 +103,7 @@ mod tests {
         let varmap = VarMap::new();
 
         let optimizer = config.build_adamw(&varmap)?;
-        assert_eq!(optimizer.learning_rate(), 5e-5);
+        assert!((optimizer.learning_rate() - 5e-5).abs() < 1e-10);
 
         Ok(())
     }

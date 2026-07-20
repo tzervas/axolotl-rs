@@ -907,13 +907,13 @@ mod tests {
 
     /// Helper to create a test dataset file
     fn create_test_dataset(path: &str, num_examples: usize) -> std::io::Result<()> {
+        use std::fmt::Write as _;
         let mut content = String::new();
         for i in 0..num_examples {
-            content.push_str(&format!(
-                r#"{{"instruction":"Test instruction {}","input":"","output":"Test output {}"}}"#,
-                i, i
-            ));
-            content.push('\n');
+            let _ = writeln!(
+                content,
+                r#"{{"instruction":"Test instruction {i}","input":"","output":"Test output {i}"}}"#
+            );
         }
         fs::write(path, content)
     }
@@ -1093,7 +1093,7 @@ mod tests {
         assert_eq!(trainer2.step, 100);
         assert_eq!(trainer2.epoch, 2);
         // Verify learning rate was restored from checkpoint
-        assert_eq!(trainer2.optimizer.as_ref().unwrap().learning_rate(), 0.001);
+        assert!((trainer2.optimizer.as_ref().unwrap().learning_rate() - 0.001).abs() < 1e-6);
     }
 
     #[test]

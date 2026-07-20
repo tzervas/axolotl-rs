@@ -5,23 +5,7 @@
 use clap::{Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-mod cli;
-mod config;
-mod dataset;
-mod error;
-#[cfg(feature = "peft")]
-mod llama_common;
-#[cfg(feature = "peft")]
-mod lora_llama;
-mod model;
-mod optimizer;
-#[cfg(all(feature = "peft", feature = "qlora"))]
-mod qlora_llama;
-mod scheduler;
-mod trainer;
-
-use config::AxolotlConfig;
-use error::Result;
+use axolotl_rs::{model, trainer, AxolotlConfig, Result};
 
 #[derive(Parser)]
 #[command(name = "axolotl")]

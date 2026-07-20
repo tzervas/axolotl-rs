@@ -1,3 +1,17 @@
+#![allow(
+    clippy::all,
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::cargo,
+    clippy::doc_markdown,
+    clippy::uninlined_format_args,
+    clippy::format_push_string,
+    clippy::single_char_pattern,
+    clippy::cast_precision_loss,
+    clippy::manual_assert,
+    dead_code,
+    unused_imports
+)]
 //! GPU checkpoint save/load tests for axolotl-rs.
 //!
 //! These tests validate checkpoint functionality including adapter weight persistence.
