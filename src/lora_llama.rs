@@ -231,8 +231,9 @@ impl LoraAttention {
         let base_q = self.q_proj.forward(x)?;
         #[cfg(feature = "peft")]
         let q = if let Some(lora) = &self.q_lora {
-            lora.forward(x, Some(&base_q))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA q_proj forward failed: {e}")))?
+            lora.forward(x, Some(&base_q)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA q_proj forward failed: {e}"))
+            })?
         } else {
             base_q
         };
@@ -243,8 +244,9 @@ impl LoraAttention {
         let base_k = self.k_proj.forward(x)?;
         #[cfg(feature = "peft")]
         let k = if let Some(lora) = &self.k_lora {
-            lora.forward(x, Some(&base_k))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA k_proj forward failed: {e}")))?
+            lora.forward(x, Some(&base_k)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA k_proj forward failed: {e}"))
+            })?
         } else {
             base_k
         };
@@ -255,8 +257,9 @@ impl LoraAttention {
         let base_v = self.v_proj.forward(x)?;
         #[cfg(feature = "peft")]
         let v = if let Some(lora) = &self.v_lora {
-            lora.forward(x, Some(&base_v))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA v_proj forward failed: {e}")))?
+            lora.forward(x, Some(&base_v)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA v_proj forward failed: {e}"))
+            })?
         } else {
             base_v
         };
@@ -339,8 +342,9 @@ impl LoraAttention {
         let base_output = self.o_proj.forward(&y)?;
         #[cfg(feature = "peft")]
         let output = if let Some(lora) = &self.o_lora {
-            lora.forward(&y, Some(&base_output))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA o_proj forward failed: {e}")))?
+            lora.forward(&y, Some(&base_output)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA o_proj forward failed: {e}"))
+            })?
         } else {
             base_output
         };
@@ -468,8 +472,9 @@ impl LoraMlp {
         let base_up = self.up_proj.forward(x)?;
         #[cfg(feature = "peft")]
         let up = if let Some(lora) = &self.up_lora {
-            lora.forward(x, Some(&base_up))
-                .map_err(|e| candle_core::Error::Msg(format!("LoRA up_proj forward failed: {e}")))?
+            lora.forward(x, Some(&base_up)).map_err(|e| {
+                candle_core::Error::Msg(format!("LoRA up_proj forward failed: {e}"))
+            })?
         } else {
             base_up
         };
