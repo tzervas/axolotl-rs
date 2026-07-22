@@ -49,6 +49,7 @@ enum Commands {
         resume: Option<String>,
     },
     /// Merge LoRA adapter weights into base model linear weights
+    #[allow(clippy::doc_markdown)]
     Merge {
         /// Path to configuration file
         #[arg(long)]
@@ -61,6 +62,7 @@ enum Commands {
         output: String,
     },
     /// Download model weights from HuggingFace Hub into a local directory
+    #[allow(clippy::doc_markdown)]
     Download {
         /// HuggingFace model id (e.g. HuggingFaceTB/SmolLM2-135M)
         model_id: String,

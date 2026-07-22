@@ -239,9 +239,8 @@ impl LoadedModel {
             )));
         }
 
-        let tensors = candle_core::safetensors::load(&weights_path, &self.device).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to load adapter: {e}"))
-        })?;
+        let tensors = candle_core::safetensors::load(&weights_path, &self.device)
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to load adapter: {e}")))?;
 
         if tensors.is_empty() {
             return Err(AxolotlError::Checkpoint(
@@ -278,9 +277,9 @@ impl LoadedModel {
         }
 
         // Embedded path: apply into VarMap in-place (only existing keys are updated)
-        self.trainable_params
-            .load(&weights_path)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to apply adapter VarMap: {e}")))?;
+        self.trainable_params.load(&weights_path).map_err(|e| {
+            AxolotlError::Checkpoint(format!("Failed to apply adapter VarMap: {e}"))
+        })?;
         tracing::info!(
             "Applied {} adapter tensors into trainable VarMap from {:?}",
             tensors.len(),
@@ -441,7 +440,7 @@ pub struct ModelInfo {
 
 impl ModelInfo {
     /// Create `ModelInfo` from a `LlamaConfig`.
-    #[must_use] 
+    #[must_use]
     pub fn from_llama_config(config: &LlamaConfig) -> Self {
         Self {
             hidden_size: config.hidden_size,
@@ -463,7 +462,7 @@ impl ModelInfo {
     /// - `gate_proj`, `up_proj`: `hidden_size` -> `intermediate_size`
     /// - `down_proj`: `intermediate_size` -> `hidden_size`
     #[allow(dead_code)]
-    #[must_use] 
+    #[must_use]
     pub fn get_target_dims(&self, target: &str) -> (usize, usize) {
         match target {
             // Attention projections
@@ -955,7 +954,7 @@ fn load_model_architecture(
     }
 }
 
-/// Load weight tensors from single-file or sharded HuggingFace safetensors layout.
+/// Load weight tensors from single-file or sharded `HuggingFace` `safetensors` layout.
 ///
 /// Supports:
 /// - `model.safetensors`
@@ -971,9 +970,8 @@ fn load_weight_varbuilder(
     let pth = model_path.join("pytorch_model.bin");
 
     if single.exists() {
-        let tensors = candle_core::safetensors::load(&single, device).map_err(|e| {
-            AxolotlError::Model(format!("Failed to load safetensors: {e}"))
-        })?;
+        let tensors = candle_core::safetensors::load(&single, device)
+            .map_err(|e| AxolotlError::Model(format!("Failed to load safetensors: {e}")))?;
         return Ok(VarBuilder::from_tensors(tensors, dtype, device));
     }
 
@@ -993,7 +991,7 @@ fn load_weight_varbuilder(
     )))
 }
 
-/// Load multi-file safetensors via HuggingFace `model.safetensors.index.json`.
+/// Load multi-file `safetensors` via `HuggingFace` `model.safetensors.index.json`.
 fn load_sharded_safetensors(
     model_path: &PathBuf,
     index_path: &PathBuf,
@@ -1371,7 +1369,7 @@ impl LlamaWrapper {
     }
 }
 
-/// Merge LoRA adapter ΔW into base linear weights and save a merged model directory.
+/// Merge `LoRA` adapter ΔW into base linear weights and save a merged model directory.
 ///
 /// For each module with adapter keys `{module}.lora_a.weight` / `{module}.lora_b.weight`
 /// (or HF-style `lora_A` / `lora_B`), computes:
@@ -1383,17 +1381,13 @@ impl LlamaWrapper {
 /// and writes `model.safetensors` plus copies of `config.json` / tokenizer files.
 ///
 /// # Arguments
-/// * `config` - Axolotl config (`base_model`, LoRA r/alpha)
+/// * `config` - Axolotl config (`base_model`, `LoRA` r/alpha)
 /// * `adapter_path` - Directory containing `adapter_model.safetensors` (or the file itself)
 /// * `output_path` - Output directory for the merged model
 ///
 /// # Errors
 /// Returns an error if base/adapter weights are missing, shapes mismatch, or I/O fails.
-pub fn merge_adapter(
-    config: &AxolotlConfig,
-    adapter_path: &str,
-    output_path: &str,
-) -> Result<()> {
+pub fn merge_adapter(config: &AxolotlConfig, adapter_path: &str, output_path: &str) -> Result<()> {
     let device = Device::Cpu;
     let model_path = resolve_model_path(&config.base_model)?;
 
@@ -1401,8 +1395,9 @@ pub fn merge_adapter(
     let single = model_path.join("model.safetensors");
     let index = model_path.join("model.safetensors.index.json");
     let mut base_tensors: HashMap<String, Tensor> = if single.exists() {
-        candle_core::safetensors::load(&single, &device)
-            .map_err(|e| AxolotlError::Model(format!("Failed to load base model.safetensors: {e}")))?
+        candle_core::safetensors::load(&single, &device).map_err(|e| {
+            AxolotlError::Model(format!("Failed to load base model.safetensors: {e}"))
+        })?
     } else if index.exists() {
         load_sharded_safetensors(&model_path, &index, &device)?
     } else {
@@ -1426,7 +1421,10 @@ pub fn merge_adapter(
         )));
     }
     let adapter_tensors = candle_core::safetensors::load(&adapter_file, &device).map_err(|e| {
-        AxolotlError::Model(format!("Failed to load adapter {}: {e}", adapter_file.display()))
+        AxolotlError::Model(format!(
+            "Failed to load adapter {}: {e}",
+            adapter_file.display()
+        ))
     })?;
     if adapter_tensors.is_empty() {
         return Err(AxolotlError::Model(
@@ -1454,11 +1452,11 @@ pub fn merge_adapter(
             let alpha = v
                 .get("lora_alpha")
                 .or_else(|| v.get("alpha"))
-                .and_then(|x| x.as_u64())
+                .and_then(serde_json::Value::as_u64)
                 .unwrap_or(config.lora.alpha as u64) as usize;
             let r = v
                 .get("r")
-                .and_then(|x| x.as_u64())
+                .and_then(serde_json::Value::as_u64)
                 .unwrap_or(config.lora.r as u64) as usize;
             (alpha, r)
         } else {
@@ -1527,15 +1525,13 @@ pub fn merge_adapter(
         let delta = delta
             .affine(scale, 0.0)
             .map_err(|e| AxolotlError::Model(format!("merge scale for {module}: {e}")))?;
-        let merged = base
-            .broadcast_add(&delta)
-            .map_err(|e| {
-                AxolotlError::Model(format!(
-                    "merge add for {module}: {e} (base={:?}, delta={:?})",
-                    base.dims(),
-                    delta.dims()
-                ))
-            })?;
+        let merged = base.broadcast_add(&delta).map_err(|e| {
+            AxolotlError::Model(format!(
+                "merge add for {module}: {e} (base={:?}, delta={:?})",
+                base.dims(),
+                delta.dims()
+            ))
+        })?;
         base_tensors.insert(base_key, merged);
         merged_count += 1;
         tracing::info!("Merged LoRA into {module} (scale={scale:.4})");
@@ -1591,12 +1587,12 @@ pub fn merge_adapter(
     Ok(())
 }
 
-/// Download a model from HuggingFace Hub into `cache_dir/<sanitized_id>/`.
+/// Download a model from Hugging Face Hub into `cache_dir/<sanitized_id>/`.
 ///
 /// Fetches `config.json`, `tokenizer.json` (when present), and either
 /// `model.safetensors` or sharded weights via `model.safetensors.index.json`.
 ///
-/// Local paths are preferred at train time via [`resolve_model_path`]; this helper
+/// Local paths are preferred at train time via `resolve_model_path`; this helper
 /// is for the CLI `download` command and library callers who want a minimal Hub pull
 /// without installing `huggingface-cli`.
 ///
@@ -1702,7 +1698,7 @@ fn download_hf_file(
     dest_dir: &Path,
 ) -> Result<()> {
     let dest = dest_dir.join(filename);
-    if dest.exists() && dest.metadata().map(|m| m.len() > 0).unwrap_or(false) {
+    if dest.exists() && dest.metadata().is_ok_and(|m| m.len() > 0) {
         tracing::debug!("Using cached {}", dest.display());
         return Ok(());
     }
@@ -1711,7 +1707,8 @@ fn download_hf_file(
     }
     let url = format!("{base_url}/{filename}");
     let mut req = client.get(&url);
-    if let Ok(token) = std::env::var("HF_TOKEN").or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
+    if let Ok(token) =
+        std::env::var("HF_TOKEN").or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
     {
         if !token.is_empty() {
             req = req.bearer_auth(token);
@@ -1731,12 +1728,10 @@ fn download_hf_file(
         .map_err(|e| AxolotlError::Model(format!("Failed to read body for {url}: {e}")))?;
     // Atomic-ish write
     let tmp = dest.with_extension("partial");
-    std::fs::write(&tmp, &bytes).map_err(|e| {
-        AxolotlError::Model(format!("Failed to write {}: {e}", tmp.display()))
-    })?;
-    std::fs::rename(&tmp, &dest).map_err(|e| {
-        AxolotlError::Model(format!("Failed to finalize {}: {e}", dest.display()))
-    })?;
+    std::fs::write(&tmp, &bytes)
+        .map_err(|e| AxolotlError::Model(format!("Failed to write {}: {e}", tmp.display())))?;
+    std::fs::rename(&tmp, &dest)
+        .map_err(|e| AxolotlError::Model(format!("Failed to finalize {}: {e}", dest.display())))?;
     tracing::info!("Downloaded {filename} ({} bytes)", bytes.len());
     Ok(())
 }
@@ -1933,9 +1928,7 @@ mod tests {
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string().to_lowercase();
         assert!(
-            msg.contains("not found")
-                || msg.contains("cannot merge")
-                || msg.contains("model"),
+            msg.contains("not found") || msg.contains("cannot merge") || msg.contains("model"),
             "unexpected merge error: {msg}"
         );
     }
@@ -2218,11 +2211,8 @@ mod tests {
         )
         .unwrap();
 
-        let base_before = candle_core::safetensors::load(
-            model_dir.join("model.safetensors"),
-            &device,
-        )
-        .unwrap();
+        let base_before =
+            candle_core::safetensors::load(model_dir.join("model.safetensors"), &device).unwrap();
         let w_key = format!("{module}.weight");
         let before = base_before
             .get(&w_key)
@@ -2259,8 +2249,8 @@ mod tests {
         assert!(out_dir.join("config.json").exists());
         assert!(out_dir.join("merge_info.json").exists());
 
-        let merged = candle_core::safetensors::load(out_dir.join("model.safetensors"), &device)
-            .unwrap();
+        let merged =
+            candle_core::safetensors::load(out_dir.join("model.safetensors"), &device).unwrap();
         let after = merged
             .get(&w_key)
             .unwrap()

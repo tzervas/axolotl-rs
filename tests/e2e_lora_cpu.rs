@@ -10,9 +10,7 @@
 use std::fs;
 use std::path::Path;
 
-use axolotl_rs::config::{
-    AdapterType, DatasetConfig, DatasetFormat, LoraSettings, TrainingConfig,
-};
+use axolotl_rs::config::{AdapterType, DatasetConfig, DatasetFormat, LoraSettings, TrainingConfig};
 use axolotl_rs::fixture::{write_tiny_alpaca_jsonl, write_tiny_llama_fixture, TinyLlamaSpec};
 use axolotl_rs::model::{load_model, merge_adapter};
 use axolotl_rs::{AxolotlConfig, Trainer};
@@ -88,7 +86,9 @@ fn test_cpu_e2e_lora_train_loss_finite_and_progress() {
 
     // Capture pre-train adapter params via a loaded model peek is hard before train;
     // train() loads model internally. We assert metrics after train.
-    trainer.train().expect("train should succeed on tiny fixture");
+    trainer
+        .train()
+        .expect("train should succeed on tiny fixture");
 
     let metrics = trainer.metrics();
     assert!(
@@ -97,11 +97,7 @@ fn test_cpu_e2e_lora_train_loss_finite_and_progress() {
     );
 
     for (i, m) in metrics.iter().enumerate() {
-        assert!(
-            m.loss.is_finite(),
-            "step {i} loss not finite: {}",
-            m.loss
-        );
+        assert!(m.loss.is_finite(), "step {i} loss not finite: {}", m.loss);
         assert!(
             m.grad_norm.is_finite(),
             "step {i} grad_norm not finite: {}",

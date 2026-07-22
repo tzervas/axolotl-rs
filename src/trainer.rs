@@ -86,8 +86,7 @@ impl Trainer {
 
         // Determine device (prefer CUDA, fallback to CPU with warning)
         let force_cpu = std::env::var("AXOLOTL_FORCE_CPU")
-            .ok()
-            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+            .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
         let cuda_device = std::env::var("AXOLOTL_CUDA_DEVICE")
             .ok()
             .and_then(|v| v.parse::<usize>().ok())
@@ -109,9 +108,13 @@ impl Trainer {
             }
         } else {
             if force_cpu {
-                tracing::warn!("CPU mode forced via AXOLOTL_FORCE_CPU=1. GPU is the intended default.");
+                tracing::warn!(
+                    "CPU mode forced via AXOLOTL_FORCE_CPU=1. GPU is the intended default."
+                );
             } else {
-                tracing::warn!("CUDA feature disabled; falling back to CPU. Enable with --features cuda.");
+                tracing::warn!(
+                    "CUDA feature disabled; falling back to CPU. Enable with --features cuda."
+                );
             }
             Device::Cpu
         };
@@ -216,7 +219,11 @@ impl Trainer {
             tracing::info!(
                 "Optimizer ready with {} trainable tensors ({} params)",
                 optimizer.vars().len(),
-                optimizer.vars().iter().map(|v| v.elem_count()).sum::<usize>()
+                optimizer
+                    .vars()
+                    .iter()
+                    .map(|v| v.elem_count())
+                    .sum::<usize>()
             );
             self.optimizer = Some(optimizer);
         }
@@ -232,9 +239,7 @@ impl Trainer {
 
         let accum_steps = self.config.training.gradient_accumulation_steps.max(1);
         if self.config.training.gradient_checkpointing {
-            tracing::warn!(
-                "training.gradient_checkpointing is set but not implemented; ignoring"
-            );
+            tracing::warn!("training.gradient_checkpointing is set but not implemented; ignoring");
         }
         if self.config.training.mixed_precision {
             tracing::warn!(
@@ -243,8 +248,9 @@ impl Trainer {
         }
 
         // Optimizer steps = ceil(microbatches / accum); microbatch size = batch_size
-        let microbatches_per_epoch =
-            dataset.len().div_ceil(self.config.training.batch_size.max(1));
+        let microbatches_per_epoch = dataset
+            .len()
+            .div_ceil(self.config.training.batch_size.max(1));
         let total_microbatches = microbatches_per_epoch * self.config.training.epochs;
         let total_steps = total_microbatches.div_ceil(accum_steps).max(1);
 
@@ -312,13 +318,14 @@ impl Trainer {
                     continue;
                 }
 
-                let mut grads = pending_grads
-                    .take()
-                    .ok_or_else(|| AxolotlError::Training("Missing accumulated gradients".into()))?;
-
-                let optimizer = self.optimizer.as_mut().ok_or_else(|| {
-                    AxolotlError::Training("Optimizer not initialized".into())
+                let mut grads = pending_grads.take().ok_or_else(|| {
+                    AxolotlError::Training("Missing accumulated gradients".into())
                 })?;
+
+                let optimizer = self
+                    .optimizer
+                    .as_mut()
+                    .ok_or_else(|| AxolotlError::Training("Optimizer not initialized".into()))?;
 
                 // Clip gradients by global norm when max_grad_norm > 0
                 let max_norm = f64::from(self.config.training.max_grad_norm);
@@ -377,9 +384,10 @@ impl Trainer {
         // Flush leftover microbatches that did not fill a full accumulation window
         if micros_in_window > 0 {
             if let Some(mut grads) = pending_grads.take() {
-                let optimizer = self.optimizer.as_mut().ok_or_else(|| {
-                    AxolotlError::Training("Optimizer not initialized".into())
-                })?;
+                let optimizer = self
+                    .optimizer
+                    .as_mut()
+                    .ok_or_else(|| AxolotlError::Training("Optimizer not initialized".into()))?;
                 let max_norm = f64::from(self.config.training.max_grad_norm);
                 let grad_norm = clip_grad_norm(&mut grads, optimizer.vars(), max_norm)?;
                 optimizer.step_grads(&grads)?;
@@ -402,7 +410,7 @@ impl Trainer {
             }
         }
 
-                pb.finish_with_message("Training complete");
+        pb.finish_with_message("Training complete");
 
         // Save final checkpoint
         self.save_checkpoint()?;
@@ -460,9 +468,7 @@ impl Trainer {
             let encoding = model
                 .tokenizer
                 .encode(example.text.as_str(), true)
-                .map_err(|e| {
-                    AxolotlError::Tokenizer(format!("Tokenization failed: {e}").into())
-                })?;
+                .map_err(|e| AxolotlError::Tokenizer(format!("Tokenization failed: {e}").into()))?;
 
             let mut ids = encoding.get_ids().to_vec();
             let original_len = ids.len();
@@ -541,9 +547,8 @@ impl Trainer {
             learning_rate: optimizer.learning_rate(),
         };
         let state_path = format!("{checkpoint_dir}/training_state.json");
-        let state_json = serde_json::to_string_pretty(&training_state).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to serialize state: {e}"))
-        })?;
+        let state_json = serde_json::to_string_pretty(&training_state)
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to serialize state: {e}")))?;
         std::fs::write(&state_path, state_json)?;
 
         // Save config for reproducibility
@@ -554,10 +559,7 @@ impl Trainer {
         #[cfg(feature = "peft")]
         if let Some(ref model) = self.model {
             let has_trainable = !model.trainable_params.all_vars().is_empty();
-            let has_adapter_map = model
-                .adapter_layers
-                .as_ref()
-                .is_some_and(|a| !a.is_empty());
+            let has_adapter_map = model.adapter_layers.as_ref().is_some_and(|a| !a.is_empty());
             if has_trainable || has_adapter_map {
                 model.save_adapter_weights(&checkpoint_dir)?;
 
@@ -592,9 +594,8 @@ impl Trainer {
         let state_path = format!("{checkpoint_path}/training_state.json");
         let state_json = std::fs::read_to_string(&state_path)
             .map_err(|e| AxolotlError::Checkpoint(format!("Failed to read state: {e}")))?;
-        let state: TrainingState = serde_json::from_str(&state_json).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to parse state: {e}"))
-        })?;
+        let state: TrainingState = serde_json::from_str(&state_json)
+            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to parse state: {e}")))?;
 
         self.step = state.step;
         self.epoch = state.epoch;
@@ -738,8 +739,7 @@ pub(crate) fn build_scheduler_from_config(
     total_steps: usize,
 ) -> LRScheduler {
     let total_steps = total_steps.max(1);
-    let warmup_steps =
-        ((total_steps as f64) * f64::from(training.warmup_ratio)).round() as usize;
+    let warmup_steps = ((total_steps as f64) * f64::from(training.warmup_ratio)).round() as usize;
     let warmup_steps = warmup_steps.min(total_steps);
     let scheduler_type = match training.lr_scheduler {
         LrScheduler::Constant => SchedulerType::Constant,
@@ -774,10 +774,7 @@ fn accumulate_grad_store(acc: &mut GradStore, new_grads: &GradStore, vars: &[Var
 }
 
 /// Global L2 norm of gradients for `vars` in `grads` (before clipping).
-pub(crate) fn compute_global_grad_norm_from_store(
-    grads: &GradStore,
-    vars: &[Var],
-) -> Result<f64> {
+pub(crate) fn compute_global_grad_norm_from_store(grads: &GradStore, vars: &[Var]) -> Result<f64> {
     let mut total_sq = 0.0f64;
     for var in vars {
         if let Some(g) = grads.get(var.as_tensor()) {
@@ -791,11 +788,7 @@ pub(crate) fn compute_global_grad_norm_from_store(
 /// Clip gradients in-place by global norm. Returns the pre-clip global norm.
 ///
 /// When `max_norm <= 0.0`, clipping is disabled (norm is still computed).
-pub(crate) fn clip_grad_norm(
-    grads: &mut GradStore,
-    vars: &[Var],
-    max_norm: f64,
-) -> Result<f64> {
+pub(crate) fn clip_grad_norm(grads: &mut GradStore, vars: &[Var], max_norm: f64) -> Result<f64> {
     let total_norm = compute_global_grad_norm_from_store(grads, vars)?;
     if max_norm > 0.0 && total_norm > max_norm {
         let scale = max_norm / (total_norm + 1e-6);
@@ -1634,14 +1627,8 @@ mod tests {
             // Two params with known L2: [3,4] => 5; [0,0,0] => 0; total 5
             let t1 = Tensor::from_vec(vec![3.0f32, 4.0], (2,), &device).unwrap();
             let t2 = Tensor::from_vec(vec![0.0f32, 0.0, 0.0], (3,), &device).unwrap();
-            ws.insert(
-                "a".into(),
-                candle_core::Var::from_tensor(&t1).unwrap(),
-            );
-            ws.insert(
-                "b".into(),
-                candle_core::Var::from_tensor(&t2).unwrap(),
-            );
+            ws.insert("a".into(), candle_core::Var::from_tensor(&t1).unwrap());
+            ws.insert("b".into(), candle_core::Var::from_tensor(&t2).unwrap());
         }
         let n = compute_global_param_norm(&varmap).unwrap();
         assert!((n - 5.0).abs() < 1e-4, "param norm should be 5, got {n}");
@@ -1663,21 +1650,17 @@ mod tests {
         use candle_core::{Device, Var};
         let device = Device::Cpu;
         // Build a tiny graph so we get a real GradStore
-        let w = Var::from_tensor(
-            &Tensor::from_vec(vec![3.0f32, 4.0], (2,), &device).unwrap(),
-        )
-        .unwrap();
+        let w =
+            Var::from_tensor(&Tensor::from_vec(vec![3.0f32, 4.0], (2,), &device).unwrap()).unwrap();
         // loss = sum(w^2) => grad = 2w = [6,8], norm = 10
-        let loss = w
-            .as_tensor()
-            .sqr()
-            .unwrap()
-            .sum_all()
-            .unwrap();
+        let loss = w.as_tensor().sqr().unwrap().sum_all().unwrap();
         let mut grads = loss.backward().unwrap();
         let vars = vec![w.clone()];
         let pre = compute_global_grad_norm_from_store(&grads, &vars).unwrap();
-        assert!((pre - 10.0).abs() < 1e-3, "expected grad norm 10, got {pre}");
+        assert!(
+            (pre - 10.0).abs() < 1e-3,
+            "expected grad norm 10, got {pre}"
+        );
 
         let reported = clip_grad_norm(&mut grads, &vars, 5.0).unwrap();
         assert!((reported - 10.0).abs() < 1e-3);
@@ -1692,10 +1675,8 @@ mod tests {
     fn test_grad_accum_sums_microbatch_grads() {
         use candle_core::{Device, Var};
         let device = Device::Cpu;
-        let w = Var::from_tensor(
-            &Tensor::from_vec(vec![1.0f32, 0.0], (2,), &device).unwrap(),
-        )
-        .unwrap();
+        let w =
+            Var::from_tensor(&Tensor::from_vec(vec![1.0f32, 0.0], (2,), &device).unwrap()).unwrap();
         // loss1 = w[0]*2 => grad [2, 0] but use sum(w) * 2
         let loss1 = (w.as_tensor() * 2.0).unwrap().sum_all().unwrap();
         let g1 = loss1.backward().unwrap();
@@ -1706,7 +1687,7 @@ mod tests {
         accumulate_grad_store(&mut acc, &g2, &vars).unwrap();
         let g = acc.get(w.as_tensor()).unwrap();
         let vals = g.to_vec1::<f32>().unwrap();
-        // grad of sum(w*2) is [2,2]? wait sum of [1,0]*2 = 2, grad w.r.t w is [2,2]? 
+        // grad of sum(w*2) is [2,2]? wait sum of [1,0]*2 = 2, grad w.r.t w is [2,2]?
         // (w * 2).sum_all() grad is 2 for each element -> [2, 2]
         // (w * 3).sum_all() grad is [3, 3]
         // sum = [5, 5]
@@ -1727,5 +1708,4 @@ mod tests {
         let opt_steps = microbatches.div_ceil(accum);
         assert_eq!(opt_steps, 2); // 10/8 -> 2
     }
-
 }

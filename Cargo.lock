@@ -1787,7 +1787,9 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "peft-rs"
-version = "1.1.0"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4db89d100b24272b59ddb87f4d7c3f12c3d0f10f74b1b663f34f8a3436a92ba"
 dependencies = [
  "candle-core",
  "candle-nn",
@@ -1946,7 +1948,9 @@ checksum = "1d8f70e07b9c3962945a74e59ca1c511bba65b6419468acc217c457d93f3c740"
 
 [[package]]
 name = "qlora-rs"
-version = "1.1.0"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f4fa1118653863ee9c49e9827b8c5f8010757f72a9cadf0f6196c66481b76a4"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -2884,10 +2888,12 @@ dependencies = [
 
 [[package]]
 name = "trit-vsa"
-version = "0.2.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47bf9e84d0dc8257ea695d8131640d250671728e76e1fe739e4e1ff4f9143683"
 dependencies = [
  "serde",
- "thiserror 2.0.19",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3045,14 +3051,15 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "vsa-optim-rs"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05d0b98fa1894ea6bb00593bef245c2e5533da9f32b5716af701a15efdf15257"
 dependencies = [
  "candle-core",
  "rand 0.8.7",
  "rand_chacha 0.3.1",
  "serde",
- "serde_json",
  "thiserror 1.0.69",
- "trit-vsa 0.2.0",
+ "trit-vsa 0.1.1",
 ]
 
 [[package]]

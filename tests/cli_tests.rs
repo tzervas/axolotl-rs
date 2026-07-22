@@ -207,4 +207,3 @@ fn test_merge_command_help_describes_merge() {
         .success()
         .stdout(predicates::str::contains("Merge"));
 }
-

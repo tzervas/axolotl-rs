@@ -36,7 +36,7 @@ pub struct LRScheduler {
 
 impl LRScheduler {
     /// Create a new scheduler.
-    #[must_use] 
+    #[must_use]
     pub fn new(scheduler_type: SchedulerType, base_lr: f64) -> Self {
         Self {
             scheduler_type,
@@ -46,7 +46,7 @@ impl LRScheduler {
     }
 
     /// Get learning rate for current step.
-    #[must_use] 
+    #[must_use]
     pub fn get_lr(&self) -> f64 {
         match &self.scheduler_type {
             SchedulerType::Constant => self.base_lr,
@@ -94,7 +94,7 @@ impl LRScheduler {
             // Cosine decay
             let progress =
                 (self.current_step - warmup_steps) as f64 / (total_steps - warmup_steps) as f64;
-            let cosine_decay = 0.5 * (1.0 + (std::f64::consts::PI * progress).cos());
+            let cosine_decay = f64::midpoint(1.0, (std::f64::consts::PI * progress).cos());
             self.base_lr * cosine_decay
         }
     }

@@ -23,7 +23,7 @@
 //! ## Features
 //!
 //! - **YAML Configuration** - Parse and validate training configs / presets
-//! - **Dataset Handling** - Local JSONL loaders (Alpaca, ShareGPT, completion, custom)
+//! - **Dataset Handling** - Local `JSONL` loaders (Alpaca, `ShareGPT`, completion, custom)
 //! - **Adapters** - Optional `peft` / `qlora` feature paths (not default)
 //! - **Multi-GPU** - Not implemented
 //!

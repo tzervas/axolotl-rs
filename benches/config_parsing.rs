@@ -155,7 +155,7 @@ fn bench_config_from_yaml_large(c: &mut Criterion) {
 
 fn bench_config_validate(c: &mut Criterion) {
     c.bench_function("config_validate", |b| {
-        let config = AxolotlConfig::llama2_7b_preset();
+        let config = AxolotlConfig::from_preset("llama2-7b").unwrap();
         b.iter(|| {
             let result = black_box(config.validate());
             black_box(result).unwrap();
@@ -165,7 +165,7 @@ fn bench_config_validate(c: &mut Criterion) {
 
 fn bench_config_validate_invalid(c: &mut Criterion) {
     c.bench_function("config_validate_invalid", |b| {
-        let mut config = AxolotlConfig::llama2_7b_preset();
+        let mut config = AxolotlConfig::from_preset("llama2-7b").unwrap();
         config.base_model = String::new(); // Make invalid
         config.dataset.path = String::new(); // Make invalid
         config.lora.r = 0; // Make invalid
@@ -206,7 +206,7 @@ fn bench_preset_phi3(c: &mut Criterion) {
 
 fn bench_config_roundtrip(c: &mut Criterion) {
     c.bench_function("config_roundtrip", |b| {
-        let config = AxolotlConfig::llama2_7b_preset();
+        let config = AxolotlConfig::from_preset("llama2-7b").unwrap();
 
         b.iter(|| {
             // Serialize to YAML
@@ -220,7 +220,7 @@ fn bench_config_roundtrip(c: &mut Criterion) {
 
 fn bench_config_file_io(c: &mut Criterion) {
     c.bench_function("config_file_io", |b| {
-        let config = AxolotlConfig::llama2_7b_preset();
+        let config = AxolotlConfig::from_preset("llama2-7b").unwrap();
 
         b.iter(|| {
             // Create temporary file

@@ -1,9 +1,9 @@
 //! Tiny LLaMA-shaped fixtures for CPU E2E tests and local demos.
 //!
 //! Creates a minimal on-disk model directory:
-//! - `config.json` (LlamaForCausalLM)
+//! - `config.json` (`LlamaForCausalLM`)
 //! - `model.safetensors` (random base weights)
-//! - `tokenizer.json` (WordLevel, small vocab)
+//! - `tokenizer.json` (`WordLevel`, small vocab)
 
 use std::collections::HashMap;
 use std::fs;
@@ -13,7 +13,7 @@ use candle_core::{DType, Device, Tensor};
 
 use crate::error::{AxolotlError, Result};
 
-/// Dimensions for the default tiny LLaMA fixture (fits comfortably on CPU).
+/// Dimensions for the default tiny `LLaMA` fixture (fits comfortably on CPU).
 #[derive(Debug, Clone, Copy)]
 pub struct TinyLlamaSpec {
     /// Vocabulary size.
@@ -28,7 +28,7 @@ pub struct TinyLlamaSpec {
     pub num_attention_heads: usize,
     /// Key/value heads (GQA).
     pub num_key_value_heads: usize,
-    /// Max sequence length for RoPE tables.
+    /// Max sequence length for `RoPE` tables.
     pub max_position_embeddings: usize,
 }
 
