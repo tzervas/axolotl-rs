@@ -13,13 +13,14 @@
 
 //! # axolotl-rs
 //!
-//! YAML-driven fine-tuning **orchestrator scaffold** for LLMs (Candle-based).
+//! YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs (Candle-based).
 //!
 //! Partial Rust port inspired by Python Axolotl — **not** full product parity.
-//! Default features cover config/datasets/CLI; LoRA/QLoRA need `--features peft`
-//! / `peft,qlora`. Adapter merge and local-path workflows are supported in 1.2.0;
-//! Hub download is available behind the `download` feature.
-//!
+//! Version **1.2.0**: default features cover config/datasets/CLI; LoRA/QLoRA need
+//! `--features peft` / `peft,qlora`. Adapter **merge**, local-path load, sharded
+//! safetensors, and Hub **download** (feature `download`) are implemented.
+//! See crate README capability matrix and `docs/DEPENDENCIES.md` (leaf crate; no
+//! reverse deps onto peft/qlora/unsloth).//!
 //! ## Features
 //!
 //! - **YAML Configuration** - Parse and validate training configs / presets
