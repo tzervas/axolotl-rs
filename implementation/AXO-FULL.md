@@ -70,3 +70,5 @@ cargo check --features peft,qlora
 - Gradient checkpointing / mixed precision (config fields warned, not implemented)
 - Full non-LLaMA architectures (presets exist; runtime refuses)
 - Production parity with Python Axolotl
+
+**PR:** https://github.com/tzervas/axolotl-rs/pull/37

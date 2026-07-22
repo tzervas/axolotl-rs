@@ -54,3 +54,5 @@ cargo check --features peft,qlora
 
 - Implementation report: [`implementation/AXO-FULL.md`](../implementation/AXO-FULL.md)
 - Prior honesty note: plans `AXOLOTL_UNSUPPORTED.md` (gap-close ledger)
+
+**PR:** https://github.com/tzervas/axolotl-rs/pull/37
