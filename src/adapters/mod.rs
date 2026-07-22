@@ -192,7 +192,7 @@ impl AdapterWrapper {
             .map(|(name, tensor)| (name.as_str(), tensor.clone()))
             .collect();
 
-        safetensors::tensor::serialize_to_file(tensors_ref, &None, &weights_path).map_err(|e| {
+        safetensors::tensor::serialize_to_file(tensors_ref, None, &weights_path).map_err(|e| {
             AxolotlError::Checkpoint(format!("Failed to save adapter weights: {e}"))
         })?;
 

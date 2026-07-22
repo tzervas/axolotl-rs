@@ -49,7 +49,7 @@ rust-ai/
 
 ## Porting Phases
 
-### ✅ Phase 1: Foundation (COMPLETE)
+### Phase 1: Foundation (scaffold — see README matrix)
 
 **Timeline:** January 6-10, 2026  
 **Status:** ✅ 100% Complete

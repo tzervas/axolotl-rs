@@ -1,6 +1,7 @@
 //! Optimizer implementations (`AdamW`, SGD).
 
-use candle_core::Tensor;
+use candle_core::backprop::GradStore;
+use candle_core::{Tensor, Var};
 use candle_nn::{Optimizer, ParamsAdamW, VarMap};
 
 use crate::error::{AxolotlError, Result};
@@ -48,20 +49,22 @@ impl OptimizerConfig {
             weight_decay: self.weight_decay,
         };
 
-        let opt = candle_nn::AdamW::new(vars, params)
+        let opt = candle_nn::AdamW::new(vars.clone(), params)
             .map_err(|e| AxolotlError::Training(format!("Failed to create AdamW: {e}")))?;
 
-        Ok(AdamWOptimizer { inner: opt })
+        Ok(AdamWOptimizer { inner: opt, vars })
     }
 }
 
 /// `AdamW` optimizer wrapper.
 pub struct AdamWOptimizer {
     inner: candle_nn::AdamW,
+    /// Trainable variables (cloned handles) for clipping and norm metrics.
+    vars: Vec<Var>,
 }
 
 impl AdamWOptimizer {
-    /// Perform a single optimization step.
+    /// Perform a single optimization step (backward + update).
     ///
     /// # Errors
     ///
@@ -72,8 +75,25 @@ impl AdamWOptimizer {
             .map_err(|e| AxolotlError::Training(format!("Optimizer step failed: {e}")))
     }
 
+    /// Apply a precomputed gradient store (after clipping / accumulation).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the step fails.
+    pub fn step_grads(&mut self, grads: &GradStore) -> Result<()> {
+        self.inner
+            .step(grads)
+            .map_err(|e| AxolotlError::Training(format!("Optimizer step failed: {e}")))
+    }
+
+    /// Trainable parameter variables tracked by this optimizer.
+    #[must_use]
+    pub fn vars(&self) -> &[Var] {
+        &self.vars
+    }
+
     /// Get current learning rate.
-    #[must_use] 
+    #[must_use]
     pub fn learning_rate(&self) -> f64 {
         self.inner.learning_rate()
     }
@@ -104,6 +124,7 @@ mod tests {
 
         let optimizer = config.build_adamw(&varmap)?;
         assert_eq!(optimizer.learning_rate(), 5e-5);
+        assert!(optimizer.vars().is_empty());
 
         Ok(())
     }
