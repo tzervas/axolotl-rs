@@ -1616,7 +1616,7 @@ pub fn download_model(model_id: &str, cache_dir: &str) -> Result<String> {
 
     let client = reqwest::blocking::Client::builder()
         .user_agent(format!("axolotl-rs/{}", env!("CARGO_PKG_VERSION")))
-        .timeout(std::time::Duration::from_secs(600))
+        .timeout(std::time::Duration::from_mins(10))
         .build()
         .map_err(|e| AxolotlError::Model(format!("Failed to build HTTP client: {e}")))?;
 
