@@ -26,9 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Version **1.2.0**; capability matrix documents green checks only for real features.
-- peft-rs / qlora-rs path pins → **1.1**; reqwest gains `blocking` for Hub download.
+- **CI-safe deps:** peft/qlora/unsloth are crates.io optional versions (no committed path deps).
+  Local SoT: `scripts/use-local-path-deps.sh` → gitignored `.cargo/config.toml` paths.
+  After peft/qlora **1.1.0** publish, bump optional floors to `1.1` / `1.1` / `1.0.3`.
+- reqwest gains `blocking` for Hub download.
 - CLI merge/download docs no longer claim `UNSUPPORTED` for happy paths.
-
+- README + `docs/DEPENDENCIES.md` describe the DAG and fleet override policy.
 ### Fixed
 - LoRA A/B capture reads real VarMap values (not empty placeholders).
 - Checkpoint path saves embedded LoRA even when `adapter_layers` is `None`.

@@ -13,7 +13,10 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 
 > **Status honesty:** Version **1.2.0** is a working LLaMA-family LoRA trainer/orchestrator on local
 > weights — **not** full Python Axolotl parity. See the capability matrix.
-
+>
+> **Docs:** [CHANGELOG.md](CHANGELOG.md) · [roadmap.md](roadmap.md) · [CUDA_STATUS.md](CUDA_STATUS.md) ·
+> [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) (leaf crate; no reverse deps / no cycles) ·
+> [docs/archive/](docs/archive/) (historical COMPLETE fiction — do not treat as current status)
 ## Capability matrix (1.2.0)
 
 | Capability | Default features | `--features peft` | `--features peft,qlora` | Notes |
@@ -33,8 +36,15 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 | Multi-GPU / packing / DPO | ❌ | ❌ | ❌ | Out of scope |
 | GPU E2E | ⚠️ | ⚠️ | ⚠️ | Often blocked by Candle CUDA RMSNorm — see [CUDA_STATUS.md](CUDA_STATUS.md) |
 
-**Sister crates (this monorepo SoT):** path dependencies on `../peft-rs` (1.1) and `../qlora-rs` (1.1)
-plus `[patch.crates-io] peft-rs`. Align `safetensors` to **0.7**.
+### Sister crates & dependency policy
+
+| Build context | How peft / qlora / unsloth resolve |
+|---------------|-------------------------------------|
+| **GitHub CI / crates.io** | Registry versions only (`peft-rs = "1.0"`, `qlora-rs = "1.0"`, …) — **no path deps** in committed `Cargo.toml` (path deps break CI without sister checkouts) |
+| **Local fleet / SoT development** | Run `bash scripts/use-local-path-deps.sh` to write gitignored `.cargo/config.toml` `paths = ["../peft-rs", …]` so local **1.1.x** trees override the registry |
+| **After peft/qlora 1.1.0 on crates.io** | Bump optional floors to `1.1` / `1.1` / `1.0.3` (tracked release task) |
+
+`safetensors` is pinned to **0.7** (matches peft-rs). See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 
 ## Installation
 
@@ -42,9 +52,13 @@ plus `[patch.crates-io] peft-rs`. Align `safetensors` to **0.7**.
 # From crates.io (default features)
 cargo install axolotl-rs
 
-# From this monorepo with adapters
+# From source with adapters (registry peft/qlora until 1.1 floors land)
 git clone https://github.com/tzervas/axolotl-rs
 cd axolotl-rs
+cargo build --release --features peft,qlora
+
+# Local monorepo: prefer sister SoTs at ../peft-rs and ../qlora-rs
+bash scripts/use-local-path-deps.sh
 cargo build --release --features peft,qlora
 ```
 
@@ -196,9 +210,9 @@ axolotl-rs
 Dependencies:
 ├── candle-*   - Tensor operations and transformer models
 ├── tokenizers - HuggingFace tokenizer bindings
-├── peft-rs    - LoRA adapters (optional, path/crates.io 1.1)
-├── qlora-rs   - 4-bit quantization (optional, 1.1)
-└── unsloth-rs - Optimized kernels (optional; not required for core path)
+├── peft-rs    - LoRA adapters (optional feature `peft`; crates.io or local paths)
+├── qlora-rs   - 4-bit quantization (optional feature `qlora`; implies peft)
+└── unsloth-rs - Kernel building blocks (optional; not required for core path)
 ```
 
 ## Feature Flags
@@ -206,10 +220,10 @@ Dependencies:
 | Flag | Description | Reality check |
 |------|-------------|---------------|
 | `download` (default) | Enables `reqwest` (+ blocking) | Hub download **implemented**; local paths still preferred |
-| `peft` | peft-rs LoRA path | Path dep to `../peft-rs` in this tree |
+| `peft` | peft-rs LoRA path | Registry (or local override via `use-local-path-deps.sh`) |
 | `qlora` | qlora-rs + peft | Implies `peft` |
 | `unsloth` | unsloth-rs kernels | Optional |
-| `cuda` | Candle CUDA | GPU training may still hit RMSNorm gaps |
+| `cuda` | Candle CUDA | GPU training may still hit RMSNorm gaps — see [CUDA_STATUS.md](CUDA_STATUS.md) |
 
 ## CPU E2E proof
 
