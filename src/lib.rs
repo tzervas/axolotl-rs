@@ -13,17 +13,19 @@
 
 //! # axolotl-rs
 //!
-//! YAML-driven configurable fine-tuning toolkit for LLMs.
+//! YAML-driven fine-tuning **orchestrator scaffold** for LLMs (Candle-based).
 //!
-//! This crate provides a user-friendly interface for fine-tuning language models,
-//! similar to the Python Axolotl project but in pure Rust.
+//! Partial Rust port inspired by Python Axolotl — **not** full product parity.
+//! Default features cover config/datasets/CLI; LoRA/QLoRA need `--features peft`
+//! / `peft,qlora`. Adapter merge and local-path workflows are supported in 1.2.0;
+//! Hub download is available behind the `download` feature.
 //!
 //! ## Features
 //!
-//! - **YAML Configuration** - Define entire training runs in simple config files
-//! - **Multiple Adapters** - Support for `LoRA`, `QLoRA`, full fine-tuning
-//! - **Dataset Handling** - Automatic loading and preprocessing
-//! - **Multi-GPU** - Distributed training support (planned)
+//! - **YAML Configuration** - Parse and validate training configs / presets
+//! - **Dataset Handling** - Local `JSONL` loaders (Alpaca, `ShareGPT`, completion, custom)
+//! - **Adapters** - Optional `peft` / `qlora` feature paths (not default)
+//! - **Multi-GPU** - Not implemented
 //!
 //! ## Quick Start (CLI)
 //!
@@ -31,11 +33,14 @@
 //! # Validate configuration
 //! axolotl validate config.yaml
 //!
-//! # Start training
+//! # Start training (local model weights required)
 //! axolotl train config.yaml
 //!
-//! # Merge adapters
+//! # Merge LoRA adapters into base weights
 //! axolotl merge --config config.yaml --output ./merged-model
+//!
+//! # Optional: download weights from HuggingFace Hub
+//! axolotl download meta-llama/Llama-2-7b-hf --output ./models/llama2-7b
 //! ```
 //!
 //! ## Quick Start (Library)
@@ -109,6 +114,7 @@ pub mod cli;
 pub mod config;
 pub mod dataset;
 pub mod error;
+pub mod fixture;
 #[cfg(feature = "peft")]
 pub mod llama_common;
 #[cfg(feature = "peft")]

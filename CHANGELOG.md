@@ -5,7 +5,49 @@ All notable changes to axolotl-rs will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-07-22
+
+### Added
+- **CPU E2E LoRA train proof** on a tiny LLaMA-shaped fixture (`src/fixture.rs`,
+  `tests/e2e_lora_cpu.rs`): finite loss, non-zero grads, checkpoint A/B present.
+- **Adapter merge**: `merge_adapter` fuses LoRA ΔW into base linear weights
+  (`W' = W + (B @ A) * (α/r)`), writes merged `model.safetensors` + `merge_info.json`.
+  CLI `axolotl merge` succeeds on the fixture happy path.
+- **Embedded LoRA checkpoint save/load**: round-trips A/B via trainable `VarMap`
+  (`adapter_model.safetensors` + `adapter_config.json`).
+- **Sharded safetensors load**: `model.safetensors.index.json` + shards; missing shard
+  is a hard error (no silent stub).
+- **Architecture honesty**: non-LLaMA families return `Unsupported model architecture`
+  listing supported families (no 10×10 stub train).
+- **Hub download**: minimal `reqwest` client (`axolotl download <model_id>`); local path
+  remains first-class. Gated models need `HF_TOKEN` or `huggingface-cli`.
+- **Optimizer init** on trainable adapter params at train start (was missing).
+- Tiny fixture helpers: `write_tiny_llama_fixture`, `write_tiny_alpaca_jsonl`.
+
+### Changed
+- Version **1.2.0**; capability matrix documents green checks only for real features.
+- peft-rs / qlora-rs path pins → **1.1**; reqwest gains `blocking` for Hub download.
+- CLI merge/download docs no longer claim `UNSUPPORTED` for happy paths.
+
+### Fixed
+- LoRA A/B capture reads real VarMap values (not empty placeholders).
+- Checkpoint path saves embedded LoRA even when `adapter_layers` is `None`.
+
+### Notes / GPU
+- `cargo test --features peft,cuda` **BLOCKED:env** on this host: RTX 5080 (sm_120)
+  but installed `nvcc` max arch is 90. CPU gates remain green with `AXOLOTL_FORCE_CPU=1`.
+
 ## [Unreleased]
+
+### Fixed
+- **PR-028:** `cargo check --features peft,qlora` succeeds via path deps to peft-rs/qlora-rs,
+  `safetensors` 0.7 alignment, and `[patch.crates-io] peft-rs` (no dual View trait).
+- **PR-029:** Training honors `gradient_accumulation_steps`, `lr_scheduler`, `warmup_ratio`,
+  and `max_grad_norm`; grad/param norms are real L2 values (not 0.0/1.0 placeholders).
+- **PR-030:** (superseded by 1.2.0) earlier honesty gates for merge/download stubs.
+
+### Changed
+- Sister deps for adapters: path `../peft-rs` + `../qlora-rs` in this SoT tree.
 
 ## [1.1.1] - 2026-01-24
 
@@ -30,8 +72,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation for `vsa_accel` module with architecture overview
 
 ### Changed
-- Enhanced `TrainingConfig` with optional `vsa_config` field
-- Improved memory efficiency through VSA gradient compression
+- Improved memory efficiency through VSA gradient compression (experimental `vsa-optim` feature)
+
+### Notes (honesty, PR-013)
+- `TrainingConfig` does **not** expose a `vsa_config` field; VSA is configured via
+  `VSAAcceleratorConfig` under the optional `vsa-optim` feature only.
+- Version 1.1.x remains an orchestrator scaffold; see README capability matrix.
 
 ## [1.0.1] - 2026-01-24
 
@@ -62,77 +108,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (from 0.1.0-dev)
 - Initial project scaffold with Rust port of Axolotl
-- YAML configuration parsing with 3 presets (LLaMA-2, Mistral, Phi-3)
-- Dataset loaders for 4 formats: Alpaca, ShareGPT, Completion, Custom
-- CLI interface with commands: `validate`, `train`, `merge`, `init`
-- Error handling with comprehensive error types
-- Mock implementations for PEFT, QLoRA, and Unsloth
-- CI/CD pipeline with GitHub Actions
-- GPU testing support (CUDA and ROCm)
-- Codecov integration with 75% target coverage
-- 9 comprehensive benchmarks for config parsing
-- Extensive test suite:
-  - 18 error handling tests
-  - 28 config validation tests  
-  - Tests for all dataset formats
-  - Trainer lifecycle tests
-- MIT license
-- Documentation with early development status disclosure
-- Contributing guidelines
-- Test coverage plan targeting 80%
-
-### Changed
-- Updated from candle 0.4 to candle 0.8
-- Fixed 54 clippy warnings
-- Improved error messages and context
-- Enhanced configuration validation
-
-### Fixed
-- Compilation issues in initial scaffold
-- Workspace manifest configuration
-- TemplateError handling in progress bars
-
-## [0.1.0-dev] - 2026-01-10
-
-### Status
-**Early Development - Framework Scaffold**
-
-This is an initial development release. The configuration system, CLI, and dataset loaders are functional. Core training functionality (model loading, actual training loops, adapter management, checkpoint handling) is planned for future releases.
-
-**What Works:**
-- ✅ YAML configuration parsing and validation
-- ✅ Dataset loading (all 4 formats)
-- ✅ CLI argument parsing
-- ✅ Configuration presets
-
-**What's Planned:**
-- 🚧 Model loading from HuggingFace Hub
-- 🚧 LoRA/QLoRA adapter implementation
-- 🚧 Actual training loop with forward/backward passes
-- 🚧 Checkpoint saving and loading
-- 🚧 Adapter merging
-- 🚧 Multi-GPU distributed training
-
-### Project Metrics
-- **Lines of Code**: ~1,500 Rust LOC
-- **Test Coverage**: ~60-70% (48+ tests)
-- **Dependencies**: Candle 0.8, Tokenizers 0.20, Serde 1.0
-- **Platform Support**: Linux, macOS (Windows untested)
-- **License**: MIT
-
-### Development Team
-- Tyler Zervas (@tzervas) - Primary author
-
----
-
-## Release History
-
-### Version 0.1.0-dev (January 10, 2026)
-Initial development release establishing project structure and core scaffolding.
-
----
-
-[Unreleased]: https://github.com/tzervas/axolotl-rs/compare/v1.0.1...HEAD
-[1.0.1]: https://github.com/tzervas/axolotl-rs/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/tzervas/axolotl-rs/compare/v0.1.0-dev...v1.0.0
-[0.1.0-dev]: https://github.com/tzervas/axolotl-rs/releases/tag/v0.1.0-dev

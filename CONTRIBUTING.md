@@ -4,7 +4,7 @@ Thank you for your interest in contributing to axolotl-rs! This document provide
 
 ## Development Status
 
-axolotl-rs 1.0.0 provides YAML-driven fine-tuning with configuration parsing, dataset loading, CLI interface, and training loop support. See the [README](README.md) for features and usage.
+axolotl-rs is an experimental orchestrator scaffold. See the [README](README.md) **capability matrix** for what works vs unsupported (merge/download, default-without-peft, GPU caveats).
 
 ## Getting Started
 
@@ -49,14 +49,19 @@ For developers working with development branches:
 # unsloth-rs = { git = "https://github.com/tzervas/unsloth-rs", branch = "main", optional = true }
 ```
 
-#### 3. Local Development (Path)
-For developers working on sister projects locally:
+#### 3. Local Development (Path) — **default in this SoT tree**
+This monorepo SoT uses path deps so `cargo check --features peft,qlora` works:
 ```toml
-# Uncomment in Cargo.toml to use local directories
-# peft-rs = { path = "../peft-rs", optional = true }
-# qlora-rs = { path = "../qlora-rs", optional = true }
-# unsloth-rs = { path = "../unsloth-rs", optional = true }
+peft-rs = { path = "../peft-rs", version = "1.0.4", optional = true }
+qlora-rs = { path = "../qlora-rs", version = "1.0", optional = true }
 ```
+Plus `[patch.crates-io] peft-rs = { path = "../peft-rs" }` so qlora-rs does not pull
+crates.io peft-rs 1.0.3 (safetensors 0.4 vs 0.7 `View` conflict).
+
+`safetensors` is pinned to **0.7** to match peft-rs.
+
+For crates.io publish, switch peft/qlora back to registry versions ≥ peft-rs 1.0.4
+and drop the patch (or keep patch only in a workspace consumer).
 
 **Note**: After uncommenting dependencies, also uncomment the corresponding features in the `[features]` section:
 ```toml

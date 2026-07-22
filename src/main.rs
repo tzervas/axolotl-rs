@@ -9,6 +9,7 @@ mod cli;
 mod config;
 mod dataset;
 mod error;
+mod fixture;
 #[cfg(feature = "peft")]
 mod llama_common;
 #[cfg(feature = "peft")]
@@ -47,16 +48,26 @@ enum Commands {
         #[arg(long)]
         resume: Option<String>,
     },
-    /// Merge adapter weights into base model
+    /// Merge LoRA adapter weights into base model linear weights
+    #[allow(clippy::doc_markdown)]
     Merge {
         /// Path to configuration file
         #[arg(long)]
         config: String,
-        /// Path to adapter checkpoint
+        /// Path to adapter checkpoint directory (or adapter_model.safetensors)
         #[arg(long)]
         adapter: Option<String>,
         /// Output directory for merged model
         #[arg(long)]
+        output: String,
+    },
+    /// Download model weights from HuggingFace Hub into a local directory
+    #[allow(clippy::doc_markdown)]
+    Download {
+        /// HuggingFace model id (e.g. HuggingFaceTB/SmolLM2-135M)
+        model_id: String,
+        /// Output / cache directory (model is written under `<output>/<sanitized-id>/`)
+        #[arg(long, default_value = "./models")]
         output: String,
     },
     /// Generate a sample configuration file
@@ -105,13 +116,60 @@ fn main() -> Result<()> {
             adapter,
             output,
         } => {
-            tracing::info!("Merging adapter to: {}", output);
+            tracing::info!("Merge requested (output={})", output);
             let config = AxolotlConfig::from_file(&config)?;
-            let adapter_path =
-                adapter.unwrap_or_else(|| format!("{}/checkpoint-final", config.output_dir));
+            let adapter_path = adapter.unwrap_or_else(|| {
+                // Prefer explicit final checkpoint name; fall back to last step dir pattern
+                let final_dir = format!("{}/checkpoint-final", config.output_dir);
+                if std::path::Path::new(&final_dir).exists() {
+                    final_dir
+                } else {
+                    format!("{}/checkpoint-final", config.output_dir)
+                }
+            });
 
-            model::merge_adapter(&config, &adapter_path, &output)?;
-            println!("✓ Merged model saved to: {output}");
+            match model::merge_adapter(&config, &adapter_path, &output) {
+                Ok(()) => {
+                    println!("✓ Merged model saved to: {output}");
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    eprintln!(
+                        "hint: ensure base_model points at local full-precision weights and \
+adapter_model.safetensors exists (train with --features peft first)."
+                    );
+                    std::process::exit(2);
+                }
+            }
+        }
+        Commands::Download { model_id, output } => {
+            tracing::info!("Download requested: {model_id} -> {output}");
+            #[cfg(feature = "download")]
+            {
+                match model::download_model(&model_id, &output) {
+                    Ok(path) => {
+                        println!("✓ Model available at: {path}");
+                        println!("  Set base_model: {path} in your config YAML");
+                    }
+                    Err(e) => {
+                        eprintln!("error: {e}");
+                        eprintln!(
+                            "hint: for gated models set HF_TOKEN, or use:\n  \
+huggingface-cli download {model_id} --local-dir <path>\nand set base_model to that local path."
+                        );
+                        std::process::exit(2);
+                    }
+                }
+            }
+            #[cfg(not(feature = "download"))]
+            {
+                eprintln!(
+                    "error: download feature not enabled in this build.\n\
+hint: rebuild with --features download, or run:\n  \
+huggingface-cli download {model_id} --local-dir <path>"
+                );
+                std::process::exit(2);
+            }
         }
         Commands::Init { output, preset } => {
             tracing::info!("Generating config for preset: {}", preset);
