@@ -94,7 +94,7 @@ impl LRScheduler {
             // Cosine decay
             let progress =
                 (self.current_step - warmup_steps) as f64 / (total_steps - warmup_steps) as f64;
-            let cosine_decay = 0.5 * (1.0 + (std::f64::consts::PI * progress).cos());
+            let cosine_decay = f64::midpoint(1.0, (std::f64::consts::PI * progress).cos());
             self.base_lr * cosine_decay
         }
     }
@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn test_constant_scheduler() {
         let scheduler = LRScheduler::new(SchedulerType::Constant, 1e-3);
-        assert!((scheduler.get_lr() - 1e-3).abs() < 1e-10);
+        assert_eq!(scheduler.get_lr(), 1e-3);
     }
 
     #[test]
@@ -121,7 +121,7 @@ mod tests {
         );
 
         // At step 0, should be 0
-        assert!((scheduler.get_lr() - 0.0).abs() < 1e-10);
+        assert_eq!(scheduler.get_lr(), 0.0);
 
         // At step 50, should be half of base_lr
         scheduler.current_step = 50;

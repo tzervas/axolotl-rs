@@ -1,19 +1,3 @@
-#![allow(
-    clippy::all,
-    clippy::pedantic,
-    clippy::nursery,
-    clippy::cargo,
-    clippy::doc_markdown,
-    clippy::uninlined_format_args,
-    clippy::format_push_string,
-    clippy::single_char_pattern,
-    clippy::cast_precision_loss,
-    clippy::manual_assert,
-    clippy::ptr_arg,
-    deprecated,
-    dead_code,
-    unused_imports
-)]
 //! Integration tests for the axolotl CLI.
 
 use assert_cmd::Command;
@@ -134,7 +118,7 @@ fn test_merge_command_help() {
 
     cmd.assert()
         .success()
-        .stdout(predicates::str::contains("Merge adapter weights"))
+        .stdout(predicates::str::contains("Merge LoRA adapter weights"))
         .stdout(predicates::str::contains("--config"))
         .stdout(predicates::str::contains("--adapter"))
         .stdout(predicates::str::contains("--output"));
@@ -194,5 +178,32 @@ fn test_cli_help() {
         .stdout(predicates::str::contains("validate"))
         .stdout(predicates::str::contains("train"))
         .stdout(predicates::str::contains("merge"))
+        .stdout(predicates::str::contains("download"))
         .stdout(predicates::str::contains("init"));
+}
+
+#[test]
+fn test_merge_command_fails_without_weights() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let config_path = create_test_config(&temp_dir.path().to_path_buf(), valid_config_yaml());
+    let out = temp_dir.path().join("merged");
+
+    let mut cmd = run_cli(&[
+        "merge",
+        "--config",
+        config_path.to_str().unwrap(),
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+
+    // Without local base/adapter weights, merge must fail (exit 2) — never silent success
+    cmd.assert().failure().code(2);
+}
+
+#[test]
+fn test_merge_command_help_describes_merge() {
+    let mut cmd = run_cli(&["merge", "--help"]);
+    cmd.assert()
+        .success()
+        .stdout(predicates::str::contains("Merge"));
 }

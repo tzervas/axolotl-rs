@@ -1,17 +1,3 @@
-#![allow(
-    clippy::all,
-    clippy::pedantic,
-    clippy::nursery,
-    clippy::cargo,
-    clippy::doc_markdown,
-    clippy::uninlined_format_args,
-    clippy::format_push_string,
-    clippy::single_char_pattern,
-    clippy::cast_precision_loss,
-    clippy::manual_assert,
-    dead_code,
-    unused_imports
-)]
 //! Tests for LoraLlama per-layer injection.
 //!
 //! These tests validate that LoRA adapters are properly injected at each

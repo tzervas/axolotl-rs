@@ -1,17 +1,3 @@
-#![allow(
-    clippy::all,
-    clippy::pedantic,
-    clippy::nursery,
-    clippy::cargo,
-    clippy::doc_markdown,
-    clippy::uninlined_format_args,
-    clippy::format_push_string,
-    clippy::single_char_pattern,
-    clippy::cast_precision_loss,
-    clippy::manual_assert,
-    dead_code,
-    unused_imports
-)]
 //! End-to-end QLoRA fine-tuning validation test.
 //!
 //! This test validates the complete QLoRA fine-tuning pipeline:

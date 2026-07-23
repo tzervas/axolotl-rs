@@ -1,18 +1,3 @@
-#![allow(
-    clippy::all,
-    clippy::pedantic,
-    clippy::nursery,
-    clippy::cargo,
-    clippy::doc_markdown,
-    clippy::uninlined_format_args,
-    clippy::format_push_string,
-    clippy::single_char_pattern,
-    clippy::cast_precision_loss,
-    clippy::manual_assert,
-    clippy::needless_raw_string_hashes,
-    dead_code,
-    unused_imports
-)]
 use axolotl_rs::config::AxolotlConfig;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::io::Write;

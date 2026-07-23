@@ -1,6 +1,7 @@
 //! Optimizer implementations (`AdamW`, SGD).
 
-use candle_core::Tensor;
+use candle_core::backprop::GradStore;
+use candle_core::{Tensor, Var};
 use candle_nn::{Optimizer, ParamsAdamW, VarMap};
 
 use crate::error::{AxolotlError, Result};
@@ -48,20 +49,22 @@ impl OptimizerConfig {
             weight_decay: self.weight_decay,
         };
 
-        let opt = candle_nn::AdamW::new(vars, params)
+        let opt = candle_nn::AdamW::new(vars.clone(), params)
             .map_err(|e| AxolotlError::Training(format!("Failed to create AdamW: {e}")))?;
 
-        Ok(AdamWOptimizer { inner: opt })
+        Ok(AdamWOptimizer { inner: opt, vars })
     }
 }
 
 /// `AdamW` optimizer wrapper.
 pub struct AdamWOptimizer {
     inner: candle_nn::AdamW,
+    /// Trainable variables (cloned handles) for clipping and norm metrics.
+    vars: Vec<Var>,
 }
 
 impl AdamWOptimizer {
-    /// Perform a single optimization step.
+    /// Perform a single optimization step (backward + update).
     ///
     /// # Errors
     ///
@@ -70,6 +73,23 @@ impl AdamWOptimizer {
         self.inner
             .backward_step(loss)
             .map_err(|e| AxolotlError::Training(format!("Optimizer step failed: {e}")))
+    }
+
+    /// Apply a precomputed gradient store (after clipping / accumulation).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the step fails.
+    pub fn step_grads(&mut self, grads: &GradStore) -> Result<()> {
+        self.inner
+            .step(grads)
+            .map_err(|e| AxolotlError::Training(format!("Optimizer step failed: {e}")))
+    }
+
+    /// Trainable parameter variables tracked by this optimizer.
+    #[must_use]
+    pub fn vars(&self) -> &[Var] {
+        &self.vars
     }
 
     /// Get current learning rate.
@@ -91,10 +111,10 @@ mod tests {
     #[test]
     fn test_optimizer_config_default() {
         let config = OptimizerConfig::default();
-        assert!((config.learning_rate - 5e-5).abs() < 1e-10);
-        assert!((config.beta1 - 0.9).abs() < 1e-10);
-        assert!((config.beta2 - 0.999).abs() < 1e-10);
-        assert!((config.weight_decay - 0.01).abs() < 1e-10);
+        assert_eq!(config.learning_rate, 5e-5);
+        assert_eq!(config.beta1, 0.9);
+        assert_eq!(config.beta2, 0.999);
+        assert_eq!(config.weight_decay, 0.01);
     }
 
     #[test]
@@ -103,7 +123,8 @@ mod tests {
         let varmap = VarMap::new();
 
         let optimizer = config.build_adamw(&varmap)?;
-        assert!((optimizer.learning_rate() - 5e-5).abs() < 1e-10);
+        assert_eq!(optimizer.learning_rate(), 5e-5);
+        assert!(optimizer.vars().is_empty());
 
         Ok(())
     }

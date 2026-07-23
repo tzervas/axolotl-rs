@@ -8,3 +8,6 @@
 # IDE
 .vscode/
 .idea/
+
+# Local fleet path overrides (scripts/use-local-path-deps.sh)
+.cargo/config.toml

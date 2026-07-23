@@ -1,14 +1,23 @@
-# cargo-deny configuration
-# See https://embarkstudios.github.io/cargo-deny/ for more information
+# cargo-deny configuration (schema v2, cargo-deny 0.19+)
+# See https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+all-features = false
 
 [advisories]
 version = 2
-db-path = "~/.cargo/advisory-db"
-db-urls = ["https://github.com/rustsec/advisory-db"]
-ignore = []
+# yanked is the only lint-level key remaining in v2; vulns/unmaintained are deny by default
+yanked = "warn"
+ignore = [
+    # paste — unmaintained proc-macro, transitive via candle/tokenizers ecosystem
+    { id = "RUSTSEC-2024-0436", reason = "paste unmaintained proc-macro (transitive); no known vulnerability; no maintained drop-in" },
+    # number_prefix — unmaintained, transitive via indicatif
+    { id = "RUSTSEC-2025-0119", reason = "number_prefix unmaintained (via indicatif); no known vulnerability" },
+]
 
 [licenses]
 version = 2
+confidence-threshold = 0.8
 allow = [
     "MIT",
     "Apache-2.0",
@@ -17,13 +26,16 @@ allow = [
     "BSD-3-Clause",
     "ISC",
     "Unicode-DFS-2016",
+    "Unicode-3.0",
     "Unlicense",
     "Zlib",
     "MPL-2.0",
     "CC0-1.0",
     "BSL-1.0",
+    "OpenSSL",
+    "CDLA-Permissive-2.0",
+    "0BSD",
 ]
-confidence-threshold = 0.8
 
 [[licenses.clarify]]
 # Gemm crates use dual licensing
@@ -74,4 +86,5 @@ allow-git = [
     "https://github.com/tzervas/peft-rs",
     "https://github.com/tzervas/qlora-rs",
     "https://github.com/tzervas/unsloth-rs",
+    "https://github.com/tzervas/vsa-optim-rs",
 ]

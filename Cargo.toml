@@ -1,6 +1,6 @@
 [package]
 name = "axolotl-rs"
-version = "1.1.1"
+version = "1.2.0"
 edition = "2021"
 rust-version = "1.92"
 license = "MIT"
@@ -18,7 +18,8 @@ candle-core = "0.9"
 candle-nn = "0.9"
 candle-transformers = "0.9"
 tokenizers = "0.20"
-safetensors = "0.4"
+# Align with peft-rs (0.7). Dual 0.4+0.7 graphs break `Tensor: View` on serialize.
+safetensors = "0.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 serde_json = "1.0"
@@ -28,27 +29,25 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1.0"
 
-# Adapter and quantization dependencies
-# 
-# For production use (importing from crates.io):
-# These packages are published to crates.io for production builds
+# Adapter and quantization dependencies (optional; not in default features).
+#
+# CI / crates.io: registry versions only. Path deps break GitHub Actions because
+# sister checkouts are not present. Default `cargo test` does not enable peft/
+# qlora/vsa-optim, so CI stays green without local SoTs.
+#
+# Local fleet (sister repos at ../peft-rs etc.):
+#   bash scripts/use-local-path-deps.sh
+# which writes .cargo/config.toml with `paths = [...]` overrides (gitignored).
+# To undo: bash scripts/use-local-path-deps.sh --clear
+#
+# Alternative (manual): temporarily switch lines to path= and/or add
+#   [patch.crates-io]
+#   peft-rs = { path = "../peft-rs" }
+# in a private overlay — do not commit path deps for CI.
 peft-rs = { version = "1.0", optional = true }
 qlora-rs = { version = "1.0", optional = true }
 unsloth-rs = { version = "1.0", optional = true }
-# vsa-optim-rs = { version = "0.1", optional = true }
-#
-# For active development (importing from GitHub):
-# Uncomment these lines to use development branches from GitHub repos
-# peft-rs = { git = "https://github.com/tzervas/peft-rs", branch = "main", optional = true }
-# qlora-rs = { git = "https://github.com/tzervas/qlora-rs", branch = "main", optional = true }
-# unsloth-rs = { git = "https://github.com/tzervas/unsloth-rs", branch = "main", optional = true }
-#
-# For local development (importing from local paths):
-# Uncomment these lines to use local sister project directories
-# peft-rs = { path = "../peft-rs", optional = true }
-# qlora-rs = { path = "../qlora-rs", optional = true }
-# unsloth-rs = { path = "../unsloth-rs", optional = true }
-vsa-optim-rs = { version = "0.1", path = "../vsa-optim-rs", optional = true }
+vsa-optim-rs = { version = "0.1", optional = true }
 
 # CLI
 clap = { version = "4.5", features = ["derive"] }
@@ -56,8 +55,8 @@ clap = { version = "4.5", features = ["derive"] }
 # Progress bars
 indicatif = "0.17"
 
-# HTTP for model downloads
-reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"], optional = true }
+# HTTP client for Hub download (download feature). Minimal HF resolve/main fetch.
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "blocking"], optional = true }
 
 [dev-dependencies]
 criterion = "0.5"
@@ -67,9 +66,10 @@ predicates = "3.0"
 
 [features]
 default = ["download"]
+# Enables reqwest + minimal HuggingFace Hub download (CLI `download`).
 download = ["reqwest"]
 
-# Real adapter/quantization libraries
+# Real adapter/quantization libraries (optional; crates.io or local path override)
 peft = ["peft-rs"]
 qlora = ["qlora-rs", "peft"]
 unsloth = ["unsloth-rs"]
@@ -98,4 +98,3 @@ path = "src/main.rs"
 
 [[bench]]
 name = "config_parsing"
-harness = false
