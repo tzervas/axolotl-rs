@@ -5,24 +5,7 @@
 use clap::{Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-mod cli;
-mod config;
-mod dataset;
-mod error;
-mod fixture;
-#[cfg(feature = "peft")]
-mod llama_common;
-#[cfg(feature = "peft")]
-mod lora_llama;
-mod model;
-mod optimizer;
-#[cfg(all(feature = "peft", feature = "qlora"))]
-mod qlora_llama;
-mod scheduler;
-mod trainer;
-
-use config::AxolotlConfig;
-use error::Result;
+use axolotl_rs::{config::AxolotlConfig, model, trainer::Trainer, Result};
 
 #[derive(Parser)]
 #[command(name = "axolotl")]
@@ -105,7 +88,7 @@ fn main() -> Result<()> {
             let config = AxolotlConfig::from_file(&config)?;
             config.validate()?;
 
-            let mut trainer = trainer::Trainer::new(config)?;
+            let mut trainer = Trainer::new(config)?;
             if let Some(checkpoint) = resume {
                 trainer.resume_from(&checkpoint)?;
             }
