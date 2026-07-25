@@ -3,6 +3,7 @@
 //! These tests validate LoRA training with different target module configurations.
 //! Run with: `cargo test --features 'lora cuda' -- --ignored target`
 
+#![allow(dead_code, unused_imports, clippy::all, clippy::style, clippy::pedantic, clippy::restriction)]
 mod gpu_utils;
 
 use std::fs;

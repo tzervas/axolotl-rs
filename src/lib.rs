@@ -10,6 +10,18 @@
 #![allow(clippy::unnecessary_wraps)]
 #![allow(dead_code)]
 #![allow(clippy::match_same_arms)]
+#![allow(clippy::float_cmp)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::semicolon_if_nothing_returned)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::struct_excessive_bools)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::explicit_iter_loop)]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::struct_field_names)]
 
 //! # axolotl-rs
 //!

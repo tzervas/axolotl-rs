@@ -1098,13 +1098,13 @@ mod tests {
 
     /// Helper to create a test dataset file
     fn create_test_dataset(path: &str, num_examples: usize) -> std::io::Result<()> {
+        use std::fmt::Write as _;
         let mut content = String::new();
         for i in 0..num_examples {
-            content.push_str(&format!(
-                r#"{{"instruction":"Test instruction {}","input":"","output":"Test output {}"}}"#,
-                i, i
-            ));
-            content.push('\n');
+            let _ = writeln!(
+                content,
+                r#"{{"instruction":"Test instruction {i}","input":"","output":"Test output {i}"}}"#
+            );
         }
         fs::write(path, content)
     }
@@ -1284,7 +1284,7 @@ mod tests {
         assert_eq!(trainer2.step, 100);
         assert_eq!(trainer2.epoch, 2);
         // Verify learning rate was restored from checkpoint
-        assert_eq!(trainer2.optimizer.as_ref().unwrap().learning_rate(), 0.001);
+        assert!((trainer2.optimizer.as_ref().unwrap().learning_rate() - 0.001).abs() < 1e-6);
     }
 
     #[test]
@@ -1566,33 +1566,47 @@ mod tests {
 
     #[test]
     fn test_scheduler_from_config_honors_type_and_warmup() {
-        let mut training = TrainingConfig::default();
-        training.lr_scheduler = LrScheduler::Cosine;
-        training.warmup_ratio = 0.1;
-        training.learning_rate = 1e-3;
+        let training = TrainingConfig {
+            lr_scheduler: LrScheduler::Cosine,
+            warmup_ratio: 0.1,
+            learning_rate: 1e-3,
+            ..Default::default()
+        };
 
         let sched = build_scheduler_from_config(&training, 1000);
         // step 0 -> still at 0 before any step(); get_lr uses current_step
         assert!((sched.get_lr() - 0.0).abs() < 1e-12);
 
-        training.lr_scheduler = LrScheduler::Linear;
-        let linear = build_scheduler_from_config(&training, 100);
+        let training_linear = TrainingConfig {
+            lr_scheduler: LrScheduler::Linear,
+            warmup_ratio: 0.1,
+            learning_rate: 1e-3,
+            ..Default::default()
+        };
+        let linear = build_scheduler_from_config(&training_linear, 100);
         // mid-warmup: after setting internal step via repeated step would need optimizer;
         // instead inspect type via Cosine vs Linear by comparing schedule shapes:
         // at current_step=0 both start at 0 for Linear/Cosine
         assert!((linear.get_lr() - 0.0).abs() < 1e-12);
 
-        training.lr_scheduler = LrScheduler::Constant;
-        let constant = build_scheduler_from_config(&training, 100);
+        let training_constant = TrainingConfig {
+            lr_scheduler: LrScheduler::Constant,
+            warmup_ratio: 0.1,
+            learning_rate: 1e-3,
+            ..Default::default()
+        };
+        let constant = build_scheduler_from_config(&training_constant, 100);
         assert!((constant.get_lr() - 1e-3).abs() < 1e-12);
     }
 
     #[test]
     fn test_scheduler_warmup_ratio_not_hardcoded_10_percent() {
-        let mut training = TrainingConfig::default();
-        training.lr_scheduler = LrScheduler::Linear;
-        training.warmup_ratio = 0.5; // 50% warmup
-        training.learning_rate = 1.0;
+        let training = TrainingConfig {
+            lr_scheduler: LrScheduler::Linear,
+            warmup_ratio: 0.5, // 50% warmup
+            learning_rate: 1.0,
+            ..Default::default()
+        };
 
         let mut sched = build_scheduler_from_config(&training, 100);
         // Manually advance current_step by calling step with a dummy optimizer
@@ -1691,16 +1705,18 @@ mod tests {
         // (w * 2).sum_all() grad is 2 for each element -> [2, 2]
         // (w * 3).sum_all() grad is [3, 3]
         // sum = [5, 5]
-        assert!((vals[0] - 5.0).abs() < 1e-4, "got {:?}", vals);
-        assert!((vals[1] - 5.0).abs() < 1e-4, "got {:?}", vals);
+        assert!((vals[0] - 5.0).abs() < 1e-4, "got {vals:?}");
+        assert!((vals[1] - 5.0).abs() < 1e-4, "got {vals:?}");
     }
 
     #[test]
     fn test_accum_steps_config_defaults_and_override() {
         let t = TrainingConfig::default();
         assert_eq!(t.gradient_accumulation_steps, 4);
-        let mut t2 = TrainingConfig::default();
-        t2.gradient_accumulation_steps = 8;
+        let t2 = TrainingConfig {
+            gradient_accumulation_steps: 8,
+            ..Default::default()
+        };
         assert_eq!(t2.gradient_accumulation_steps, 8);
         // Effective optimizer steps helper: ceil division used in train()
         let microbatches = 10usize;
