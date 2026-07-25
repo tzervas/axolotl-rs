@@ -14,7 +14,14 @@
 //! cargo test --features peft,cuda test_lora_llama_ -- --ignored
 //! ```
 
-#![allow(dead_code, unused_imports, clippy::all, clippy::style, clippy::pedantic, clippy::restriction)]
+#![allow(
+    dead_code,
+    unused_imports,
+    clippy::all,
+    clippy::style,
+    clippy::pedantic,
+    clippy::restriction
+)]
 #[cfg(feature = "peft")]
 mod lora_llama_tests {
     use candle_core::{DType, Device, Tensor};

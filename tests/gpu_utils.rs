@@ -21,7 +21,14 @@
 //! }
 //! ```
 
-#![allow(dead_code, unused_imports, clippy::all, clippy::style, clippy::pedantic, clippy::restriction)]
+#![allow(
+    dead_code,
+    unused_imports,
+    clippy::all,
+    clippy::style,
+    clippy::pedantic,
+    clippy::restriction
+)]
 use candle_core::Device;
 
 /// VRAM requirements for different model tiers (in bytes).
