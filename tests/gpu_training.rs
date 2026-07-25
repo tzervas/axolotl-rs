@@ -13,7 +13,14 @@
 //! | `test_gpu_tinyllama_extended` | TinyLlama-1.1B | 500 | ~2 GB | Extended convergence |
 //! | `test_gpu_llama7b_full` | LLaMA-7B | 1000 | ~12 GB | Full validation |
 
-#![allow(dead_code, unused_imports, clippy::all, clippy::style, clippy::pedantic, clippy::restriction)]
+#![allow(
+    dead_code,
+    unused_imports,
+    clippy::all,
+    clippy::style,
+    clippy::pedantic,
+    clippy::restriction
+)]
 mod gpu_utils;
 
 use std::fs;

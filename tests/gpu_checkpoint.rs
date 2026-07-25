@@ -3,7 +3,14 @@
 //! These tests validate checkpoint functionality including adapter weight persistence.
 //! Run with: `cargo test --features 'qlora cuda' -- --ignored checkpoint`
 
-#![allow(dead_code, unused_imports, clippy::all, clippy::style, clippy::pedantic, clippy::restriction)]
+#![allow(
+    dead_code,
+    unused_imports,
+    clippy::all,
+    clippy::style,
+    clippy::pedantic,
+    clippy::restriction
+)]
 mod gpu_utils;
 
 use std::fs;

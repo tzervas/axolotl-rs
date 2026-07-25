@@ -1,6 +1,13 @@
 //! Integration tests for the axolotl CLI.
 
-#![allow(dead_code, unused_imports, clippy::all, clippy::style, clippy::pedantic, clippy::restriction)]
+#![allow(
+    dead_code,
+    unused_imports,
+    clippy::all,
+    clippy::style,
+    clippy::pedantic,
+    clippy::restriction
+)]
 use assert_cmd::Command;
 use std::fs;
 use std::path::PathBuf;

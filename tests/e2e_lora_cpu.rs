@@ -5,7 +5,14 @@
 //! cargo test --features peft --test e2e_lora_cpu
 //! ```
 
-#![allow(dead_code, unused_imports, clippy::all, clippy::style, clippy::pedantic, clippy::restriction)]
+#![allow(
+    dead_code,
+    unused_imports,
+    clippy::all,
+    clippy::style,
+    clippy::pedantic,
+    clippy::restriction
+)]
 #![cfg(feature = "peft")]
 
 use std::fs;
