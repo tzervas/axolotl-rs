@@ -2,6 +2,17 @@ name: jules-automerge
 # Event-driven auto-merge for Jules PRs — no cron, no external actor.
 # Fires when a check suite completes; merges the PR only if it is a Jules PR,
 # is mergeable, and every non-skipped check has concluded success.
+#
+# HARD GATES (contract §6):
+# - At least one completed success check is required. An empty check list must
+#   NOT merge — that is "unverified work looking like success".
+# - Skipped/neutral checks do not count toward the success floor and do not
+#   block (a skipped GPU job is not a green GPU job, but it is also not a
+#   failure of a gate that ran).
+# - This workflow is only safe once real required status checks report on the
+#   default branch. As of 2026-07-25 this repo's ruleset (protec-main) requires
+#   a PR but defines ZERO required status-check contexts — operator must add
+#   real required checks before relying on this path.
 on:
   check_suite:
     types: [completed]
@@ -49,21 +60,34 @@ jobs:
 
               // Gate on the combined check-runs for the head SHA: every non-skipped,
               // non-neutral check must be success. Skipped checks do not block.
+              // CRITICAL: zero check-runs is NOT success — refuse to merge unverified work.
               const { data: runs } = await github.rest.checks.listForRef({
                 owner, repo, ref: full.head.sha, per_page: 100,
               });
-              const blocking = runs.check_runs.filter(c =>
+              const all = runs.check_runs || [];
+              if (all.length === 0) {
+                core.info(`#${pr.number}: no check-runs on ${full.head.sha.slice(0, 7)} — refuse empty gate`);
+                continue;
+              }
+              const blocking = all.filter(c =>
                 !['skipped', 'neutral'].includes(c.conclusion));
               const pending = blocking.filter(c => c.status !== 'completed');
               const failed = blocking.filter(c => c.conclusion !== 'success');
+              const succeeded = blocking.filter(c =>
+                c.status === 'completed' && c.conclusion === 'success');
               if (pending.length) { core.info(`#${pr.number}: ${pending.length} checks pending`); continue; }
               if (failed.length) { core.info(`#${pr.number}: ${failed.length} checks not green`); continue; }
+              // Floor: at least one real success. All-skipped (blocking empty) is not a gate.
+              if (succeeded.length === 0) {
+                core.info(`#${pr.number}: no successful non-skipped checks — refuse`);
+                continue;
+              }
 
               try {
                 await github.rest.pulls.merge({
                   owner, repo, pull_number: pr.number, merge_method: 'squash',
                 });
-                core.info(`#${pr.number}: MERGED (Jules, all non-skipped checks green)`);
+                core.info(`#${pr.number}: MERGED (Jules, ${succeeded.length} green check(s))`);
               } catch (e) {
                 core.warning(`#${pr.number}: merge failed — ${e.message}`);
               }
