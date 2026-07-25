@@ -5,7 +5,48 @@ All notable changes to axolotl-rs will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### CI (pending operator merge of prerequisite PRs into `dev`)
+
+These entries describe open work that is **not yet on `dev`**. They will move under
+the next published section only after the listed PRs land.
+
+- **#40** — Fix invalid YAML in `reopen-issues-closed-off-main.yml`: the embedded
+  Python heredoc was at column 0 and terminated the `|` block scalar, causing a
+  permanent `startup_failure` on every push. Indent the heredoc so YAML stays valid
+  and the shell still receives the intended script.
+- **#44** — Call centralized `mycelium-workflows` `reusable-rust-ci.yml@v1` for the
+  core gate (`fmt` / `clippy` / `check` / `test` / docs / benches). Keep coverage,
+  cargo-audit/deny, and MSRV jobs local. Drop PR-body dependency override injection
+  (script-injection channel). **Blocked on `@v1` tag existing upstream.**
+- **#43** — Replace local `fleet-ci.yml` / `fleet-security.yml` with thin callers into
+  mycelium fleet reusables with branch-tier strictness (dev vs main). **Blocked on
+  fleet reusable workflows shipping under `@v1` (currently only on feature branches).**
+- **#39** — Event-driven auto-merge for Jules PRs (`jules-*` branches / known authors),
+  gated on every non-skipped check concluding success **and** at least one success
+  (empty check list refuses). **Operator judgement: do not land until this repo has
+  real required status-check contexts on the ruleset** (today `protec-main` requires
+  a PR but zero status checks — contract §6).
+
+### Closed without merge (superseded / duplicate)
+
+- **#42** — Duplicate of #40 (same heredoc fix; #40 kept the explanatory comment).
+- **#36** — Bot “comprehensive maintenance” PR. Unique useful work (binary imports
+  from the library crate, cargo-deny v2, clippy cleanup) already on `dev` via
+  `85aff79` / `5c03a8e` / `0b5d004` and on `main` via #37/#38. Remaining tip-only
+  deltas were lint suppressions, not fixes.
+
 ## [1.2.0] - 2026-07-22
+
+### Version reconciliation
+
+- **crates.io published:** 1.1.1
+- **in-tree `Cargo.toml`:** 1.2.0 (already bumped; never published)
+- **No further bump in this release PR.** The 1.2.0 MINOR correctly describes the
+  feature set below (merge, E2E LoRA, checkpoints, shards, download). Consolidated
+  open PRs are CI-only and do not warrant 1.2.1 or 1.3.0 under conventional-commit
+  rules. Grandfathered 1.x — do not renumber to 0.x or cut 2.0.0.
 
 ### Added
 - **CPU E2E LoRA train proof** on a tiny LLaMA-shaped fixture (`src/fixture.rs`,
@@ -23,6 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   remains first-class. Gated models need `HF_TOKEN` or `huggingface-cli`.
 - **Optimizer init** on trainable adapter params at train start (was missing).
 - Tiny fixture helpers: `write_tiny_llama_fixture`, `write_tiny_alpaca_jsonl`.
+- Commitizen config (`.cz.toml`) with `major_version_zero = false` (grandfathered 1.x)
+  and `version_files = ["Cargo.toml:version"]`.
 
 ### Changed
 - Version **1.2.0**; capability matrix documents green checks only for real features.
@@ -32,25 +75,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - reqwest gains `blocking` for Hub download.
 - CLI merge/download docs no longer claim `UNSUPPORTED` for happy paths.
 - README + `docs/DEPENDENCIES.md` describe the DAG and fleet override policy.
+- Binary entrypoint imports from the library crate instead of re-declaring modules
+  (dedupe on `dev` cleanup series).
+
 ### Fixed
 - LoRA A/B capture reads real VarMap values (not empty placeholders).
 - Checkpoint path saves embedded LoRA even when `adapter_layers` is `None`.
+- Training honors `gradient_accumulation_steps`, `lr_scheduler`, `warmup_ratio`,
+  and `max_grad_norm`; grad/param norms are real L2 values.
 
 ### Notes / GPU
-- `cargo test --features peft,cuda` **BLOCKED:env** on this host: RTX 5080 (sm_120)
-  but installed `nvcc` max arch is 90. CPU gates remain green with `AXOLOTL_FORCE_CPU=1`.
-
-## [Unreleased]
-
-### Fixed
-- **PR-028:** `cargo check --features peft,qlora` succeeds via path deps to peft-rs/qlora-rs,
-  `safetensors` 0.7 alignment, and `[patch.crates-io] peft-rs` (no dual View trait).
-- **PR-029:** Training honors `gradient_accumulation_steps`, `lr_scheduler`, `warmup_ratio`,
-  and `max_grad_norm`; grad/param norms are real L2 values (not 0.0/1.0 placeholders).
-- **PR-030:** (superseded by 1.2.0) earlier honesty gates for merge/download stubs.
-
-### Changed
-- Sister deps for adapters: path `../peft-rs` + `../qlora-rs` in this SoT tree.
+- `cargo test --features peft,cuda` **BLOCKED:env** on hosts without matching CUDA
+  arch support. CPU gates remain green with `AXOLOTL_FORCE_CPU=1`.
 
 ## [1.1.1] - 2026-01-24
 

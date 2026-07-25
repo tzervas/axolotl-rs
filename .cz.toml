@@ -1,0 +1,28 @@
+# Commitizen configuration (commitizen-tools).
+# Install (optional): pip install commitizen  OR  uv tool install commitizen
+# This file is valid without the CLI: agents and humans follow the same rules.
+#
+# Grandfathered 1.x: this crate is already published on crates.io at 1.x
+# (latest registry version 1.1.1). major_version_zero MUST stay false — setting
+# it true would treat the minor as the breaking position and mis-label 1.x
+# releases under 0.x rules. Do not renumber to 0.x or cut 2.0.0 without a
+# human decision (fleet BRANCH-AND-RELEASE-CONTRACT §3 + repo exception).
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.2.0"
+tag_format = "v$version"
+version_scheme = "semver"
+major_version_zero = false
+
+# Keep these files lockstep on every release bump. Paths verified to exist.
+version_files = [
+    "Cargo.toml:version",
+]
+
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"
+changelog_incremental = true
+# cz bump: prefer `cz bump --increment PATCH|MINOR|MAJOR` when a further bump
+# is warranted. The 1.2.0 bump is already applied in-tree (never published);
+# do not double-bump without new conventional commits that justify it.
