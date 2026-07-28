@@ -127,15 +127,13 @@ impl LoadedModel {
     ///
     /// Returns an error if the forward pass fails.
     pub fn forward_with_adapters(&self, input_ids: &Tensor) -> Result<Tensor> {
-        // Get base model output (logits for all positions)
+        // Get model output (logits for all positions).
+        // If LoraLlama or QLoraLlama is loaded, their forward implementation properly
+        // evaluates the per-layer adapter paths. If standard Llama is used, it
+        // evaluates base logits.
         let logits = self.forward(input_ids)?;
 
-        // TODO: Implement proper per-layer LoRA injection via LoraLlama
-        // Current approach: Return base logits
-        // This allows testing of training loop, loss computation, and optimizer
-        // even without proper LoRA integration
-
-        tracing::trace!("Forward pass complete (base model only, LoRA not integrated yet)");
+        tracing::trace!("Forward pass complete");
 
         Ok(logits)
     }
@@ -466,7 +464,6 @@ impl ModelInfo {
     pub fn get_target_dims(&self, target: &str) -> (usize, usize) {
         match target {
             // Attention projections
-            "q_proj" | "o_proj" => (self.hidden_size, self.hidden_size),
             "k_proj" | "v_proj" => {
                 let kv_dim = self.hidden_size * self.num_kv_heads / self.num_attention_heads;
                 (self.hidden_size, kv_dim)
@@ -474,7 +471,7 @@ impl ModelInfo {
             // MLP projections
             "gate_proj" | "up_proj" => (self.hidden_size, self.intermediate_size),
             "down_proj" => (self.intermediate_size, self.hidden_size),
-            // Default to hidden_size for unknown targets
+            // Default to hidden_size for unknown targets (includes q_proj, o_proj)
             _ => (self.hidden_size, self.hidden_size),
         }
     }
