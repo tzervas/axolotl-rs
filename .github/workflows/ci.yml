@@ -31,7 +31,7 @@ env:
 jobs:
   test:
     name: Test Suite
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, podman]
     strategy:
       matrix:
         rust: [stable, beta]
@@ -100,7 +100,7 @@ jobs:
 
   coverage:
     name: Code Coverage
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, podman]
     
     steps:
       - name: Checkout repository
@@ -149,7 +149,7 @@ jobs:
 
   security:
     name: Security Audit
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, podman]
     
     steps:
       - name: Checkout repository
@@ -193,7 +193,7 @@ jobs:
 
   benchmark:
     name: Benchmarks
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, podman]
     if: github.event_name == 'pull_request'
     
     steps:
@@ -228,7 +228,7 @@ jobs:
 
   msrv:
     name: Minimum Supported Rust Version
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, podman]
     
     steps:
       - name: Checkout repository
