@@ -426,7 +426,15 @@ impl AxolotlConfig {
     /// # }
     /// ```
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let content = std::fs::read_to_string(path)?;
+        let path_ref = path.as_ref();
+        let metadata = std::fs::metadata(path_ref)?;
+        if metadata.len() > 10 * 1024 * 1024 {
+            return Err(AxolotlError::Config(format!(
+                "Configuration file exceeds maximum allowed size (10MB): {} bytes",
+                metadata.len()
+            )));
+        }
+        let content = std::fs::read_to_string(path_ref)?;
         let config: Self = serde_yaml::from_str(&content)?;
         Ok(config)
     }
@@ -892,6 +900,18 @@ mod tests {
 
         let result = AxolotlConfig::from_file(temp_file.path());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_config_exceeds_size_limit() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let file = temp_file.as_file_mut();
+        file.set_len(11 * 1024 * 1024).unwrap();
+
+        let result = AxolotlConfig::from_file(temp_file.path());
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("exceeds maximum allowed size"));
     }
 
     #[test]
