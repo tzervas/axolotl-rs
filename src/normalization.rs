@@ -5,7 +5,7 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```ignore
 //! use candle_core::{Device, Tensor};
 //! use axolotl_rs::normalization::RmsNormWrapper;
 //!

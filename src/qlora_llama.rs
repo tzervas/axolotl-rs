@@ -666,7 +666,7 @@ impl Module for QLoraLlama {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```text
 /// let mut model = QLoraLlama::new_with_qlora(&config, base_vb, &qlora_config, &lora_varmap)?;
 /// prepare_for_qlora_training(&model, &lora_varmap)?;
 /// ```
