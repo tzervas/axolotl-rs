@@ -174,7 +174,7 @@ impl VSAAccelerator {
 
         Ok(VSAStepInfo {
             step: info.total_step,
-            phase: info.phase.clone(),
+            phase: info.phase,
             needs_backward: matches!(
                 info.phase,
                 DeterministicPhase::Warmup | DeterministicPhase::Full | DeterministicPhase::Correct
