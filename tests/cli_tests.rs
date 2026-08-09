@@ -143,9 +143,9 @@ fn test_init_command_help() {
 }
 
 #[test]
-fn test_init_command_creates_config() {
+fn test_init_command_creates_config_llama2() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
-    let output_path = temp_dir.path().join("test_config.yaml");
+    let output_path = temp_dir.path().join("test_config_llama2.yaml");
 
     let mut cmd = run_cli(&[
         "init",
@@ -162,6 +162,55 @@ fn test_init_command_creates_config() {
     // Verify it contains expected content
     let content = fs::read_to_string(&output_path).expect("Failed to read generated config");
     assert!(content.contains("base_model"));
+    assert!(content.contains("meta-llama/Llama-2-7b-hf"));
+    assert!(content.contains("dataset"));
+}
+
+#[test]
+fn test_init_command_creates_config_mistral() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let output_path = temp_dir.path().join("test_config_mistral.yaml");
+
+    let mut cmd = run_cli(&[
+        "init",
+        output_path.to_str().unwrap(),
+        "--preset",
+        "mistral-7b",
+    ]);
+
+    cmd.assert().success();
+
+    // Verify the config file was created
+    assert!(output_path.exists(), "Config file should be created");
+
+    // Verify it contains expected content
+    let content = fs::read_to_string(&output_path).expect("Failed to read generated config");
+    assert!(content.contains("base_model"));
+    assert!(content.contains("mistralai/Mistral-7B-v0.1"));
+    assert!(content.contains("dataset"));
+}
+
+#[test]
+fn test_init_command_creates_config_phi3() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let output_path = temp_dir.path().join("test_config_phi3.yaml");
+
+    let mut cmd = run_cli(&[
+        "init",
+        output_path.to_str().unwrap(),
+        "--preset",
+        "phi3-mini",
+    ]);
+
+    cmd.assert().success();
+
+    // Verify the config file was created
+    assert!(output_path.exists(), "Config file should be created");
+
+    // Verify it contains expected content
+    let content = fs::read_to_string(&output_path).expect("Failed to read generated config");
+    assert!(content.contains("base_model"));
+    assert!(content.contains("microsoft/phi-3-mini-4k-instruct"));
     assert!(content.contains("dataset"));
 }
 
