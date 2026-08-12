@@ -315,4 +315,24 @@ mod tests {
         assert!(config.full_steps < VSAAcceleratorConfig::default().full_steps);
         assert!(config.predict_steps > VSAAcceleratorConfig::default().predict_steps);
     }
+
+    #[test]
+    fn test_vsa_accelerator_begin_step() {
+        use candle_core::{DType, Device};
+        let device = Device::Cpu;
+        let varmap = VarMap::new();
+        // Add a parameter to the VarMap so extraction succeeds
+        {
+            let mut ws = varmap.data().lock().unwrap();
+            let t = Tensor::zeros(&[2, 2], DType::F32, &device).unwrap();
+            ws.insert("a".into(), candle_core::Var::from_tensor(&t).unwrap());
+        }
+
+        let config = VSAAcceleratorConfig::default();
+        let mut accel = VSAAccelerator::new(&varmap, config, &device).unwrap();
+        let step_info = accel.begin_step().unwrap();
+
+        assert_eq!(step_info.step, 0);
+        assert!(step_info.needs_backward); // Starts in Warmup phase which needs backward
+    }
 }

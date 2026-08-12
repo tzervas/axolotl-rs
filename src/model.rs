@@ -2291,4 +2291,43 @@ mod tests {
         .expect("local path must resolve");
         assert_eq!(PathBuf::from(&resolved), model_dir);
     }
+
+    #[test]
+    fn test_loaded_model_forward_with_adapters() {
+        let temp_dir = TempDir::new().unwrap();
+        let model_dir = temp_dir.path().join("base");
+        crate::fixture::write_tiny_llama_fixture(
+            &model_dir,
+            crate::fixture::TinyLlamaSpec {
+                vocab_size: 32,
+                hidden_size: 16,
+                intermediate_size: 32,
+                num_hidden_layers: 1,
+                num_attention_heads: 4,
+                num_key_value_heads: 4,
+                max_position_embeddings: 64,
+            },
+        )
+        .unwrap();
+
+        let device = Device::Cpu;
+        let varmap = VarMap::new();
+        let vb = VarBuilder::from_varmap(&varmap, DType::F32, &device);
+        let simple_model = SimpleModel::new(vb).unwrap();
+        let tokenizer = load_tokenizer(&model_dir).unwrap();
+
+        let loaded_model = LoadedModel {
+            model: Box::new(simple_model),
+            tokenizer,
+            device: device.clone(),
+            dtype: DType::F32,
+            adapter_layers: None,
+            trainable_params: varmap,
+        };
+
+        // Input tensor must match SimpleModel layer dimension (shape: [batch, 10])
+        let input = Tensor::zeros(&[2, 10], DType::F32, &device).unwrap();
+        let logits = loaded_model.forward_with_adapters(&input).unwrap();
+        assert_eq!(logits.dims(), &[2, 10]);
+    }
 }
