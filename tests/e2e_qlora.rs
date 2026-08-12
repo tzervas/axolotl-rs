@@ -29,6 +29,8 @@ use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
+use axolotl_rs::{AxolotlConfig, Trainer};
+
 /// Number of samples for CI testing (fast smoke test)
 const CI_SAMPLE_COUNT: usize = 100;
 
@@ -560,11 +562,11 @@ fn test_smollm2_e2e_validation() {
     // Download with: huggingface-cli download HuggingFaceTB/SmolLM2-135M
     println!("SmolLM2 E2E test config created at: {:?}", config_path);
 
-    // TODO: Once model loading is complete:
-    // let config = AxolotlConfig::from_file(config_path.to_str().unwrap()).unwrap();
-    // let mut trainer = Trainer::new(config).unwrap();
-    // trainer.train().unwrap();
-    // assert!(output_dir.join("adapter_model.safetensors").exists());
+    // E2E test: run full training with QLoRA if model is available
+    let config = AxolotlConfig::from_file(config_path.to_str().unwrap()).unwrap();
+    let mut trainer = Trainer::new(config).unwrap();
+    trainer.train().unwrap();
+    assert!(output_dir.join("adapter_model.safetensors").exists());
 }
 
 /// Full E2E test with TinyLlama-1.1B (requires model download and GPU).
@@ -590,9 +592,9 @@ fn test_tinyllama_e2e_validation() {
     // Download with: huggingface-cli download TinyLlama/TinyLlama-1.1B-Chat-v1.0
     println!("TinyLlama E2E test config created at: {:?}", config_path);
 
-    // TODO: Once model loading is complete:
-    // let config = AxolotlConfig::from_file(config_path.to_str().unwrap()).unwrap();
-    // let mut trainer = Trainer::new(config).unwrap();
-    // trainer.train().unwrap();
-    // assert!(output_dir.join("adapter_model.safetensors").exists());
+    // E2E test: run full training with QLoRA on TinyLlama if model is available
+    let config = AxolotlConfig::from_file(config_path.to_str().unwrap()).unwrap();
+    let mut trainer = Trainer::new(config).unwrap();
+    trainer.train().unwrap();
+    assert!(output_dir.join("adapter_model.safetensors").exists());
 }
