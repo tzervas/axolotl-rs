@@ -118,9 +118,6 @@
 //! ```
 
 #![warn(missing_docs)]
-// Temporarily disable pedantic lints for CI stability
-// TODO: Re-enable and address pedantic lints systematically
-// #![warn(clippy::pedantic)]
 
 pub mod adapters;
 pub mod cli;
