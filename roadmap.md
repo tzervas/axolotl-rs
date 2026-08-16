@@ -19,10 +19,10 @@ See [README.md](README.md) capability matrix for what works today.
 - [x] `peft,qlora` features compile with aligned deps (PR-028)
 - [x] Training YAML knobs honored + real norms (PR-029)
 - [x] CLI merge/download unsupported errors (PR-030)
-- [ ] CPU E2E LoRA train on tiny fixture (loss/weight proof)
-- [ ] Adapter checkpoint I/O for embedded LoRA path
-- [ ] Adapter merge implementation
-- [ ] Optional Hub download (or keep unsupported + document)
+- [x] CPU E2E LoRA train on tiny fixture (loss/weight proof)
+- [x] Adapter checkpoint I/O for embedded LoRA path
+- [x] Adapter merge implementation
+- [x] Optional Hub download (or keep unsupported + document)
 
 ## Later
 - Multi-GPU / packing / DPO / eval loop
