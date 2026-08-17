@@ -1,6 +1,7 @@
 # unsloth-rs kernel wiring (axolotl-rs)
 
-**Status:** planning frozen 2026-08-17 → implement on `feat/unsloth-customop-wire`  
+**Status:** implemented 2026-08-17 on `feat/unsloth-customop-wire`  
+
 **Depends on:** unsloth-rs 1.0.4 CustomOp family ([unsloth-rs#88](https://github.com/tzervas/unsloth-rs/pull/88) + [#89](https://github.com/tzervas/unsloth-rs/pull/89))  
 **Parent:** [axolotl-rs#69](https://github.com/tzervas/axolotl-rs/issues/69)
 
@@ -31,9 +32,11 @@ tree. No peft/qlora/core edits in this pass.
    (`x: [B,H,S,D]`, cache `[S, D/2]`).
 3. **RmsNormWrapper** — when feature on, always construct `unsloth_rs::RmsNorm`
    (CPU CustomOp works; do not gate on `is_cuda()`).
-4. **Cargo.toml** — `unsloth-rs = { version = "1.0.4", optional = true }`.
-   Default CI (`cargo test`) does **not** enable `unsloth`. Until 1.0.4 is on
-   crates.io, local SoT is `scripts/use-local-path-deps.sh`.
+4. **Cargo.toml** — keep `unsloth-rs = { version = "1.0", optional = true }` so
+   crates.io resolve works before 1.0.4 is published. The `unsloth` **feature**
+   requires 1.0.4 APIs (`chunked_cross_entropy`, `rope_custom_op`). Use
+   `scripts/use-local-path-deps.sh` until 1.0.4 is on crates.io, then bump the
+   floor to `1.0.4`.
 
 ## Out of this pass
 

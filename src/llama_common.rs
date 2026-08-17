@@ -107,7 +107,14 @@ pub fn apply_rotary_emb(x: &Tensor, index_pos: usize, cache: &Cache) -> CandleRe
     let (_b_sz, _num_heads, seq_len, _head_dim) = x.dims4()?;
     let cos = cache.cos.narrow(0, index_pos, seq_len)?;
     let sin = cache.sin.narrow(0, index_pos, seq_len)?;
-    candle_nn::rotary_emb::rope(x, &cos, &sin)
+    #[cfg(feature = "unsloth")]
+    {
+        unsloth_rs::kernels::rope_custom_op(x, &cos, &sin)
+    }
+    #[cfg(not(feature = "unsloth"))]
+    {
+        candle_nn::rotary_emb::rope(x, &cos, &sin)
+    }
 }
 
 /// Repeat KV heads for grouped-query attention.

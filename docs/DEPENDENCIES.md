@@ -32,8 +32,14 @@ qlora-rs = { version = "1.0", optional = true }
 unsloth-rs = { version = "1.0", optional = true }
 ```
 
-After peft-rs **1.1.0** and qlora-rs **1.1.0** are published, bump floors to `1.1` /
-`1.1` / `1.0.3`.
+After peft-rs **1.1.0** and qlora-rs **1.1.0** are published, bump those floors.
+unsloth-rs **1.0.4** is the CustomOp CE/RoPE/RMSNorm release (see
+`docs/UNSLOTH_KERNEL_WIRING.md`). Until it is on crates.io, local SoT:
+
+```bash
+bash scripts/use-local-path-deps.sh
+```
+
 
 ## Local SoT (fleet)
 

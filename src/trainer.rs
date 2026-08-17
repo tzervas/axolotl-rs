@@ -1003,6 +1003,32 @@ fn compute_cross_entropy_loss(logits: &Tensor, labels: &Tensor, device: &Device)
         )));
     }
 
+    #[cfg(feature = "unsloth")]
+    {
+        let _ = device;
+        return unsloth_rs::kernels::chunked_cross_entropy(
+            &logits_flat,
+            &labels_flat,
+            -100,
+            unsloth_rs::kernels::DEFAULT_CE_CHUNK,
+        )
+        .map_err(|e| AxolotlError::Training(format!("unsloth chunked CE failed: {e}")));
+    }
+
+    #[cfg(not(feature = "unsloth"))]
+    {
+        compute_cross_entropy_loss_candle(&logits_flat, &labels_flat, vocab_size, device)
+    }
+}
+
+#[cfg(not(feature = "unsloth"))]
+fn compute_cross_entropy_loss_candle(
+    logits_flat: &Tensor,
+    labels_flat: &Tensor,
+    vocab_size: usize,
+    device: &Device,
+) -> Result<Tensor> {
+    let num_positions = labels_flat.elem_count();
     // Create mask for valid (non-padding) positions
     // Labels of -100 are masked out
     let labels_i64 = labels_flat

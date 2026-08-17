@@ -210,7 +210,14 @@ impl LoraAttention {
         let (_b_sz, _, seq_len, _hidden_size) = x.dims4()?;
         let cos = cache.cos.narrow(0, index_pos, seq_len)?;
         let sin = cache.sin.narrow(0, index_pos, seq_len)?;
-        candle_nn::rotary_emb::rope(x, &cos, &sin)
+        #[cfg(feature = "unsloth")]
+        {
+            unsloth_rs::kernels::rope_custom_op(x, &cos, &sin)
+        }
+        #[cfg(not(feature = "unsloth"))]
+        {
+            candle_nn::rotary_emb::rope(x, &cos, &sin)
+        }
     }
 
     /// Forward pass with `LoRA` injection at each projection.
