@@ -2320,7 +2320,9 @@ mod tests {
         let device = Device::Cpu;
         let loaded = load_model(&config, &device).expect("model loading should succeed");
         let input_ids = Tensor::from_vec(vec![1i64, 5i64, 10i64], (1, 3), &device).unwrap();
-        let logits = loaded.forward_with_adapters(&input_ids).expect("forward_with_adapters should succeed");
+        let logits = loaded
+            .forward_with_adapters(&input_ids)
+            .expect("forward_with_adapters should succeed");
         assert_eq!(logits.dims(), &[1, 32]);
     }
 }
