@@ -117,6 +117,23 @@ pub fn apply_rotary_emb(x: &Tensor, index_pos: usize, cache: &Cache) -> CandleRe
     }
 }
 
+/// Packed / non-contiguous RoPE. `position_ids` is i64 `[S]` or `[B, S]`.
+///
+/// Needs unsloth-rs ≥ 1.0.4 (`rope_with_position_ids`). Sequential callers
+/// can keep [`apply_rotary_emb`].
+///
+/// # Errors
+///
+/// Shape mismatch or kernel error.
+#[cfg(feature = "unsloth")]
+pub fn apply_rotary_emb_ids(
+    x: &Tensor,
+    position_ids: &Tensor,
+    cache: &Cache,
+) -> CandleResult<Tensor> {
+    unsloth_rs::kernels::rope_with_position_ids(x, &cache.cos, &cache.sin, position_ids)
+}
+
 /// Repeat KV heads for grouped-query attention.
 ///
 /// # Arguments

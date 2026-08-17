@@ -1021,6 +1021,30 @@ fn compute_cross_entropy_loss(logits: &Tensor, labels: &Tensor, device: &Device)
     }
 }
 
+/// Fused `hidden @ lm_head.T` + CE. Call this **instead of** materializing
+/// logits when the model can return hidden states.
+///
+/// CPU: no `[N,V]` (unsloth-rs ≥ 1.0.4). CUDA: still materializes (honest).
+///
+/// # Errors
+///
+/// Kernel / shape errors.
+#[cfg(feature = "unsloth")]
+pub fn compute_fused_lm_head_loss(
+    hidden: &Tensor,
+    lm_head_weight: &Tensor,
+    labels: &Tensor,
+) -> Result<Tensor> {
+    unsloth_rs::kernels::fused_linear_cross_entropy(
+        hidden,
+        lm_head_weight,
+        labels,
+        -100,
+        unsloth_rs::kernels::DEFAULT_CE_CHUNK,
+    )
+    .map_err(|e| AxolotlError::Training(format!("unsloth fused linear CE failed: {e}")))
+}
+
 #[cfg(not(feature = "unsloth"))]
 fn compute_cross_entropy_loss_candle(
     logits_flat: &Tensor,
