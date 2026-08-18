@@ -114,29 +114,17 @@ impl LoadedModel {
             .map_err(|e| AxolotlError::Model(format!("Forward pass failed: {e}")))
     }
 
-    /// Run forward pass with adapter layers.
+    /// Run forward pass on the underlying model module.
     ///
-    /// **IMPORTANT**: Current implementation does NOT properly integrate adapters.
-    /// `LoRA` adapters need to be injected at each attention/MLP layer, not applied
-    /// post-hoc to logits. This requires custom model architecture (`LoraLlama`).
-    ///
-    /// For now, this returns base model output. Gradient flow is maintained through
-    /// the trainable `LoRA` parameters in `trainable_params` `VarMap`.
+    /// When using `LoraLlama` or `QLoraLlama`, per-layer adapters are evaluated
+    /// internally within the model during execution.
     ///
     /// # Errors
     ///
     /// Returns an error if the forward pass fails.
     pub fn forward_with_adapters(&self, input_ids: &Tensor) -> Result<Tensor> {
-        // Get base model output (logits for all positions)
         let logits = self.forward(input_ids)?;
-
-        // TODO: Implement proper per-layer LoRA injection via LoraLlama
-        // Current approach: Return base logits
-        // This allows testing of training loop, loss computation, and optimizer
-        // even without proper LoRA integration
-
-        tracing::trace!("Forward pass complete (base model only, LoRA not integrated yet)");
-
+        tracing::trace!("Forward pass complete with loaded model execution");
         Ok(logits)
     }
 
@@ -1268,24 +1256,6 @@ fn load_qlora_model(
     );
 
     Ok(Box::new(model))
-}
-
-/// Simple stub model for unsupported architectures.
-struct SimpleModel {
-    layer: candle_nn::Linear,
-}
-
-impl SimpleModel {
-    fn new(vb: VarBuilder) -> Result<Self> {
-        let layer = candle_nn::linear(10, 10, vb)?;
-        Ok(Self { layer })
-    }
-}
-
-impl Module for SimpleModel {
-    fn forward(&self, xs: &Tensor) -> candle_core::Result<Tensor> {
-        self.layer.forward(xs)
-    }
 }
 
 /// Wrapper for `LLaMA` model that implements the Module trait.
