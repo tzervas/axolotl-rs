@@ -2267,4 +2267,43 @@ mod tests {
         .expect("local path must resolve");
         assert_eq!(PathBuf::from(&resolved), model_dir);
     }
+
+    /// Test forward_with_adapters method on LoadedModel.
+    #[test]
+    fn test_loaded_model_forward_with_adapters() {
+        let temp_dir = TempDir::new().unwrap();
+        let model_dir = temp_dir.path().join("base");
+        crate::fixture::write_tiny_llama_fixture(
+            &model_dir,
+            crate::fixture::TinyLlamaSpec {
+                vocab_size: 32,
+                hidden_size: 16,
+                intermediate_size: 32,
+                num_hidden_layers: 1,
+                num_attention_heads: 4,
+                num_key_value_heads: 4,
+                max_position_embeddings: 64,
+            },
+        )
+        .unwrap();
+
+        let config = AxolotlConfig {
+            base_model: model_dir.to_string_lossy().to_string(),
+            adapter: AdapterType::None,
+            lora: LoraSettings::default(),
+            quantization: None,
+            dataset: DatasetConfig::default(),
+            training: TrainingConfig::default(),
+            output_dir: temp_dir.path().join("out").to_string_lossy().to_string(),
+            seed: 1,
+        };
+
+        let device = Device::Cpu;
+        let loaded = load_model(&config, &device).expect("load_model must succeed");
+        let input_ids = Tensor::new(&[[1u32, 2u32, 3u32]], &device).unwrap();
+        let logits = loaded
+            .forward_with_adapters(&input_ids)
+            .expect("forward_with_adapters must succeed");
+        assert_eq!(logits.dims(), &[1, 32]);
+    }
 }
