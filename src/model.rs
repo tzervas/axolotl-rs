@@ -2270,6 +2270,27 @@ mod tests {
         );
     }
 
+    /// Test LoadedModel::forward_with_adapters executes and returns logits.
+    #[test]
+    fn test_forward_with_adapters_executes() {
+        let temp_dir = TempDir::new().unwrap();
+        let model_dir = temp_dir.path().join("fixture_model");
+        crate::fixture::write_tiny_llama_fixture(
+            &model_dir,
+            crate::fixture::TinyLlamaSpec::default(),
+        )
+        .unwrap();
+
+        let mut config = AxolotlConfig::from_preset("llama2-7b").unwrap();
+        config.base_model = model_dir.to_string_lossy().to_string();
+        config.adapter = AdapterType::None;
+
+        let loaded = load_model(&config, &Device::Cpu).unwrap();
+        let input_tokens = Tensor::zeros((1usize, 4usize), DType::I64, &Device::Cpu).unwrap();
+        let logits = loaded.forward_with_adapters(&input_tokens).unwrap();
+        assert!(!logits.dims().is_empty());
+    }
+
     /// Local path is first-class for download helper (no network).
     #[test]
     #[cfg(feature = "download")]
