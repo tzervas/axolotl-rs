@@ -9,6 +9,7 @@ mod cli;
 mod config;
 mod dataset;
 mod error;
+mod export;
 mod fixture;
 #[cfg(feature = "peft")]
 mod llama_common;
@@ -47,6 +48,28 @@ enum Commands {
         /// Resume from checkpoint
         #[arg(long)]
         resume: Option<String>,
+    },
+    /// Export a trained adapter or merged model (PEFT / dense HF / Ollama / GGUF)
+    #[allow(clippy::doc_markdown)]
+    Export {
+        /// Output format: peft, hf, ollama-adapter, ollama-merged, gguf
+        #[arg(long, value_parser = ["peft", "hf", "ollama-adapter", "ollama-merged", "gguf"])]
+        format: String,
+        /// Path to configuration file
+        #[arg(long)]
+        config: String,
+        /// Output directory
+        #[arg(long)]
+        output: String,
+        /// Adapter checkpoint directory (or adapter_model.safetensors)
+        #[arg(long)]
+        adapter: Option<String>,
+        /// Pre-merged dense HuggingFace directory (gguf / ollama-merged)
+        #[arg(long)]
+        merged: Option<String>,
+        /// llama.cpp quant type for --format gguf (default Q4_K_M)
+        #[arg(long)]
+        quantize: Option<String>,
     },
     /// Merge LoRA adapter weights into base model linear weights
     #[allow(clippy::doc_markdown)]
@@ -110,6 +133,41 @@ fn main() -> Result<()> {
                 trainer.resume_from(&checkpoint)?;
             }
             trainer.train()?;
+        }
+        Commands::Export {
+            format,
+            config,
+            output,
+            adapter,
+            merged,
+            quantize,
+        } => {
+            tracing::info!("Export requested (format={format}, output={output})");
+            let config = AxolotlConfig::from_file(&config)?;
+            let fmt = match export::ExportFormat::from_cli(&format) {
+                Ok(f) => f,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    std::process::exit(2);
+                }
+            };
+            let req = export::ExportRequest {
+                format: fmt,
+                config,
+                output: std::path::PathBuf::from(&output),
+                adapter,
+                merged,
+                quantize,
+            };
+            match export::run_export(&req) {
+                Ok(()) => {
+                    println!("✓ Exported to: {output}");
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    std::process::exit(2);
+                }
+            }
         }
         Commands::Merge {
             config,

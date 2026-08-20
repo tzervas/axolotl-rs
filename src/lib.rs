@@ -40,6 +40,9 @@
 //! # Merge LoRA adapters into base weights
 //! axolotl merge --config config.yaml --output ./merged-model
 //!
+//! # Portable export (PEFT / dense HF / Ollama / llama.cpp GGUF)
+//! axolotl export --format peft --config config.yaml --adapter ./outputs/checkpoint-final --output ./peft-adapter
+//!
 //! # Optional: download weights from HuggingFace Hub
 //! axolotl download meta-llama/Llama-2-7b-hf --output ./models/llama2-7b
 //! ```
@@ -115,6 +118,7 @@ pub mod cli;
 pub mod config;
 pub mod dataset;
 pub mod error;
+pub mod export;
 pub mod fixture;
 #[cfg(feature = "peft")]
 pub mod llama_common;

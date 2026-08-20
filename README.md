@@ -26,11 +26,12 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 | YAML parse / validate / presets | ✅ | ✅ | ✅ | Real |
 | Dataset loaders (Alpaca, ShareGPT, completion, custom) | ✅ | ✅ | ✅ | Local JSONL only |
 | CLI `validate` / `init` / `train` | ✅ | ✅ | ✅ | `train` needs local model files |
-| CLI `merge` | ✅ | ✅ | ✅ | Fuses LoRA A/B into base `W` (`W + scale·B@A`) |
+| CLI `merge` | ✅ | ✅ | ✅ | Fuses LoRA A/B into dense `W` (`W + scale·B@A`); copies HF sidecars; rejects U8/NF4 packed tensors |
+| CLI `export` | ✅ | ✅ | ✅ | `--format peft\|hf\|ollama-adapter\|ollama-merged\|gguf` — never writes custom NF4 GGUF |
 | CLI `download` | ✅ local resolve | ✅ | ✅ | Local path first-class; Hub pull via `reqwest` when `download` feature on |
 | LoRA training path (`LoraLlama`) | ❌ not linked | ✅ | ✅ | Needs peft-rs + local weights |
-| QLoRA training path (`QLoraLlama`) | ❌ | ❌ | ✅ | Needs peft+qlora |
-| Checkpoint save/load LoRA A/B | ❌ | ✅ | ✅ | `adapter_model.safetensors` round-trip |
+| QLoRA training path (`QLoraLlama`) | ❌ | ❌ | ✅ | Needs peft+qlora; NF4 is a **training** codec |
+| Checkpoint save/load LoRA A/B | ❌ | ✅ | ✅ | Hub-safe `lora_A.default.weight` / `lora_B.default.weight` in one `adapter_model.safetensors` |
 | Sharded safetensors | ✅ | ✅ | ✅ | Loads index+shards or hard-errors if shard missing |
 | Architecture gate | ✅ | ✅ | ✅ | Non-LLaMA → clear `Unsupported` (no 10×10 stub) |
 | Grad accumulation / LR schedule / warmup / grad clip | ✅ | ✅ | ✅ | From YAML |
@@ -45,7 +46,7 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 | **GitHub CI / crates.io** | Registry versions only (`peft-rs = "1.2"`, `qlora-rs = "1.2"`, `unsloth-rs = "1.2"`) — **no path deps** |
 | **Local fleet / SoT development** | Run `bash scripts/use-local-path-deps.sh` to write gitignored `.cargo/config.toml` `paths = ["../peft-rs", …]` so local sister trees override the registry |
 
-`safetensors` is pinned to **0.7** (matches peft-rs). See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
+`safetensors` is pinned to **0.8** (matches candle 0.11 / peft-rs 1.2). See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 
 ## Installation
 
@@ -194,6 +195,64 @@ axolotl download <model_id_or_path> --output ./models
 
 # Generate sample config
 axolotl init <output.yaml> --preset <preset>
+
+# Portable export (PEFT adapter, dense HF, Ollama Modelfile, or llama.cpp GGUF)
+axolotl export --format peft --config <config.yaml> --adapter <checkpoint_dir> --output ./peft-adapter
+axolotl export --format hf --config <config.yaml> --adapter <checkpoint_dir> --output ./merged-model
+axolotl export --format ollama-adapter --config <config.yaml> --adapter ./peft-adapter --output ./ollama-adapter
+axolotl export --format gguf --config <config.yaml> --merged ./merged-model --output ./gguf --quantize Q4_K_M
+```
+
+## Deploying
+
+Train NF4/QLoRA if you want; **ship dense HuggingFace weights** (PEFT adapters or a merged dense model). Let llama.cpp quantize. `axolotl export --format gguf` never writes a custom `GGUF_TYPE_QLORA_NF4`.
+
+### vLLM (PEFT adapter or merged dense)
+
+```bash
+axolotl export --format peft --config config.yaml --adapter ./outputs/checkpoint-final --output ./peft-adapter
+
+python -m vllm.entrypoints.openai.api_server \
+  --model /path/to/base-model \
+  --enable-lora \
+  --lora-modules mylora=./peft-adapter
+```
+
+Or merge first and serve a single dense checkpoint:
+
+```bash
+axolotl export --format hf --config config.yaml --adapter ./outputs/checkpoint-final --output ./merged-model
+vllm serve ./merged-model
+```
+
+### Ollama
+
+Adapter (base + PEFT dir):
+
+```bash
+axolotl export --format ollama-adapter --config config.yaml --adapter ./peft-adapter --output ./ollama-adapter
+ollama create mylora -f ./ollama-adapter/Modelfile
+```
+
+Merged HF (GGUF is preferred for Ollama `FROM`):
+
+```bash
+axolotl export --format ollama-merged --config config.yaml --merged ./merged-model --output ./ollama-merged
+# Prefer: convert merged HF → GGUF (below) and `FROM ./model-q4_k_m.gguf`
+ollama create mymerged -f ./ollama-merged/Modelfile
+```
+
+### llama.cpp GGUF
+
+```bash
+axolotl export --format gguf --config config.yaml --merged ./merged-model --output ./gguf --quantize Q4_K_M
+```
+
+If `convert_hf_to_gguf.py` / `llama-quantize` are not on `PATH`, the command prints:
+
+```bash
+python convert_hf_to_gguf.py ./merged-model --outtype bf16 --outfile model-bf16.gguf
+llama-quantize model-bf16.gguf model-q4_k_m.gguf Q4_K_M
 ```
 
 ## Architecture
@@ -203,6 +262,7 @@ axolotl-rs
 ├── config     - YAML parsing & validation
 ├── dataset    - Data loading & preprocessing
 ├── model      - Model loading, merge, download, sharded weights
+├── export     - PEFT / dense HF / Ollama / llama.cpp GGUF
 ├── fixture    - Tiny LLaMA on-disk fixtures for CPU E2E
 ├── lora_llama - Per-layer LoRA injection (feature peft)
 ├── qlora_llama- QLoRA path (features peft,qlora)
