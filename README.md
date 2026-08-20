@@ -11,13 +11,15 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 [![Documentation](https://docs.rs/axolotl-rs/badge.svg)](https://docs.rs/axolotl-rs)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
 
-> **Status honesty:** Version **1.2.0** is a working LLaMA-family LoRA trainer/orchestrator on local
-> weights — **not** full Python Axolotl parity. See the capability matrix.
+> **Status honesty:** Version **1.3.0** is a working LLaMA-family LoRA trainer/orchestrator on local
+> weights — **not** full Python Axolotl parity. Candle **0.11**, MSRV **1.96**.
+> Optional `vsa-optim` is **not** a claimed/tested acceleration path in this release.
+> See the capability matrix.
 >
 > **Docs:** [CHANGELOG.md](CHANGELOG.md) · [roadmap.md](roadmap.md) · [CUDA_STATUS.md](CUDA_STATUS.md) ·
 > [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) (leaf crate; no reverse deps / no cycles) ·
 > [docs/archive/](docs/archive/) (historical COMPLETE fiction — do not treat as current status)
-## Capability matrix (1.2.0)
+## Capability matrix (1.3.0)
 
 | Capability | Default features | `--features peft` | `--features peft,qlora` | Notes |
 |------------|------------------|-------------------|-------------------------|-------|
@@ -40,9 +42,8 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 
 | Build context | How peft / qlora / unsloth resolve |
 |---------------|-------------------------------------|
-| **GitHub CI / crates.io** | Registry versions only (`peft-rs = "1.0"`, `qlora-rs = "1.0"`, …) — **no path deps** in committed `Cargo.toml` (path deps break CI without sister checkouts) |
-| **Local fleet / SoT development** | Run `bash scripts/use-local-path-deps.sh` to write gitignored `.cargo/config.toml` `paths = ["../peft-rs", …]` so local **1.1.x** trees override the registry |
-| **After peft/qlora 1.1.0 on crates.io** | Bump optional floors to `1.1` / `1.1` / `1.0.3` (tracked release task) |
+| **GitHub CI / crates.io** | Registry versions only (`peft-rs = "1.2"`, `qlora-rs = "1.2"`, `unsloth-rs = "1.2"`) — **no path deps** in committed `Cargo.toml` |
+| **Local fleet / SoT development** | Run `bash scripts/use-local-path-deps.sh` to write gitignored `.cargo/config.toml` `paths = ["../peft-rs", …]` so local sister trees override the registry |
 
 `safetensors` is pinned to **0.7** (matches peft-rs). See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 

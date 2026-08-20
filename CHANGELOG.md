@@ -5,6 +5,24 @@ All notable changes to axolotl-rs will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-08-20
+
+Candle types appear in the public API, so a candle minor bump is a **breaking
+change for downstream**. Unpublished GitHub `1.2.0` (Candle 0.9) is superseded.
+
+### Changed
+- **candle-core / candle-nn / candle-transformers `0.9` → `0.11`**
+- Optional sisters **peft-rs / qlora-rs / unsloth-rs `1.2`** (publish after those
+  crates are on crates.io)
+- **MSRV 1.92 → 1.96** (`rust-toolchain.toml` 1.96.1). Self-hosted fleet-ci /
+  publish / release install that toolchain instead of work-image rustc 1.88.
+- Package version **1.3.0**. Cargo / GitHub description drops untested
+  “VSA acceleration” claim (`vsa-optim` remains an optional, untested feature).
+
+### Documentation
+- Archived remaining COMPLETE/PHASE GPU banners at repo root to `docs/archive/`.
+  `CUDA_STATUS.md` stays as the CUDA RMSNorm honesty note.
+
 ## [1.2.0] - 2026-07-22
 
 ### Added
