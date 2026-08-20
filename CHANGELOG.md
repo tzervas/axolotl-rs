@@ -17,9 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `adapter_config.json` fields: `peft_type`, `r`, `lora_alpha`, `target_modules`, `bias`,
   `task_type`, `base_model_name_or_path`, `lora_dropout`, `inference_mode`, `use_rslora`,
   `use_dora`.
-- Merge copies all non-weight HF sidecars (`tokenizer.model`, chat templates, …),
-  applies rsLoRA scale when `adapter_config.use_rslora`, pairs native and HF LoRA keys,
-  and looks up `{module}.weight` then `model.{module}.weight`.
+- Merge copies non-weight HF **file** sidecars (`tokenizer.model`, `chat_template.jinja`, …);
+  nested template directories are not copied. Applies rsLoRA scale when
+  `adapter_config.use_rslora`, pairs native and HF LoRA keys, and looks up
+  `{module}.weight` then `model.{module}.weight`.
 - README Deploying section (vLLM / Ollama / llama.cpp).
 - `.cz.toml` (commitizen conventional commits, semver 1.x; no `major_version_zero`).
 
@@ -30,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - README safetensors pin note now matches Cargo.toml (**0.8**, not 0.7).
+- `export --format gguf` requires `llama-quantize` only when `--quantize` is not
+  F16/BF16/F32/NONE; convert `--outtype` follows that flag.
+- Ollama adapter export copies the PEFT dir next to the Modelfile (`ADAPTER ./adapter`).
+- `save_adapter_weights` without a config no longer writes placeholder `adapter_config.json`.
 
 ## [1.3.0] - 2026-08-20
 

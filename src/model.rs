@@ -1501,38 +1501,27 @@ fn insert_hub_safe_lora_ab(
     }
 }
 
-fn adapter_config_value(cfg: Option<&AxolotlConfig>) -> serde_json::Value {
-    match cfg {
-        Some(c) => serde_json::json!({
-            "peft_type": "LORA",
-            "r": c.lora.r,
-            "lora_alpha": c.lora.alpha,
-            "target_modules": c.lora.target_modules,
-            "bias": "none",
-            "task_type": "CAUSAL_LM",
-            "base_model_name_or_path": c.base_model,
-            "lora_dropout": c.lora.dropout,
-            "inference_mode": false,
-            "use_rslora": false,
-            "use_dora": false,
-        }),
-        None => serde_json::json!({
-            "peft_type": "LORA",
-            "r": 8,
-            "lora_alpha": 16,
-            "target_modules": ["q_proj", "v_proj"],
-            "bias": "none",
-            "task_type": "CAUSAL_LM",
-            "base_model_name_or_path": serde_json::Value::Null,
-            "lora_dropout": 0.0,
-            "inference_mode": false,
-            "use_rslora": false,
-            "use_dora": false,
-        }),
-    }
+fn adapter_config_value(cfg: &AxolotlConfig) -> serde_json::Value {
+    serde_json::json!({
+        "peft_type": "LORA",
+        "r": cfg.lora.r,
+        "lora_alpha": cfg.lora.alpha,
+        "target_modules": cfg.lora.target_modules,
+        "bias": "none",
+        "task_type": "CAUSAL_LM",
+        "base_model_name_or_path": cfg.base_model,
+        "lora_dropout": cfg.lora.dropout,
+        "inference_mode": false,
+        "use_rslora": false,
+        "use_dora": false,
+    })
 }
 
 fn write_adapter_config_json(dir: &Path, cfg: Option<&AxolotlConfig>) -> Result<()> {
+    let Some(cfg) = cfg else {
+        // Do not serialize placeholder r/α/targets next to Hub-safe tensors.
+        return Ok(());
+    };
     let value = adapter_config_value(cfg);
     let path = dir.join("adapter_config.json");
     std::fs::write(

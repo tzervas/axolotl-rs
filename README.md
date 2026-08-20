@@ -200,7 +200,9 @@ axolotl init <output.yaml> --preset <preset>
 axolotl export --format peft --config <config.yaml> --adapter <checkpoint_dir> --output ./peft-adapter
 axolotl export --format hf --config <config.yaml> --adapter <checkpoint_dir> --output ./merged-model
 axolotl export --format ollama-adapter --config <config.yaml> --adapter ./peft-adapter --output ./ollama-adapter
+axolotl export --format ollama-merged --config <config.yaml> --merged ./merged-model --output ./ollama-merged
 axolotl export --format gguf --config <config.yaml> --merged ./merged-model --output ./gguf --quantize Q4_K_M
+axolotl export --format gguf --config <config.yaml> --merged ./merged-model --output ./gguf --quantize F16
 ```
 
 ## Deploying
@@ -231,6 +233,8 @@ Adapter (base + PEFT dir):
 
 ```bash
 axolotl export --format ollama-adapter --config config.yaml --adapter ./peft-adapter --output ./ollama-adapter
+# Modelfile: ADAPTER ./adapter (next to the Modelfile). FROM is an Ollama
+# library name, local GGUF, or local HF dir — not a Hub id like org/name.
 ollama create mylora -f ./ollama-adapter/Modelfile
 ```
 

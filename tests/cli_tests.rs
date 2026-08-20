@@ -261,10 +261,13 @@ fn test_export_ollama_adapter_writes_modelfile() {
         "Modelfile missing FROM: {modelfile}"
     );
     assert!(
-        modelfile.contains("ADAPTER "),
-        "Modelfile missing ADAPTER: {modelfile}"
+        modelfile.contains("ADAPTER ./adapter"),
+        "Modelfile should use Modelfile-relative ADAPTER: {modelfile}"
     );
-    assert!(modelfile.contains(adapter.to_str().unwrap()));
+    assert!(
+        out.join("adapter").is_dir(),
+        "adapter snapshot must live next to Modelfile"
+    );
 }
 
 #[test]
