@@ -27,13 +27,12 @@ qlora may depend on peft only.
 Optional deps use **crates.io versions only** so CI works without sister checkouts:
 
 ```toml
-peft-rs = { version = "1.0", optional = true }
-qlora-rs = { version = "1.0", optional = true }
-unsloth-rs = { version = "1.0", optional = true }
+peft-rs = { version = "1.2", optional = true }
+qlora-rs = { version = "1.2", optional = true }
+unsloth-rs = { version = "1.2", optional = true }
 ```
 
-After peft-rs **1.1.0** and qlora-rs **1.1.0** are published, bump floors to `1.1` /
-`1.1` / `1.0.3`.
+Sisters on crates.io: peft-rs **1.2**, qlora-rs **1.2**, unsloth-rs **1.2**.
 
 ## Local SoT (fleet)
 

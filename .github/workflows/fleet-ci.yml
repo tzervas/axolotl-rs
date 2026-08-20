@@ -51,6 +51,17 @@ jobs:
     runs-on: [self-hosted, linux, x64, podman]
     steps:
       - uses: actions/checkout@v4
+      # Work image ships rustc 1.88; this crate's MSRV is 1.96.
+      - uses: dtolnay/rust-toolchain@1.96.1
+      - name: Prefer rustup 1.96.1 over image rustc 1.88
+        run: |
+          set -euo pipefail
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup default 1.96.1
+          rustc --version
+          cargo --version
+          rustc --version | grep -E 'rustc 1\.96'
       - name: cargo check
         # Avoid compiling every example/bench under memory pressure when needed:
         # keep --all-targets but serialize via CARGO_BUILD_JOBS=1 above.
