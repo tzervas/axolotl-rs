@@ -42,7 +42,7 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 
 | Build context | How peft / qlora / unsloth resolve |
 |---------------|-------------------------------------|
-| **GitHub CI / crates.io** | Registry versions only (`peft-rs = "1.2"`, `qlora-rs = "1.2"`, `unsloth-rs = "1.2"`) — **no path deps** in committed `Cargo.toml` |
+| **GitHub CI / crates.io** | Registry versions only (`peft-rs = "1.2"`, `qlora-rs = "1.2"`, `unsloth-rs = "1.2"`) — **no path deps** |
 | **Local fleet / SoT development** | Run `bash scripts/use-local-path-deps.sh` to write gitignored `.cargo/config.toml` `paths = ["../peft-rs", …]` so local sister trees override the registry |
 
 `safetensors` is pinned to **0.7** (matches peft-rs). See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).

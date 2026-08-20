@@ -12,8 +12,7 @@ change for downstream**. Unpublished GitHub `1.2.0` (Candle 0.9) is superseded.
 
 ### Changed
 - **candle-core / candle-nn / candle-transformers `0.9` → `0.11`**
-- Optional sisters **peft-rs / qlora-rs / unsloth-rs `1.2`** (publish after those
-  crates are on crates.io)
+- Optional sisters **peft-rs / qlora-rs / unsloth-rs `1.2`** (on crates.io)
 - **MSRV 1.92 → 1.96** (`rust-toolchain.toml` 1.96.1). Self-hosted fleet-ci /
   publish / release install that toolchain instead of work-image rustc 1.88.
 - Package version **1.3.0**. Cargo / GitHub description drops untested
