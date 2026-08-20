@@ -116,26 +116,17 @@ impl LoadedModel {
 
     /// Run forward pass with adapter layers.
     ///
-    /// **IMPORTANT**: Current implementation does NOT properly integrate adapters.
-    /// `LoRA` adapters need to be injected at each attention/MLP layer, not applied
-    /// post-hoc to logits. This requires custom model architecture (`LoraLlama`).
-    ///
-    /// For now, this returns base model output. Gradient flow is maintained through
-    /// the trainable `LoRA` parameters in `trainable_params` `VarMap`.
+    /// Dispatches directly to the loaded model architecture (`LoraLlama`, `QLoraLlama`,
+    /// or base LLaMA model). Per-layer adapter (LoRA/QLoRA) injection is handled
+    /// internally by `LoraLlama` / `QLoraLlama` forward implementations.
     ///
     /// # Errors
     ///
     /// Returns an error if the forward pass fails.
     pub fn forward_with_adapters(&self, input_ids: &Tensor) -> Result<Tensor> {
-        // Get base model output (logits for all positions)
         let logits = self.forward(input_ids)?;
 
-        // TODO: Implement proper per-layer LoRA injection via LoraLlama
-        // Current approach: Return base logits
-        // This allows testing of training loop, loss computation, and optimizer
-        // even without proper LoRA integration
-
-        tracing::trace!("Forward pass complete (base model only, LoRA not integrated yet)");
+        tracing::trace!("Forward pass complete (adapters evaluated in model architecture)");
 
         Ok(logits)
     }
