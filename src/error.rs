@@ -109,6 +109,10 @@ pub enum AxolotlError {
     #[error("checkpoint error: {0}")]
     Checkpoint(String),
 
+    /// Export error (`axolotl export`).
+    #[error("export error: {0}")]
+    Export(String),
+
     /// IO error.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),

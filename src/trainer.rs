@@ -561,24 +561,9 @@ impl Trainer {
             let has_trainable = !model.trainable_params.all_vars().is_empty();
             let has_adapter_map = model.adapter_layers.as_ref().is_some_and(|a| !a.is_empty());
             if has_trainable || has_adapter_map {
-                model.save_adapter_weights(&checkpoint_dir)?;
-
-                // Also save adapter config as JSON (HuggingFace compatible)
-                let adapter_config = serde_json::json!({
-                    "base_model_name_or_path": self.config.base_model,
-                    "peft_type": "LORA",
-                    "r": self.config.lora.r,
-                    "lora_alpha": self.config.lora.alpha,
-                    "lora_dropout": self.config.lora.dropout,
-                    "target_modules": self.config.lora.target_modules,
-                    "bias": "none",
-                    "task_type": "CAUSAL_LM"
-                });
-                let adapter_config_path = format!("{checkpoint_dir}/adapter_config.json");
-                std::fs::write(
-                    &adapter_config_path,
-                    serde_json::to_string_pretty(&adapter_config).unwrap(),
-                )?;
+                // Hub-safe writer emits adapter_config.json (full PEFT fields).
+                // Do not overwrite it with a weaker JSON afterwards.
+                model.save_adapter_weights_hf(&checkpoint_dir, Some(&self.config))?;
             }
         }
 
