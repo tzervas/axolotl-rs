@@ -7,10 +7,11 @@
 # flake (CGU=1 / CARGO_BUILD_JOBS=1 still died 2026-08-21).
 #
 # Product cargo check/test for this workflow runs on **akula-prime** (5080
-# desktop) via gha-runner-ctl GPU jobs (`gpu`). The retain worker is 16 GiB.
+# desktop) via gha-runner-ctl GPU jobs (`gpu` + `rust`). The worker is 16 GiB.
 # `gpu` is **routing to that host**, not enabling candle CUDA (default
-# features only). Do not add `large`: the GPU runner is not registered with
-# that label, so GitHub would queue forever. Benches stay on hosted ci.yml.
+# features only). `rust` selects GHCR scribe-cpu-build (1.96.1 baked).
+# Do not add `large`: the GPU runner is not registered with that label, so
+# GitHub would queue forever. Benches stay on hosted ci.yml.
 name: fleet-ci
 
 on:
@@ -83,29 +84,33 @@ jobs:
     if: needs.detect.outputs.rust == 'true'
     # akula-prime 5080 (gha-runner-ctl GPU job). Homelab CPU SIGKILL/OOM.
     # `gpu` selects that host; this job does not enable candle CUDA.
+    # `rust` selects GHCR scribe-cpu-build (Rust 1.96.1 + clippy baked).
     # Do not add `large`: that label is not on the registered GPU runner.
-    runs-on: [self-hosted, linux, x64, podman, gpu]
+    runs-on: [self-hosted, linux, x64, podman, gpu, rust]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@1.96.1
-      - name: Prefer rustup 1.96.1 over image rustc
+      - name: Assert baked 1.96.1 (no job-time rustup)
         run: |
           set -euo pipefail
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.cargo/bin:$PATH"
-          rustup default 1.96.1
+          if [ -d /home/builder/.cargo/bin ]; then
+            echo "/home/builder/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="/home/builder/.cargo/bin:$PATH"
+            export CARGO_HOME="${CARGO_HOME:-/home/builder/.cargo}"
+            export RUSTUP_HOME="${RUSTUP_HOME:-/home/builder/.rustup}"
+          fi
           rustc --version
           cargo --version
+          rustup show || true
           rustc --version | grep -E 'rustc 1\.96'
       - name: free memory snapshot
         run: |
           set -euo pipefail
           free -h || true
           nproc || true
-          echo "HONEST_CI class=GPU_RAM_ROUTE detail=not_cuda"
+          echo "HONEST_CI class=GPU_RAM_ROUTE detail=not_cuda image=scribe-cpu-build"
       - name: cargo check
         # Do not --all-targets: benches pull criterion/plotters (hosted ci.yml).
         run: cargo check --workspace --lib --bins --tests
