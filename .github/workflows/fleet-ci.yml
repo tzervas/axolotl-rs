@@ -59,21 +59,23 @@ jobs:
           echo "python=$python" >> "$GITHUB_OUTPUT"
           echo "Detected rust=$rust python=$python"
 
-  # Homelab CPU runner: do not rustc candle-transformers.
+  # Do not queue this on homelab `rust`: if that runner is down the whole
+  # fleet-ci concurrency group (`cancel-in-progress: false`) never finishes,
+  # and the GPU kitchen-sink run is stuck behind a memory-print job.
   runner-health:
     name: self-hosted memory (no kitchen-sink rustc)
     needs: detect
     if: needs.detect.outputs.rust == 'true'
-    runs-on: [self-hosted, linux, x64, podman, rust]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: memory snapshot and OOM policy
+      - name: OOM policy (homelab is not the kitchen-sink host)
         run: |
           set -euo pipefail
           free -h || true
           nproc || true
           echo "HONEST_CI class=OOM_SKIP detail=candle-transformers_0.11"
-          echo "This runner SIGKILL'd rustc compiling candle-transformers 0.11"
+          echo "Homelab CPU SIGKILL'd rustc compiling candle-transformers 0.11"
           echo "even with CARGO_BUILD_JOBS=1 and codegen-units=1."
           echo "Kitchen-sink cargo check/test is the GPU-host job below"
           echo "(label gpu — RAM routing, not CUDA) plus ci.yml Test Suite."

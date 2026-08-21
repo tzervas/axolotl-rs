@@ -6,7 +6,7 @@ Applied from the workstation pack under `plans/fleet-standards/pack/`.
 
 | Workflow | When | Runner |
 |----------|------|--------|
-| `fleet-ci.yml` | push/PR to main|dev | detect on GitHub-hosted; OOM-skip snapshot on homelab CPU (`rust` image label); kitchen-sink `cargo check/test` on **akula-prime** (`gpu` + `rust`; RAM not CUDA). `rust` selects GHCR `scribe-cpu-build` (1.96.1 baked). Not the autodetect caller — detect and kitchen-sink must not share a runner. |
+| `fleet-ci.yml` | push/PR to main|dev | detect + OOM-skip policy on GitHub-hosted (do not queue the snapshot on homelab — that blocked GPU kitchen-sink); kitchen-sink `cargo check/test` on **akula-prime** (`gpu` + `rust` + `scribe-cpu-build`; RAM not CUDA). GHCR `scribe-cpu-build` has 1.96.1 baked. Not the autodetect caller — detect and kitchen-sink must not share a runner. |
 | `fleet-security.yml` | push/PR + weekly | `[self-hosted, linux, x64, podman, rust]` |
 | `close-issues-on-main.yml` | PR closed→main | GitHub-hosted (API-only) |
 | `reopen-issues-closed-off-main.yml` | PR merged off-main with Closes | same |
@@ -52,8 +52,8 @@ axolotl-rs depends on `candle-transformers` 0.11 with **no per-model features**
 `fleet-ci.yml` therefore:
 
 - **Does not rustc `candle-transformers` on homelab CPU.** Job
-  `self-hosted memory (no kitchen-sink rustc)` snapshots `free -h` and prints
-  `HONEST_CI class=OOM_SKIP`.
+  `self-hosted memory (no kitchen-sink rustc)` prints `HONEST_CI class=OOM_SKIP`
+  on GitHub-hosted so a down homelab runner cannot hold the concurrency group.
 - Runs `cargo check/test` (`--lib --bins --tests`) on **akula-prime**
   (RTX 5080 desktop) via `gha-runner-ctl` GPU jobs:
   `runs-on: [self-hosted, linux, x64, podman, gpu, rust, scribe-cpu-build]`.
