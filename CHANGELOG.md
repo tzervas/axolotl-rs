@@ -36,8 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runner (`HONEST_CI class=OOM_SKIP`). Kitchen-sink `cargo check/test` is
   GitHub-hosted `ubuntu-latest`. Signal 9 on that crate is OOM, not a flake.
 - Kitchen-sink `fleet-ci` `cargo check/test` moves to the laptop GPU listener
-  (`gpu` + `large`: RAM routing, not CUDA). Homelab CPU still does not rustc
-  `candle-transformers`.
+  (`gpu`: RAM routing, not CUDA; retain worker 16 GiB). Homelab CPU still
+  does not rustc `candle-transformers`.
 
 ### Changed
 - `.gitignore` covers env/key files, `.cargo/config.toml`, and crate artifacts

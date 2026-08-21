@@ -6,9 +6,10 @@
 # flake (CGU=1 / CARGO_BUILD_JOBS=1 still died 2026-08-21).
 #
 # Product cargo check/test for this workflow runs on the laptop GPU listener
-# (`gpu` + `large`): 16 GiB class. The `gpu` label is **routing to that host's
-# RAM**, not CUDA — default features, no `--features cuda`. Benches stay on
-# hosted ci.yml. GitHub-hosted ci.yml Test Suite / adapter-features remain.
+# (`gpu`): that host's retain worker is 16 GiB. The `gpu` label is **routing
+# to that host's RAM**, not CUDA — default features, no `--features cuda`.
+# Do not add `large`: the GPU runner is not registered with that label, so
+# GitHub would queue forever. Benches stay on hosted ci.yml.
 name: fleet-ci
 
 on:
@@ -69,17 +70,16 @@ jobs:
           echo "This runner SIGKILL'd rustc compiling candle-transformers 0.11"
           echo "even with CARGO_BUILD_JOBS=1 and codegen-units=1."
           echo "Kitchen-sink cargo check/test is the GPU-host job below"
-          echo "(labels gpu+large — RAM routing, not CUDA) plus ci.yml Test Suite."
+          echo "(label gpu — RAM routing, not CUDA) plus ci.yml Test Suite."
 
   rust:
     name: cargo check/test
     needs: detect
     if: needs.detect.outputs.rust == 'true'
-    # Laptop GPU listener (16 GiB). Homelab CPU SIGKILL/OOM. `gpu` is how
-    # that host is selected; this job does not enable candle CUDA.
-    # `large` is required: job name "cargo check/test" would otherwise
-    # auto-size to medium (4 GiB) and OOM the same way.
-    runs-on: [self-hosted, linux, x64, podman, gpu, large]
+    # Laptop GPU listener (retain worker 8c/16 GiB). Homelab CPU SIGKILL/OOM.
+    # `gpu` selects that host; this job does not enable candle CUDA.
+    # Do not add `large`: that label is not on the registered GPU runner.
+    runs-on: [self-hosted, linux, x64, podman, gpu]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4

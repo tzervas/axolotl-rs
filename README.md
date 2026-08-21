@@ -30,8 +30,8 @@ Live version is [`Cargo.toml`](Cargo.toml) / `cz version --project` ([docs/VERSI
 Hosted CI `cargo test` is **default features**. Adapter/unsloth paths are gated in the
 `adapter-features` job (`peft`, `unsloth` isolate-check, then `peft,qlora,unsloth` tests).
 Homelab CPU `fleet-ci` does not rustc `candle-transformers` (OOM). Kitchen-sink
-check/test is the laptop GPU listener (`gpu`+`large`, RAM not CUDA) plus this
-hosted `ci.yml`.
+check/test is the laptop GPU listener (`gpu`, RAM not CUDA) plus this hosted
+`ci.yml`.
 
 | Capability | Default features | `--features peft` | `--features peft,qlora` | `--features unsloth` | Notes |
 |------------|------------------|-------------------|-------------------------|----------------------|-------|
