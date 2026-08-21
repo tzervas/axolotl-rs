@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `docs/VERSIONING.md` — live version is `Cargo.toml` / `cz version --project`,
+  not a frozen number in docs.
 - BitNet b1.58 QAT recipe at `examples/configs/bitnet_qat_2b4t.yaml` (documentation
   only): intelligent conversion knobs (rewire SubLN + gated ReLU², STE QAT, KL
   distill, packed TwoBit, 5080 VRAM cap). `adapter: bitnet` is rejected until
