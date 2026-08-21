@@ -6,10 +6,12 @@ Applied from the workstation pack under `plans/fleet-standards/pack/`.
 
 | Workflow | When | Runner |
 |----------|------|--------|
-| `fleet-ci.yml` | push/PR to main|dev | detect + OOM-skip snapshot on **homelab CPU**; kitchen-sink `cargo check/test` on **akula-prime** (5080 desktop, `gha-runner-ctl` GPU jobs, `gpu` label; RAM not CUDA) |
-| `fleet-security.yml` | push/PR + weekly | same |
-| `close-issues-on-main.yml` | PR closed→main | same |
+| `fleet-ci.yml` | push/PR to main|dev | detect on GitHub-hosted; OOM-skip snapshot on homelab CPU (`rust` image label); kitchen-sink `cargo check/test` on **akula-prime** (`gpu` label; RAM not CUDA). Not the autodetect caller — detect and kitchen-sink must not share a runner. |
+| `fleet-security.yml` | push/PR + weekly | `[self-hosted, linux, x64, podman, rust]` |
+| `close-issues-on-main.yml` | PR closed→main | GitHub-hosted (API-only) |
 | `reopen-issues-closed-off-main.yml` | PR merged off-main with Closes | same |
+
+Action pins follow `tzervas/ap-workflows` `pins/actions.yml` (`actions/checkout@v7`, `actions/upload-artifact@v7`, `astral-sh/setup-uv@v9`). Do **not** `--all-features` (pulls `cuda`).
 
 ## Issue close policy
 
@@ -27,7 +29,14 @@ Automatic Copilot code reviews are **disabled** for fleet-managed repos. Do not 
 
 ## Gitleaks / gitignore
 
-- `fleet-security.yml` **must** pass `--config .gitleaks.toml` (native, docker, and podman).
+- **Local pre-commit is the real gate.** `bash scripts/install-hooks.sh` sets
+  `core.hooksPath=.githooks`. That hook runs `gitleaks protect --staged`
+  (`scripts/gitleaks-staged.sh`). Missing gitleaks **fails the commit** (not a
+  skip). A finding in staged files: unstage it. A finding that already hit a
+  remote: **rotate the credential** — rewriting history does not un-leak it.
+  `git commit --no-verify` is how secrets land in git.
+- `fleet-security.yml` is defense-in-depth after push. It **must** pass
+  `--config .gitleaks.toml`.
 - `.gitignore` must cover `/target/`, `.env*`, keys/PEMs, `.cargo/config.toml` (local path overrides), and `*.crate`.
 - This binary crate **tracks** `Cargo.lock` (do not gitignore it).
 

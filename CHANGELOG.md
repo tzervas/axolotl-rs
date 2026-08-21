@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- CI pins match fleet `ap-workflows` `pins/actions.yml`: `actions/checkout@v7`
+  (`persist-credentials: false`), `actions/upload-artifact@v7`,
+  `astral-sh/setup-uv@v9`. Homelab `fleet-security` / OOM snapshot use the
+  `rust` work-image label. Kitchen-sink stays `gpu` (not the autodetect caller:
+  detect and rustc must not share a runner).
+- Local `gitleaks protect --staged` via `.githooks/pre-commit`
+  (`scripts/install-hooks.sh`). Missing gitleaks fails the commit. CI gitleaks
+  is defense-in-depth; a secret that reached git history must be rotated.
+
+### Fixed
+- `gpu-tests.yml` / `publish.yml` / `release.yml` YAML: `with:` is a sibling of
+  `uses:`, not nested (checkout v7 pin).
+
 ### Added
 - Hosted CI job `adapter-features`: isolate `cargo check --features peft` /
   `--features unsloth`, then `cargo test --features peft,qlora,unsloth`
