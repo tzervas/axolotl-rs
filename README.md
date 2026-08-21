@@ -29,7 +29,8 @@ Live version is [`Cargo.toml`](Cargo.toml) / `cz version --project` ([docs/VERSI
 
 Hosted CI `cargo test` is **default features**. Adapter/unsloth paths are gated in the
 `adapter-features` job (`peft`, `unsloth` isolate-check, then `peft,qlora,unsloth` tests).
-Self-hosted `fleet-ci` stays default-features (kitchen-sink `candle-transformers`).
+Self-hosted `fleet-ci` does not rustc `candle-transformers` (OOM on that runner).
+Kitchen-sink check/test is GitHub-hosted (`fleet-ci` `ubuntu-latest` + this `ci.yml`).
 
 | Capability | Default features | `--features peft` | `--features peft,qlora` | `--features unsloth` | Notes |
 |------------|------------------|-------------------|-------------------------|----------------------|-------|

@@ -10,8 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Hosted CI job `adapter-features`: isolate `cargo check --features peft` /
   `--features unsloth`, then `cargo test --features peft,qlora,unsloth`
-  (`--lib --bins --tests`). Default `cargo test` and self-hosted `fleet-ci`
-  stay default features (kitchen-sink `candle-transformers`).
+  (`--lib --bins --tests`). Default `cargo test` stays default features.
+  Self-hosted `fleet-ci` does not rustc `candle-transformers` (OOM); that
+  compile is GitHub-hosted.
 - CPU `LoraLlama` full-model forward test (`test_lora_llama_cpu_forward`).
 - CPU `QLoraLlama` full-model forward test (`test_qlora_llama_cpu_forward`).
 - `tests/unsloth_cpu.rs`: `RmsNormWrapper` on `--features unsloth`; RoPE when
@@ -31,10 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `reopen-issues-closed-off-main.yml` is valid YAML again: replace the
   column-0 `python3 <<'PY'` heredoc with `python3 -c` so GitHub stops
   reporting a startup_failure on every push.
-- Self-hosted `fleet-ci` SIGKILL while compiling `candle-transformers` 0.11:
-  repo-wide concurrency (PR and trunk no longer overlap), rustc codegen-units
-  capped at 1, debuginfo off, and check/test sized to lib+bins+tests (benches
-  stay on GitHub-hosted CI). Signal 9 on that crate is OOM, not a flake.
+- Self-hosted `fleet-ci` no longer rustc's `candle-transformers` 0.11
+  (SIGKILL / OOM even at CGU=1). Detect + memory snapshot stay on the podman
+  runner (`HONEST_CI class=OOM_SKIP`). Kitchen-sink `cargo check/test` is
+  GitHub-hosted `ubuntu-latest`. Signal 9 on that crate is OOM, not a flake.
 
 ### Changed
 - `.gitignore` covers env/key files, `.cargo/config.toml`, and crate artifacts

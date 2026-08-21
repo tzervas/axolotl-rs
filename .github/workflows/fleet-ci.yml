@@ -1,14 +1,13 @@
-# Fleet standard CI — self-hosted. Honest status on trunk via Actions badge.
-# See docs/FLEET_STANDARDS.md.
+# Fleet CI. Detect stays on the homelab CPU runner (cheap).
 #
-# This job is the kitchen-sink compile: axolotl-rs depends on candle-transformers
-# 0.11, which has no model feature flags (~49k LOC, every architecture). rustc
-# SIGKILL (signal 9) on that crate is OOM, not a flake.
+# Kitchen-sink rustc does **not** run there. axolotl-rs depends on
+# candle-transformers 0.11 with no per-model features (~49k LOC). rustc
+# SIGKILL (signal 9) on that crate on the podman runner is OOM, not a flake
+# (CGU=1 / CARGO_BUILD_JOBS=1 still died 2026-08-21).
 #
-# Evidence (2026-08-21): two fleet-ci runs on different refs
-# (release/1.4.0 PR + main push) compiled candle-transformers concurrently
-# and both died at the same second. Per-ref concurrency groups allowed that.
-# Default profile.dev codegen-units=256 also inflates a single rustc's RSS.
+# Product cargo check/test for this workflow is GitHub-hosted ubuntu-latest
+# (same graph as ci.yml Test Suite: lib + bins + tests). Benches stay on
+# hosted ci.yml only.
 name: fleet-ci
 
 on:
@@ -18,8 +17,8 @@ on:
     branches: [main, master, dev]
   workflow_dispatch:
 
-# One rustc tree for this repo at a time (PR and trunk must not overlap).
-# Queue rather than cancel so a main push does not wipe an in-flight PR gate.
+# One kitchen-sink compile for this repo at a time (hosted rustc is still
+# heavy). Queue rather than cancel so a main push does not wipe a PR gate.
 concurrency:
   group: axolotl-rs-fleet-ci
   cancel-in-progress: false
@@ -28,18 +27,9 @@ permissions:
   contents: read
 
 env:
-  # Self-hosted podman runners: one rustc, no incremental, no debuginfo.
-  # Match peft-rs RUSTFLAGS so candle-transformers does not compile at
-  # profile.dev's default 256 codegen-units.
-  CARGO_BUILD_JOBS: "1"
   CARGO_INCREMENTAL: "0"
   CARGO_PROFILE_DEV_DEBUG: "0"
-  CARGO_PROFILE_DEV_CODEGEN_UNITS: "1"
   CARGO_PROFILE_TEST_DEBUG: "0"
-  CARGO_PROFILE_TEST_CODEGEN_UNITS: "1"
-  RUSTFLAGS: "-C codegen-units=1 -C debuginfo=0"
-  # Tests allocate Candle tensors; keep one harness thread on this runner.
-  RUST_TEST_THREADS: "1"
 
 jobs:
   detect:
@@ -60,37 +50,39 @@ jobs:
           echo "python=$python" >> "$GITHUB_OUTPUT"
           echo "Detected rust=$rust python=$python"
 
-  rust:
-    name: cargo check/test
+  # Homelab CPU runner: do not rustc candle-transformers.
+  runner-health:
+    name: self-hosted memory (no kitchen-sink rustc)
     needs: detect
     if: needs.detect.outputs.rust == 'true'
     runs-on: [self-hosted, linux, x64, podman]
-    timeout-minutes: 60
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      # Work image ships rustc 1.88; this crate's MSRV is 1.96.
-      - uses: dtolnay/rust-toolchain@1.96.1
-      - name: Prefer rustup 1.96.1 over image rustc 1.88
-        run: |
-          set -euo pipefail
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.cargo/bin:$PATH"
-          rustup default 1.96.1
-          rustc --version
-          cargo --version
-          rustc --version | grep -E 'rustc 1\.96'
-      - name: free memory snapshot
+      - name: memory snapshot and OOM policy
         run: |
           set -euo pipefail
           free -h || true
           nproc || true
-          echo "CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-}"
-          echo "CARGO_PROFILE_DEV_CODEGEN_UNITS=${CARGO_PROFILE_DEV_CODEGEN_UNITS:-}"
-          echo "RUSTFLAGS=${RUSTFLAGS:-}"
+          echo "HONEST_CI class=OOM_SKIP detail=candle-transformers_0.11"
+          echo "This runner SIGKILL'd rustc compiling candle-transformers 0.11"
+          echo "even with CARGO_BUILD_JOBS=1 and codegen-units=1."
+          echo "Kitchen-sink cargo check/test is the GitHub-hosted job below"
+          echo "and ci.yml Test Suite / adapter-features."
+
+  rust:
+    name: cargo check/test
+    needs: detect
+    if: needs.detect.outputs.rust == 'true'
+    # GitHub-hosted: self-hosted podman OOM (SIGKILL) on candle-transformers.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.1
+      - name: rustc
+        run: rustc --version && cargo --version
       - name: cargo check
-        # Do not --all-targets: benches pull criterion/plotters and are gated
-        # on GitHub-hosted CI. Lib + bin + tests still compile candle-transformers
-        # (required) at 1 codegen-unit.
+        # Do not --all-targets: benches pull criterion/plotters (hosted ci.yml).
         run: cargo check --workspace --lib --bins --tests
       - name: cargo test
         run: cargo test --workspace --lib --bins --tests
