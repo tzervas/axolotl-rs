@@ -5,6 +5,70 @@ All notable changes to axolotl-rs will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- `reopen-issues-closed-off-main.yml` is valid YAML again: replace the
+  column-0 `python3 <<'PY'` heredoc with `python3 -c` so GitHub stops
+  reporting a startup_failure on every push.
+- Self-hosted `fleet-ci` SIGKILL while compiling `candle-transformers` 0.11:
+  repo-wide concurrency (PR and trunk no longer overlap), rustc codegen-units
+  capped at 1, debuginfo off, and check/test sized to lib+bins+tests (benches
+  stay on GitHub-hosted CI). Signal 9 on that crate is OOM, not a flake.
+
+### Changed
+- `.gitignore` covers env/key files, `.cargo/config.toml`, and crate artifacts
+  (`Cargo.lock` remains tracked). `fleet-security.yml` gitleaks now requires
+  `.gitleaks.toml` (`--config`).
+
+## [1.4.0] - 2026-08-20
+
+### Added
+- CLI `axolotl export --format peft|hf|ollama-adapter|ollama-merged|gguf` (`src/export.rs`).
+  GGUF is delegated to llama.cpp (`convert_hf_to_gguf.py` + `llama-quantize`); missing tools
+  print the exact commands and exit 2. Never writes a custom `GGUF_TYPE_QLORA_NF4`.
+- Hub-safe PEFT save: one `adapter_model.safetensors` with
+  `{base_model.model}.{module}.lora_A.default.weight` / `lora_B.default.weight`
+  (local writer; peft-rs 1.3.0 also ships `save_multi_module_pretrained_hf`).
+- `adapter_config.json` fields: `peft_type`, `r`, `lora_alpha`, `target_modules`, `bias`,
+  `task_type`, `base_model_name_or_path`, `lora_dropout`, `inference_mode`, `use_rslora`,
+  `use_dora`.
+- Merge copies non-weight HF **file** sidecars (`tokenizer.model`, `chat_template.jinja`, …);
+  nested template directories are not copied. Applies rsLoRA scale when
+  `adapter_config.use_rslora`, pairs native and HF LoRA keys, and looks up
+  `{module}.weight` then `model.{module}.weight`.
+- README Deploying section (vLLM / Ollama / llama.cpp).
+- `.cz.toml` (commitizen conventional commits, semver 1.x; no `major_version_zero`).
+
+### Changed
+- `trainer::save_checkpoint` passes `Some(&self.config)` into `save_adapter_weights_hf`
+  and does **not** overwrite `adapter_config.json` afterwards.
+- Merge rejects packed U8/U32 (NF4) base or adapter tensors and writes dense F16/BF16/F32 `W`.
+
+### Fixed
+- README safetensors pin note now matches Cargo.toml (**0.8**, not 0.7).
+- `export --format gguf` requires `llama-quantize` only when `--quantize` is not
+  F16/BF16/F32/NONE; convert `--outtype` follows that flag.
+- Ollama adapter export copies the PEFT dir next to the Modelfile (`ADAPTER ./adapter`).
+- `save_adapter_weights` without a config no longer writes placeholder `adapter_config.json`.
+
+## [1.3.0] - 2026-08-20
+
+Candle types appear in the public API, so a candle minor bump is a **breaking
+change for downstream**. Unpublished GitHub `1.2.0` (Candle 0.9) is superseded.
+
+### Changed
+- **candle-core / candle-nn / candle-transformers `0.9` → `0.11`**
+- Optional sisters **peft-rs / qlora-rs / unsloth-rs `1.2`** (on crates.io)
+- **MSRV 1.92 → 1.96** (`rust-toolchain.toml` 1.96.1). Self-hosted fleet-ci /
+  publish / release install that toolchain instead of work-image rustc 1.88.
+- Package version **1.3.0**. Cargo / GitHub description drops untested
+  “VSA acceleration” claim (`vsa-optim` remains an optional, untested feature).
+
+### Documentation
+- Archived remaining COMPLETE/PHASE GPU banners at repo root to `docs/archive/`.
+  `CUDA_STATUS.md` stays as the CUDA RMSNorm honesty note.
+
 ## [1.2.0] - 2026-07-22
 
 ### Added
@@ -39,18 +103,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Notes / GPU
 - `cargo test --features peft,cuda` **BLOCKED:env** on this host: RTX 5080 (sm_120)
   but installed `nvcc` max arch is 90. CPU gates remain green with `AXOLOTL_FORCE_CPU=1`.
-
-## [Unreleased]
-
-### Fixed
-- **PR-028:** `cargo check --features peft,qlora` succeeds via path deps to peft-rs/qlora-rs,
-  `safetensors` 0.7 alignment, and `[patch.crates-io] peft-rs` (no dual View trait).
-- **PR-029:** Training honors `gradient_accumulation_steps`, `lr_scheduler`, `warmup_ratio`,
-  and `max_grad_norm`; grad/param norms are real L2 values (not 0.0/1.0 placeholders).
-- **PR-030:** (superseded by 1.2.0) earlier honesty gates for merge/download stubs.
-
-### Changed
-- Sister deps for adapters: path `../peft-rs` + `../qlora-rs` in this SoT tree.
 
 ## [1.1.1] - 2026-01-24
 

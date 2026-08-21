@@ -1,12 +1,3 @@
-#![allow(
-    dead_code,
-    unused_imports,
-    clippy::all,
-    clippy::style,
-    clippy::pedantic,
-    clippy::restriction
-)]
-
 use axolotl_rs::config::AxolotlConfig;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::io::Write;
