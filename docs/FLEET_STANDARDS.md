@@ -6,7 +6,7 @@ Applied from the workstation pack under `plans/fleet-standards/pack/`.
 
 | Workflow | When | Runner |
 |----------|------|--------|
-| `fleet-ci.yml` | push/PR to main|dev | detect + OOM-skip snapshot on **homelab CPU**; kitchen-sink `cargo check/test` on **laptop GPU listener** (`gpu`, RAM not CUDA; retain worker is 16 GiB) |
+| `fleet-ci.yml` | push/PR to main|dev | detect + OOM-skip snapshot on **homelab CPU**; kitchen-sink `cargo check/test` on **akula-prime** (5080 desktop, `gha-runner-ctl` GPU jobs, `gpu` label; RAM not CUDA) |
 | `fleet-security.yml` | push/PR + weekly | same |
 | `close-issues-on-main.yml` | PR closed→main | same |
 | `reopen-issues-closed-off-main.yml` | PR merged off-main with Closes | same |
@@ -45,11 +45,12 @@ axolotl-rs depends on `candle-transformers` 0.11 with **no per-model features**
 - **Does not rustc `candle-transformers` on homelab CPU.** Job
   `self-hosted memory (no kitchen-sink rustc)` snapshots `free -h` and prints
   `HONEST_CI class=OOM_SKIP`.
-- Runs `cargo check/test` (`--lib --bins --tests`) on the **laptop GPU
-  listener**: `runs-on: [self-hosted, linux, x64, podman, gpu]`.
-  `gpu` routes to that host. It does **not** enable CUDA. The retain worker
-  is already 8c/16 GiB (`GHA_MEMORY=16g`). Do not add `large` — that label
-  is not registered on the GPU runner, so GitHub would never assign the job.
+- Runs `cargo check/test` (`--lib --bins --tests`) on **akula-prime**
+  (RTX 5080 desktop) via `gha-runner-ctl` GPU jobs:
+  `runs-on: [self-hosted, linux, x64, podman, gpu]`.
+  `gpu` routes here. It does **not** enable CUDA. The retain worker is
+  8c/16 GiB (`GHA_MEMORY=16g`). Do not add `large` — that label is not
+  registered on the GPU runner, so GitHub would never assign the job.
 - Keeps repo-wide concurrency `axolotl-rs-fleet-ci` (`cancel-in-progress: false`).
 - Benches stay on GitHub-hosted `ci.yml`. GitHub-hosted Test Suite /
   `adapter-features` remain the public product gates.
