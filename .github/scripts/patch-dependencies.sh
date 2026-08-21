@@ -17,19 +17,39 @@ PEFT_REF="${PEFT_RS_REF:-main}"
 QLORA_REF="${QLORA_RS_REF:-main}"
 UNSLOTH_REF="${UNSLOTH_RS_REF:-main}"
 
+# Git refs only. Reject injection if a PR body marker is garbage.
+valid_ref() {
+    [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]]
+}
+
 if [ -n "${PR_BODY:-}" ]; then
     echo "Checking PR description for dependency overrides..."
     if echo "$PR_BODY" | grep -q "peft-rs:"; then
         PEFT_REF=$(echo "$PR_BODY" | grep -oP "peft-rs:\s*\K\S+" | head -1)
-        echo "  Found peft-rs override: $PEFT_REF"
+        if ! valid_ref "$PEFT_REF"; then
+            echo "  ignoring invalid peft-rs ref" >&2
+            PEFT_REF=main
+        else
+            echo "  Found peft-rs override: $PEFT_REF"
+        fi
     fi
     if echo "$PR_BODY" | grep -q "qlora-rs:"; then
         QLORA_REF=$(echo "$PR_BODY" | grep -oP "qlora-rs:\s*\K\S+" | head -1)
-        echo "  Found qlora-rs override: $QLORA_REF"
+        if ! valid_ref "$QLORA_REF"; then
+            echo "  ignoring invalid qlora-rs ref" >&2
+            QLORA_REF=main
+        else
+            echo "  Found qlora-rs override: $QLORA_REF"
+        fi
     fi
     if echo "$PR_BODY" | grep -q "unsloth-rs:"; then
         UNSLOTH_REF=$(echo "$PR_BODY" | grep -oP "unsloth-rs:\s*\K\S+" | head -1)
-        echo "  Found unsloth-rs override: $UNSLOTH_REF"
+        if ! valid_ref "$UNSLOTH_REF"; then
+            echo "  ignoring invalid unsloth-rs ref" >&2
+            UNSLOTH_REF=main
+        else
+            echo "  Found unsloth-rs override: $UNSLOTH_REF"
+        fi
     fi
 fi
 

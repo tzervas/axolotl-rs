@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, dev, ci/**]
@@ -39,18 +42,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
-
-      - name: Extract PR dependency overrides
-        if: github.event_name == 'pull_request'
-        id: pr-deps
-        run: |
-          echo "PR_BODY<<EOF" >> $GITHUB_ENV
-          echo "${{ github.event.pull_request.body }}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+        with:
+          persist-credentials: false
 
       - name: Patch sister project dependencies
-        run: |
-          bash .github/scripts/patch-dependencies.sh
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: bash .github/scripts/patch-dependencies.sh
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@master
@@ -108,13 +106,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
-      - name: Extract PR dependency overrides
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "PR_BODY<<EOF" >> $GITHUB_ENV
-          echo "${{ github.event.pull_request.body }}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+        with:
+          persist-credentials: false
       - name: Patch sister project dependencies
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: bash .github/scripts/patch-dependencies.sh
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@master
@@ -144,15 +140,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
-
-      - name: Extract PR dependency overrides
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "PR_BODY<<EOF" >> $GITHUB_ENV
-          echo "${{ github.event.pull_request.body }}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+        with:
+          persist-credentials: false
 
       - name: Patch sister project dependencies
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: bash .github/scripts/patch-dependencies.sh
 
       - name: Setup Rust
@@ -193,15 +186,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
-
-      - name: Extract PR dependency overrides
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "PR_BODY<<EOF" >> $GITHUB_ENV
-          echo "${{ github.event.pull_request.body }}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+        with:
+          persist-credentials: false
 
       - name: Patch sister project dependencies
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: bash .github/scripts/patch-dependencies.sh
 
       - name: Setup Rust
@@ -238,14 +228,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
-
-      - name: Extract PR dependency overrides
-        run: |
-          echo "PR_BODY<<EOF" >> $GITHUB_ENV
-          echo "${{ github.event.pull_request.body }}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+        with:
+          persist-credentials: false
 
       - name: Patch sister project dependencies
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: bash .github/scripts/patch-dependencies.sh
 
       - name: Setup Rust
@@ -272,15 +260,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
-
-      - name: Extract PR dependency overrides
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "PR_BODY<<EOF" >> $GITHUB_ENV
-          echo "${{ github.event.pull_request.body }}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+        with:
+          persist-credentials: false
 
       - name: Patch sister project dependencies
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: bash .github/scripts/patch-dependencies.sh
 
       - name: Setup Rust (MSRV)
