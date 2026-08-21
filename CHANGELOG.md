@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Homelab CPU still does not rustc `candle-transformers`.
 
 ### Changed
+- `CLAUDE.md` matches 1.x working LLaMA LoRA orchestrator (not 1.0 stubs).
 - `.gitignore` covers env/key files, `.cargo/config.toml`, and crate artifacts
   (`Cargo.lock` remains tracked). `fleet-security.yml` gitleaks now requires
   `.gitleaks.toml` (`--config`).
