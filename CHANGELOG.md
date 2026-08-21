@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `.gitignore` covers env/key files, `.cargo/config.toml`, and crate artifacts
+  (`Cargo.lock` remains tracked). `fleet-security.yml` gitleaks now requires
+  `.gitleaks.toml` (`--config`).
+
 ## [1.4.0] - 2026-08-20
 
 ### Added
