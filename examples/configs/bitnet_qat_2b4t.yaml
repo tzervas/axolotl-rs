@@ -1,0 +1,81 @@
+# BitNet b1.58 QAT / intelligent conversion recipe (2B4T)
+#
+# NOT WIRED. This file is documentation of the Track B path — not a training job.
+# axolotl validate / train MUST fail: `adapter: bitnet` is a future key the
+# parser rejects until candle versions align.
+#
+# Candle truth:
+#   axolotl-rs              candle 0.11
+#   bitnet-quantize v0.5.1  candle 0.9
+# Do NOT add a cargo dependency on bitnet-quantize here (two candles).
+# Do NOT run conversion from this file. Do NOT load 2B weights in this repo.
+#
+# AbsMean PTQ is FORBIDDEN. Naive clamp(round(W/γ), -1, 1) on a dense teacher
+# is not BitNet (Qwen-32B in-repo PTQ is the exhibit). Keep latent W intact.
+#
+# Sister runtime (ternary-inference-rs) already generates official packed
+# microsoft/bitnet-b1.58-2B-4T. Never download the ~9GB BF16 teacher onto the
+# RTX 5080 (16303 MiB cap). No NF4. No QLoRA.
+
+# Hub id is identity only. Prefer a local packed snapshot (`BITNET_2B4T`).
+# NEVER `axolotl download` the 9GB BF16 checkpoint onto the 5080.
+base_model: microsoft/bitnet-b1.58-2B-4T
+
+# Future key. Parser rejects with a clear "not wired" error until candles align.
+adapter: bitnet
+
+output_dir: ./outputs/bitnet-qat-2b4t
+seed: 42
+
+# Intelligent conversion knobs (owned by bitnet-quantize once candles align).
+# Unknown mapping today — documented so the recipe does not lie about LoRA/NF4.
+bitnet:
+  conversion: intelligent
+  keep_latent_w: true
+  absmean_ptq: false
+  rewire:
+    # Weights stay latent BF16/FP32. Architecture first, then STE QAT.
+    subln: true
+    attn_sub_norm: true
+    ffn_sub_norm: true
+    gated_relu2: true   # gate_proj * up as official 2B4T; not SwiGLU
+    no_bias: true
+    gqa: true
+    rope: true
+    tied_embeddings: true
+  qat:
+    ste: true           # fake-quant forward, identity backward
+    scale_mode: per_tensor
+  distill:
+    kl_logits: true     # BitDistill stage-3 loss idea; not 8× MI300X / 10B tokens
+    attention_relation: optional
+  export:
+    packed_layout: TwoBitInterleavedRows
+    format: safetensors
+    nf4: false
+  hardware:
+    device: rtx_5080
+    vram_cap_mib: 16303
+    load_9gb_bf16: false
+
+# Local JSONL only — no 2B corpus, no Hub dataset pull.
+dataset:
+  path: ./data/alpaca_100.jsonl
+  format: alpaca
+  max_length: 512
+  val_split: 0.0
+
+# 5080-scale QAT/distill sketch (not executed). Batch 1; no 9GB BF16 on device.
+training:
+  epochs: 1
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  learning_rate: 2.0e-5
+  lr_scheduler: cosine
+  warmup_ratio: 0.03
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+  save_steps: 500
+  logging_steps: 10
+  gradient_checkpointing: true
+  mixed_precision: true

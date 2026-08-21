@@ -67,7 +67,12 @@ fn default_seed() -> u64 {
 }
 
 /// Adapter type for fine-tuning.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// YAML `adapter: bitnet` is a documented **future** key, not a variant.
+/// axolotl-rs is candle **0.11** and `bitnet-quantize` v0.5.1 is candle **0.9**;
+/// a cargo dependency would pull two candles. Deserialize rejects `bitnet`
+/// until those versions align. `AbsMean` PTQ is not `BitNet`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AdapterType {
     /// No adapter (full fine-tuning).
@@ -77,6 +82,32 @@ pub enum AdapterType {
     Lora,
     /// 4-bit quantized `LoRA`.
     Qlora,
+}
+
+/// Honest reject for `adapter: bitnet` until candle 0.9/0.11 align (`AbsMean` PTQ forbidden).
+const BITNET_ADAPTER_NOT_WIRED: &str =
+    "bitnet adapter is not wired until candle 0.9/0.11 is aligned; \
+     axolotl-rs is candle 0.11 and bitnet-quantize v0.5.1 is candle 0.9 \
+     (do not cargo-dep bitnet-quantize; AbsMean PTQ is forbidden; \
+     sister runtime ternary-inference-rs already generates official 2B4T)";
+
+impl<'de> Deserialize<'de> for AdapterType {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "none" => Ok(Self::None),
+            "lora" => Ok(Self::Lora),
+            "qlora" => Ok(Self::Qlora),
+            "bitnet" => Err(serde::de::Error::custom(BITNET_ADAPTER_NOT_WIRED)),
+            other => Err(serde::de::Error::unknown_variant(
+                other,
+                &["none", "lora", "qlora"],
+            )),
+        }
+    }
 }
 
 /// LoRA-specific settings.
@@ -624,6 +655,7 @@ impl AxolotlConfig {
 mod tests {
     use super::*;
     use std::io::Write;
+    use std::path::Path;
     use tempfile::NamedTempFile;
 
     #[test]
@@ -1008,5 +1040,72 @@ mod tests {
 
         let qlora_adapter = AxolotlConfig::llama2_7b_preset();
         assert!(matches!(qlora_adapter.adapter, AdapterType::Qlora));
+    }
+
+    const BITNET_QAT_RECIPE: &str = include_str!("../examples/configs/bitnet_qat_2b4t.yaml");
+
+    #[test]
+    fn bitnet_qat_recipe_yaml_exists_and_documents_intelligent_path() {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/configs/bitnet_qat_2b4t.yaml");
+        assert!(
+            path.is_file(),
+            "expected BitNet QAT recipe at {}",
+            path.display()
+        );
+        assert!(!BITNET_QAT_RECIPE.is_empty());
+
+        let doc: serde_yaml::Value =
+            serde_yaml::from_str(BITNET_QAT_RECIPE).expect("recipe must be valid YAML");
+        assert_eq!(
+            doc.get("adapter").and_then(serde_yaml::Value::as_str),
+            Some("bitnet")
+        );
+
+        let text = BITNET_QAT_RECIPE.to_ascii_lowercase();
+        for needle in [
+            "subln",
+            "gated_relu2",
+            "ste",
+            "kl",
+            "distill",
+            "twobit",
+            "5080",
+            "nf4",
+            "absmean",
+            "bf16",
+            "not wired",
+        ] {
+            assert!(
+                text.contains(needle),
+                "recipe must document intelligent conversion knob `{needle}`"
+            );
+        }
+
+        assert!(
+            !text.contains("quant_type: nf4") || text.contains("nf4: false"),
+            "recipe must not enable NF4"
+        );
+    }
+
+    #[test]
+    fn adapter_bitnet_errors_honestly() {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/configs/bitnet_qat_2b4t.yaml");
+        let err = AxolotlConfig::from_file(&path).expect_err("adapter: bitnet must not parse");
+        let msg = err.to_string();
+        let lower = msg.to_ascii_lowercase();
+        assert!(lower.contains("bitnet"), "error should name bitnet: {msg}");
+        assert!(
+            lower.contains("not wired") && lower.contains("candle"),
+            "error should explain candle 0.9/0.11 and that BitNet QAT is not wired: {msg}"
+        );
+        assert!(
+            lower.contains("absmean"),
+            "error should forbid AbsMean PTQ: {msg}"
+        );
+
+        let yaml_err = serde_yaml::from_str::<AxolotlConfig>(BITNET_QAT_RECIPE).unwrap_err();
+        assert!(yaml_err.to_string().contains("bitnet"));
     }
 }
