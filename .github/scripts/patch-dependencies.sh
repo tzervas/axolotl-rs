@@ -17,9 +17,9 @@ PEFT_REF="${PEFT_RS_REF:-main}"
 QLORA_REF="${QLORA_RS_REF:-main}"
 UNSLOTH_REF="${UNSLOTH_RS_REF:-main}"
 
-# Git refs only. Reject injection if a PR body marker is garbage.
+# Git refs only. No leading dash (flag injection into git/cargo), no `..`.
 valid_ref() {
-    [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]]
+    [[ "$1" =~ ^[A-Za-z0-9._][A-Za-z0-9._/-]*$ ]] && [[ "$1" != *..* ]]
 }
 
 if [ -n "${PR_BODY:-}" ]; then
@@ -79,6 +79,8 @@ text = re.sub(
     flags=re.MULTILINE,
 )
 
+# Floor 1.2 is the Candle 0.11 API. crates.io 1.0 is Candle 0.9 — do not
+# rewrite to "1" / "1.0" or CI can resolve the wrong product.
 replacements = {
     "peft-rs": 'peft-rs = { version = "1.2", optional = true }',
     "qlora-rs": 'qlora-rs = { version = "1.2", optional = true }',

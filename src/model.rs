@@ -874,6 +874,43 @@ fn load_model_info(model_path: &PathBuf) -> Result<ModelInfo> {
     }
 }
 
+/// Names from Hub JSON that are joined onto a model directory.
+/// Reject absolute paths, `..`, and empty/`.` components so a malicious
+/// `model.safetensors.index.json` cannot load or write outside the model dir.
+fn is_safe_repo_relative_file(name: &str) -> bool {
+    if name.is_empty() || name.contains('\0') {
+        return false;
+    }
+    let path = Path::new(name);
+    if path.is_absolute() {
+        return false;
+    }
+    let mut n = 0usize;
+    for c in path.components() {
+        match c {
+            std::path::Component::Normal(_) => n += 1,
+            _ => return false,
+        }
+    }
+    n > 0
+}
+
+/// Hub ids are `name` or `org/name` (ASCII token charset). Not URLs or paths.
+fn is_safe_hub_model_id(id: &str) -> bool {
+    if id.is_empty() || id.contains("..") {
+        return false;
+    }
+    let segs: Vec<&str> = id.split('/').collect();
+    if segs.len() > 2 {
+        return false;
+    }
+    segs.iter().all(|s| {
+        !s.is_empty()
+            && s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    })
+}
+
 /// Resolve model path from `HuggingFace` model ID or local path.
 fn resolve_model_path(model_id: &str) -> Result<PathBuf> {
     // Check if it's a local path
@@ -1084,6 +1121,12 @@ fn load_sharded_safetensors(
 
     let mut all_tensors: HashMap<String, Tensor> = HashMap::new();
     for shard_name in &shard_files {
+        if !is_safe_repo_relative_file(shard_name) {
+            return Err(AxolotlError::Model(format!(
+                "Sharded index {} references unsafe shard name '{shard_name}'. Filenames must stay inside the model directory (no '..', no absolute paths).",
+                index_path.display()
+            )));
+        }
         let shard_path = model_path.join(shard_name);
         if !shard_path.exists() {
             return Err(AxolotlError::Model(format!(
@@ -1859,6 +1902,12 @@ pub fn download_model(model_id: &str, cache_dir: &str) -> Result<String> {
         return Ok(local.display().to_string());
     }
 
+    if !is_safe_hub_model_id(model_id) {
+        return Err(AxolotlError::Model(format!(
+            "Invalid Hugging Face model id '{model_id}'. Expected `name` or `org/name`."
+        )));
+    }
+
     let sanitized = model_id.replace('/', "--");
     let dest = PathBuf::from(cache_dir).join(&sanitized);
     std::fs::create_dir_all(&dest)?;
@@ -1919,6 +1968,11 @@ pub fn download_model(model_id: &str, cache_dir: &str) -> Result<String> {
                 shards.sort();
                 shards.dedup();
                 for shard in &shards {
+                    if !is_safe_repo_relative_file(shard) {
+                        return Err(AxolotlError::Model(format!(
+                            "Downloaded index lists unsafe shard name '{shard}'"
+                        )));
+                    }
                     download_hf_file(&client, &base, shard, &dest)?;
                 }
                 tracing::info!("Downloaded {} shard(s) for {model_id}", shards.len());
@@ -1946,6 +2000,11 @@ fn download_hf_file(
     filename: &str,
     dest_dir: &Path,
 ) -> Result<()> {
+    if !is_safe_repo_relative_file(filename) {
+        return Err(AxolotlError::Model(format!(
+            "Refusing to download unsafe relative path '{filename}'"
+        )));
+    }
     let dest = dest_dir.join(filename);
     if dest.exists() && dest.metadata().is_ok_and(|m| m.len() > 0) {
         tracing::debug!("Using cached {}", dest.display());
@@ -2411,6 +2470,48 @@ mod tests {
                 let err = e.to_string();
                 assert!(
                     err.contains("missing shard") || err.contains("Sharded"),
+                    "unexpected: {err}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_repo_relative_file_rejects_escape() {
+        assert!(is_safe_repo_relative_file(
+            "model-00001-of-00002.safetensors"
+        ));
+        assert!(is_safe_repo_relative_file("nested/weights.safetensors"));
+        assert!(!is_safe_repo_relative_file("../escape.safetensors"));
+        assert!(!is_safe_repo_relative_file("/etc/passwd"));
+        assert!(!is_safe_repo_relative_file(""));
+        assert!(!is_safe_repo_relative_file("."));
+        assert!(!is_safe_repo_relative_file("foo/../bar.safetensors"));
+        assert!(is_safe_hub_model_id("meta-llama/Llama-3.2-1B"));
+        assert!(is_safe_hub_model_id("tinyllama"));
+        assert!(!is_safe_hub_model_id("../evil"));
+        assert!(!is_safe_hub_model_id("https://example.com/x"));
+        assert!(!is_safe_hub_model_id("a/b/c"));
+        assert!(!is_safe_hub_model_id(""));
+    }
+
+    /// Malicious index.json must not join `..` onto the model directory.
+    #[test]
+    fn test_sharded_index_path_escape_is_error() {
+        let temp_dir = TempDir::new().unwrap();
+        let index = r#"{
+            "metadata": {"total_size": 1},
+            "weight_map": {
+                "model.embed_tokens.weight": "../escape.safetensors"
+            }
+        }"#;
+        fs::write(temp_dir.path().join("model.safetensors.index.json"), index).unwrap();
+        match load_weight_varbuilder(&temp_dir.path().to_path_buf(), &Device::Cpu, DType::F32) {
+            Ok(_) => panic!("expected unsafe shard error"),
+            Err(e) => {
+                let err = e.to_string();
+                assert!(
+                    err.contains("unsafe shard") || err.contains("unsafe"),
                     "unexpected: {err}"
                 );
             }

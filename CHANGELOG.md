@@ -38,13 +38,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kitchen-sink `fleet-ci` `cargo check/test` moves to **akula-prime**
   (5080 desktop, `gha-runner-ctl` GPU jobs; `gpu` is host routing, not CUDA).
   Homelab CPU still does not rustc `candle-transformers`.
-
-### Fixed
 - Hosted CI no longer interpolates `pull_request.body` into the shell
   (`GITHUB_ENV` heredoc injection). Body is passed as a step `env` value;
-  sister refs from the body must match `^[A-Za-z0-9._/-]+$`. Path-dep rewrite
-  emits `"1.2"` (not candle-0.9 `"1.0"`). Checkout `persist-credentials: false`.
+  sister refs must match `^[A-Za-z0-9._][A-Za-z0-9._/-]*$` and must not
+  contain `..` (no leading dash). Path-dep rewrite emits `"1.2"` (Candle
+  0.11 floor; crates.io `1.0` is 0.9). Checkout `persist-credentials: false`.
   Workflow `permissions: contents: read`.
+- `fleet-ci` `detect stack` runs on `ubuntu-latest` so the GPU kitchen-sink
+  job is not blocked on the homelab CPU queue.
+- Sharded `weight_map` filenames and Hub download names cannot escape the
+  model directory (`..`, absolute paths). Hub `model_id` is `name` or
+  `org/name`.
 
 ### Changed
 - `CLAUDE.md` matches 1.x working LLaMA LoRA orchestrator (not 1.0 stubs).

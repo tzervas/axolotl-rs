@@ -1,4 +1,5 @@
-# Fleet CI. Detect stays on the homelab CPU runner (cheap).
+# Fleet CI. Detect is GitHub-hosted (file-existence only) so the GPU
+# kitchen-sink job is not stuck behind the homelab CPU queue.
 #
 # Kitchen-sink rustc does **not** run there. axolotl-rs depends on
 # candle-transformers 0.11 with no per-model features (~49k LOC). rustc
@@ -37,12 +38,16 @@ env:
 jobs:
   detect:
     name: detect stack
-    runs-on: [self-hosted, linux, x64, podman]
+    # Cheap file-existence probe. Do not queue this behind homelab CPU
+    # (that blocked the GPU kitchen-sink job for tens of minutes).
+    runs-on: ubuntu-latest
     outputs:
       rust: ${{ steps.d.outputs.rust }}
       python: ${{ steps.d.outputs.python }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - id: d
         run: |
           set -euo pipefail
@@ -83,6 +88,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@1.96.1
       - name: Prefer rustup 1.96.1 over image rustc
         run: |
@@ -112,6 +119,8 @@ jobs:
     runs-on: [self-hosted, linux, x64, podman]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
