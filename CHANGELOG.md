@@ -35,9 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (SIGKILL / OOM even at CGU=1). Detect + memory snapshot stay on the podman
   runner (`HONEST_CI class=OOM_SKIP`). Kitchen-sink `cargo check/test` is
   GitHub-hosted `ubuntu-latest`. Signal 9 on that crate is OOM, not a flake.
-- Kitchen-sink `fleet-ci` `cargo check/test` moves to the laptop GPU listener
-  (`gpu`: RAM routing, not CUDA; retain worker 16 GiB). Homelab CPU still
-  does not rustc `candle-transformers`.
+- Kitchen-sink `fleet-ci` `cargo check/test` moves to **akula-prime**
+  (5080 desktop, `gha-runner-ctl` GPU jobs; `gpu` is host routing, not CUDA).
+  Homelab CPU still does not rustc `candle-transformers`.
 
 ### Changed
 - `.gitignore` covers env/key files, `.cargo/config.toml`, and crate artifacts

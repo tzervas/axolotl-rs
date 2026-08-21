@@ -5,11 +5,11 @@
 # SIGKILL (signal 9) on that crate on the homelab podman runner is OOM, not a
 # flake (CGU=1 / CARGO_BUILD_JOBS=1 still died 2026-08-21).
 #
-# Product cargo check/test for this workflow runs on the laptop GPU listener
-# (`gpu`): that host's retain worker is 16 GiB. The `gpu` label is **routing
-# to that host's RAM**, not CUDA — default features, no `--features cuda`.
-# Do not add `large`: the GPU runner is not registered with that label, so
-# GitHub would queue forever. Benches stay on hosted ci.yml.
+# Product cargo check/test for this workflow runs on **akula-prime** (5080
+# desktop) via gha-runner-ctl GPU jobs (`gpu`). The retain worker is 16 GiB.
+# `gpu` is **routing to that host**, not enabling candle CUDA (default
+# features only). Do not add `large`: the GPU runner is not registered with
+# that label, so GitHub would queue forever. Benches stay on hosted ci.yml.
 name: fleet-ci
 
 on:
@@ -76,7 +76,7 @@ jobs:
     name: cargo check/test
     needs: detect
     if: needs.detect.outputs.rust == 'true'
-    # Laptop GPU listener (retain worker 8c/16 GiB). Homelab CPU SIGKILL/OOM.
+    # akula-prime 5080 (gha-runner-ctl GPU job). Homelab CPU SIGKILL/OOM.
     # `gpu` selects that host; this job does not enable candle CUDA.
     # Do not add `large`: that label is not on the registered GPU runner.
     runs-on: [self-hosted, linux, x64, podman, gpu]
