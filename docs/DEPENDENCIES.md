@@ -44,6 +44,18 @@ bash scripts/use-local-path-deps.sh --clear  # disable
 Writes gitignored `.cargo/config.toml` with `paths = [...]` — does **not** change
 committed `Cargo.toml`.
 
+## `candle-transformers` (compile cost)
+
+This crate depends on `candle-transformers = "0.11"` for LLaMA only
+(`models::llama::{Cache, Config, Llama, LlamaConfig, LlamaEosToks}` and
+`utils::repeat_kv`). Upstream does not feature-gate models, so every
+`cargo check` compiles the full model zoo (~49k LOC). That is the RSS peak
+on self-hosted `fleet-ci`; see `docs/FLEET_STANDARDS.md` (rustc memory).
+
+Do not add a second candle-transformers compile path (examples/benches) on
+that runner. Vendoring a LLaMA-only module is a possible follow-up if a
+**single** rustc still OOMs after the CGU=1 cap.
+
 ## Features
 
 | Feature | Pulls |
