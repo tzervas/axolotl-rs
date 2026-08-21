@@ -14,7 +14,8 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 > **Status honesty:** Version **1.4.0** is a working LLaMA-family LoRA trainer/orchestrator on local
 > weights — **not** full Python Axolotl parity. Candle **0.11**, MSRV **1.96**.
 > Optional `vsa-optim` is **not** a claimed/tested acceleration path in this release.
-> See the capability matrix.
+> **BitNet QAT is not wired until candle 0.9/0.11 is aligned. Do not AbsMean PTQ.
+> Sister runtime already generates official 2B4T.** See the capability matrix.
 >
 > **Docs:** [CHANGELOG.md](CHANGELOG.md) · [roadmap.md](roadmap.md) · [CUDA_STATUS.md](CUDA_STATUS.md) ·
 > [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) (leaf crate; no reverse deps / no cycles) ·
@@ -38,6 +39,21 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 | Real grad/param norms | ✅ | ✅ | ✅ | Not placeholder constants |
 | Multi-GPU / packing / DPO | ❌ | ❌ | ❌ | Out of scope |
 | GPU E2E | ⚠️ | ⚠️ | ⚠️ | Often blocked by Candle CUDA RMSNorm — see [CUDA_STATUS.md](CUDA_STATUS.md) |
+| BitNet b1.58 QAT (`adapter: bitnet`) | ❌ not wired | ❌ | ❌ | Recipe only. axolotl-rs is candle **0.11**; `bitnet-quantize` v0.5.1 is candle **0.9**. **No cargo dep.** AbsMean PTQ is forbidden. |
+
+### BitNet QAT (not wired)
+
+BitNet QAT is not wired until candle 0.9/0.11 is aligned. Do not AbsMean PTQ.
+Sister runtime already generates official 2B4T.
+
+[`examples/configs/bitnet_qat_2b4t.yaml`](examples/configs/bitnet_qat_2b4t.yaml) documents the
+**intelligent** conversion path (rewire SubLN + gated ReLU², STE QAT, KL distill, packed
+TwoBit export, RTX 5080 VRAM cap, no NF4, no 9GB BF16 on device). `adapter: bitnet` is a
+future key: the parser **rejects** it with a clear error. Do not add `bitnet-quantize` as a
+Cargo dependency while the candles diverge. Official packed 2B4T generate lives in
+[`ternary-inference-rs`](https://github.com/tzervas/ternary-inference-rs). Conversion is
+[`bitnet-quantize`](https://github.com/tzervas/bitnet-quantize) Track B — not this crate,
+not this recipe.
 
 ### Sister crates & dependency policy
 

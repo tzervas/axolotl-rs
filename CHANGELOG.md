@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- BitNet b1.58 QAT recipe at `examples/configs/bitnet_qat_2b4t.yaml` (documentation
+  only): intelligent conversion knobs (rewire SubLN + gated ReLU², STE QAT, KL
+  distill, packed TwoBit, 5080 VRAM cap). `adapter: bitnet` is rejected until
+  candle 0.9/0.11 align. No `bitnet-quantize` cargo dependency (axolotl-rs is
+  0.11; quantize v0.5.1 is 0.9). AbsMean PTQ is forbidden.
+
 ### Fixed
 - `reopen-issues-closed-off-main.yml` is valid YAML again: replace the
   column-0 `python3 <<'PY'` heredoc with `python3 -c` so GitHub stops
