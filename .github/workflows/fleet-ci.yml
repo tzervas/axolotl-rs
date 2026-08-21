@@ -2,12 +2,13 @@
 #
 # Kitchen-sink rustc does **not** run there. axolotl-rs depends on
 # candle-transformers 0.11 with no per-model features (~49k LOC). rustc
-# SIGKILL (signal 9) on that crate on the podman runner is OOM, not a flake
-# (CGU=1 / CARGO_BUILD_JOBS=1 still died 2026-08-21).
+# SIGKILL (signal 9) on that crate on the homelab podman runner is OOM, not a
+# flake (CGU=1 / CARGO_BUILD_JOBS=1 still died 2026-08-21).
 #
-# Product cargo check/test for this workflow is GitHub-hosted ubuntu-latest
-# (same graph as ci.yml Test Suite: lib + bins + tests). Benches stay on
-# hosted ci.yml only.
+# Product cargo check/test for this workflow runs on the laptop GPU listener
+# (`gpu` + `large`): 16 GiB class. The `gpu` label is **routing to that host's
+# RAM**, not CUDA — default features, no `--features cuda`. Benches stay on
+# hosted ci.yml. GitHub-hosted ci.yml Test Suite / adapter-features remain.
 name: fleet-ci
 
 on:
@@ -17,8 +18,9 @@ on:
     branches: [main, master, dev]
   workflow_dispatch:
 
-# One kitchen-sink compile for this repo at a time (hosted rustc is still
-# heavy). Queue rather than cancel so a main push does not wipe a PR gate.
+# One kitchen-sink compile for this repo at a time. Queue rather than cancel
+# so a main push does not wipe a PR gate (and so two rustc's do not share the
+# GPU worker's 16 GiB).
 concurrency:
   group: axolotl-rs-fleet-ci
   cancel-in-progress: false
@@ -66,21 +68,37 @@ jobs:
           echo "HONEST_CI class=OOM_SKIP detail=candle-transformers_0.11"
           echo "This runner SIGKILL'd rustc compiling candle-transformers 0.11"
           echo "even with CARGO_BUILD_JOBS=1 and codegen-units=1."
-          echo "Kitchen-sink cargo check/test is the GitHub-hosted job below"
-          echo "and ci.yml Test Suite / adapter-features."
+          echo "Kitchen-sink cargo check/test is the GPU-host job below"
+          echo "(labels gpu+large — RAM routing, not CUDA) plus ci.yml Test Suite."
 
   rust:
     name: cargo check/test
     needs: detect
     if: needs.detect.outputs.rust == 'true'
-    # GitHub-hosted: self-hosted podman OOM (SIGKILL) on candle-transformers.
-    runs-on: ubuntu-latest
+    # Laptop GPU listener (16 GiB). Homelab CPU SIGKILL/OOM. `gpu` is how
+    # that host is selected; this job does not enable candle CUDA.
+    # `large` is required: job name "cargo check/test" would otherwise
+    # auto-size to medium (4 GiB) and OOM the same way.
+    runs-on: [self-hosted, linux, x64, podman, gpu, large]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.96.1
-      - name: rustc
-        run: rustc --version && cargo --version
+      - name: Prefer rustup 1.96.1 over image rustc
+        run: |
+          set -euo pipefail
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup default 1.96.1
+          rustc --version
+          cargo --version
+          rustc --version | grep -E 'rustc 1\.96'
+      - name: free memory snapshot
+        run: |
+          set -euo pipefail
+          free -h || true
+          nproc || true
+          echo "HONEST_CI class=GPU_RAM_ROUTE detail=not_cuda"
       - name: cargo check
         # Do not --all-targets: benches pull criterion/plotters (hosted ci.yml).
         run: cargo check --workspace --lib --bins --tests

@@ -11,8 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hosted CI job `adapter-features`: isolate `cargo check --features peft` /
   `--features unsloth`, then `cargo test --features peft,qlora,unsloth`
   (`--lib --bins --tests`). Default `cargo test` stays default features.
-  Self-hosted `fleet-ci` does not rustc `candle-transformers` (OOM); that
-  compile is GitHub-hosted.
+  Homelab CPU `fleet-ci` does not rustc `candle-transformers` (OOM).
 - CPU `LoraLlama` full-model forward test (`test_lora_llama_cpu_forward`).
 - CPU `QLoraLlama` full-model forward test (`test_qlora_llama_cpu_forward`).
 - `tests/unsloth_cpu.rs`: `RmsNormWrapper` on `--features unsloth`; RoPE when
@@ -36,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (SIGKILL / OOM even at CGU=1). Detect + memory snapshot stay on the podman
   runner (`HONEST_CI class=OOM_SKIP`). Kitchen-sink `cargo check/test` is
   GitHub-hosted `ubuntu-latest`. Signal 9 on that crate is OOM, not a flake.
+- Kitchen-sink `fleet-ci` `cargo check/test` moves to the laptop GPU listener
+  (`gpu` + `large`: RAM routing, not CUDA). Homelab CPU still does not rustc
+  `candle-transformers`.
 
 ### Changed
 - `.gitignore` covers env/key files, `.cargo/config.toml`, and crate artifacts
