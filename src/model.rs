@@ -117,7 +117,7 @@ impl LoadedModel {
     /// Training forward. Delegates to [`Self::forward`].
     ///
     /// With `--features peft`, `self.model` is `LoraLlama` (or `QLoraLlama` with
-    /// `--features qlora`): LoRA is injected **per layer** in that `Module`.
+    /// `--features qlora`): `LoRA` is injected **per layer** in that `Module`.
     /// This is not a post-hoc logits patch.
     ///
     /// # Errors

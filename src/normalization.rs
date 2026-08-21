@@ -35,7 +35,7 @@ use unsloth_rs::kernels::RmsNorm;
 /// RMS Normalization wrapper.
 ///
 /// With `--features unsloth`, forwards through `unsloth_rs::kernels::RmsNorm`
-/// (CustomOp) on **every** device. Without that feature, uses a ones-init CPU
+/// (`CustomOp`) on **every** device. Without that feature, uses a ones-init CPU
 /// RMS on the host tensors.
 pub struct RmsNormWrapper {
     #[cfg(feature = "unsloth")]

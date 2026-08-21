@@ -18,7 +18,7 @@
 //! Partial Rust port inspired by Python Axolotl — **not** full product parity.
 //! Live version is `Cargo.toml`. Default features cover config/datasets/CLI;
 //! LoRA/QLoRA need `--features peft` / `peft,qlora`. Optional `--features unsloth`
-//! wires CustomOp RMSNorm / RoPE / chunked CE. Adapter **merge**, local-path load,
+//! wires `CustomOp` `RMSNorm` / `RoPE` / chunked CE. Adapter **merge**, local-path load,
 //! sharded safetensors, and Hub **download** (feature `download`) are implemented.
 //! See crate README capability matrix and `docs/DEPENDENCIES.md` (leaf crate).
 //!
