@@ -86,7 +86,7 @@ jobs:
     # `gpu` selects that host; this job does not enable candle CUDA.
     # `rust` selects GHCR scribe-cpu-build (Rust 1.96.1 + clippy baked).
     # Do not add `large`: that label is not on the registered GPU runner.
-    runs-on: [self-hosted, linux, x64, podman, gpu, rust]
+    runs-on: [self-hosted, linux, x64, podman, gpu, rust, scribe-cpu-build]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7

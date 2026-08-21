@@ -56,7 +56,7 @@ axolotl-rs depends on `candle-transformers` 0.11 with **no per-model features**
   `HONEST_CI class=OOM_SKIP`.
 - Runs `cargo check/test` (`--lib --bins --tests`) on **akula-prime**
   (RTX 5080 desktop) via `gha-runner-ctl` GPU jobs:
-  `runs-on: [self-hosted, linux, x64, podman, gpu, rust]`.
+  `runs-on: [self-hosted, linux, x64, podman, gpu, rust, scribe-cpu-build]`.
   `gpu` routes here. It does **not** enable CUDA. `rust` selects
   `ghcr.io/tzervas/ap-fleet-work-images/scribe-cpu-build:dev` (Rust 1.96.1
   + clippy baked; no `dtolnay/rust-toolchain` at job time). The worker is
