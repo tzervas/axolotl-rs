@@ -42,8 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Hosted CI no longer interpolates `pull_request.body` into the shell
   (`GITHUB_ENV` heredoc injection). Body is passed as a step `env` value;
-  sister refs from the body must match `^[A-Za-z0-9._/-]+$`. Checkout
-  `persist-credentials: false`. Workflow `permissions: contents: read`.
+  sister refs from the body must match `^[A-Za-z0-9._/-]+$`. Path-dep rewrite
+  emits `"1.2"` (not candle-0.9 `"1.0"`). Checkout `persist-credentials: false`.
+  Workflow `permissions: contents: read`.
 
 ### Changed
 - `CLAUDE.md` matches 1.x working LLaMA LoRA orchestrator (not 1.0 stubs).

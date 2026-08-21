@@ -80,9 +80,9 @@ text = re.sub(
 )
 
 replacements = {
-    "peft-rs": 'peft-rs = { version = "1.0", optional = true }',
-    "qlora-rs": 'qlora-rs = { version = "1.0", optional = true }',
-    "unsloth-rs": 'unsloth-rs = { version = "1.0", optional = true }',
+    "peft-rs": 'peft-rs = { version = "1.2", optional = true }',
+    "qlora-rs": 'qlora-rs = { version = "1.2", optional = true }',
+    "unsloth-rs": 'unsloth-rs = { version = "1.2", optional = true }',
     "vsa-optim-rs": 'vsa-optim-rs = { version = "0.1", optional = true }',
 }
 
