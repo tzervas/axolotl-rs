@@ -34,8 +34,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-          with:
-            persist-credentials: false
+        with:
+          persist-credentials: false
 
       - name: Determine version
         id: version
@@ -89,8 +89,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-          with:
-            persist-credentials: false
+        with:
+          persist-credentials: false
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@1.96.1

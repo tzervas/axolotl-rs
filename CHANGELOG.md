@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`scripts/install-hooks.sh`). Missing gitleaks fails the commit. CI gitleaks
   is defense-in-depth; a secret that reached git history must be rotated.
 
+### Fixed
+- `gpu-tests.yml` / `publish.yml` / `release.yml` YAML: `with:` is a sibling of
+  `uses:`, not nested (checkout v7 pin).
+
 ### Added
 - Hosted CI job `adapter-features`: isolate `cargo check --features peft` /
   `--features unsloth`, then `cargo test --features peft,qlora,unsloth`
