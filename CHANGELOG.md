@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Self-hosted `fleet-ci` SIGKILL while compiling `candle-transformers` 0.11:
+  repo-wide concurrency (PR and trunk no longer overlap), rustc codegen-units
+  capped at 1, debuginfo off, and check/test sized to lib+bins+tests (benches
+  stay on GitHub-hosted CI). Signal 9 on that crate is OOM, not a flake.
+
 ### Changed
 - `.gitignore` covers env/key files, `.cargo/config.toml`, and crate artifacts
   (`Cargo.lock` remains tracked). `fleet-security.yml` gitleaks now requires

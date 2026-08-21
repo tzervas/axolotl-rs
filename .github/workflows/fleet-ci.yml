@@ -1,5 +1,14 @@
 # Fleet standard CI — self-hosted. Honest status on trunk via Actions badge.
-# See docs/FLEET_STANDARDS.md (or plans/fractal/P26_FLEET_STANDARDS.md).
+# See docs/FLEET_STANDARDS.md.
+#
+# This job is the kitchen-sink compile: axolotl-rs depends on candle-transformers
+# 0.11, which has no model feature flags (~49k LOC, every architecture). rustc
+# SIGKILL (signal 9) on that crate is OOM, not a flake.
+#
+# Evidence (2026-08-21): two fleet-ci runs on different refs
+# (release/1.4.0 PR + main push) compiled candle-transformers concurrently
+# and both died at the same second. Per-ref concurrency groups allowed that.
+# Default profile.dev codegen-units=256 also inflates a single rustc's RSS.
 name: fleet-ci
 
 on:
@@ -9,21 +18,28 @@ on:
     branches: [main, master, dev]
   workflow_dispatch:
 
-# Serialize with other heavy self-hosted candle builds on this ref so concurrent
-# rustc trees do not OOM (SIGKILL on zerocopy/candle-core/pulp).
+# One rustc tree for this repo at a time (PR and trunk must not overlap).
+# Queue rather than cancel so a main push does not wipe an in-flight PR gate.
 concurrency:
-  group: axolotl-rs-rust-${{ github.event.pull_request.number || github.ref }}
+  group: axolotl-rs-fleet-ci
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 env:
-  # Self-hosted podman runners: multi-job rustc + full debuginfo OOM'd
-  # (signal 9 on zerocopy during `cargo check --all-targets`). Match peft-rs.
+  # Self-hosted podman runners: one rustc, no incremental, no debuginfo.
+  # Match peft-rs RUSTFLAGS so candle-transformers does not compile at
+  # profile.dev's default 256 codegen-units.
   CARGO_BUILD_JOBS: "1"
   CARGO_INCREMENTAL: "0"
   CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_DEV_CODEGEN_UNITS: "1"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  CARGO_PROFILE_TEST_CODEGEN_UNITS: "1"
+  RUSTFLAGS: "-C codegen-units=1 -C debuginfo=0"
+  # Tests allocate Candle tensors; keep one harness thread on this runner.
+  RUST_TEST_THREADS: "1"
 
 jobs:
   detect:
@@ -49,6 +65,7 @@ jobs:
     needs: detect
     if: needs.detect.outputs.rust == 'true'
     runs-on: [self-hosted, linux, x64, podman]
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       # Work image ships rustc 1.88; this crate's MSRV is 1.96.
@@ -62,13 +79,21 @@ jobs:
           rustc --version
           cargo --version
           rustc --version | grep -E 'rustc 1\.96'
+      - name: free memory snapshot
+        run: |
+          set -euo pipefail
+          free -h || true
+          nproc || true
+          echo "CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-}"
+          echo "CARGO_PROFILE_DEV_CODEGEN_UNITS=${CARGO_PROFILE_DEV_CODEGEN_UNITS:-}"
+          echo "RUSTFLAGS=${RUSTFLAGS:-}"
       - name: cargo check
-        # Avoid compiling every example/bench under memory pressure when needed:
-        # keep --all-targets but serialize via CARGO_BUILD_JOBS=1 above.
-        run: cargo check --workspace --all-targets
+        # Do not --all-targets: benches pull criterion/plotters and are gated
+        # on GitHub-hosted CI. Lib + bin + tests still compile candle-transformers
+        # (required) at 1 codegen-unit.
+        run: cargo check --workspace --lib --bins --tests
       - name: cargo test
-        # Reuse artifacts from check when possible; single job avoids dual compile.
-        run: cargo test --workspace
+        run: cargo test --workspace --lib --bins --tests
 
   python:
     name: python lint/test
