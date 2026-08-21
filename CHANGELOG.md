@@ -7,13 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-20
+
 ### Added
 - CLI `axolotl export --format peft|hf|ollama-adapter|ollama-merged|gguf` (`src/export.rs`).
   GGUF is delegated to llama.cpp (`convert_hf_to_gguf.py` + `llama-quantize`); missing tools
   print the exact commands and exit 2. Never writes a custom `GGUF_TYPE_QLORA_NF4`.
 - Hub-safe PEFT save: one `adapter_model.safetensors` with
   `{base_model.model}.{module}.lora_A.default.weight` / `lora_B.default.weight`
-  (local writer; published peft-rs 1.2.1 has no `save_multi_module_pretrained_hf`).
+  (local writer; peft-rs 1.3.0 also ships `save_multi_module_pretrained_hf`).
 - `adapter_config.json` fields: `peft_type`, `r`, `lora_alpha`, `target_modules`, `bias`,
   `task_type`, `base_model_name_or_path`, `lora_dropout`, `inference_mode`, `use_rslora`,
   `use_dora`.

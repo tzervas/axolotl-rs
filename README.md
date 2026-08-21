@@ -11,7 +11,7 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 [![Documentation](https://docs.rs/axolotl-rs/badge.svg)](https://docs.rs/axolotl-rs)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
 
-> **Status honesty:** Version **1.3.0** is a working LLaMA-family LoRA trainer/orchestrator on local
+> **Status honesty:** Version **1.4.0** is a working LLaMA-family LoRA trainer/orchestrator on local
 > weights — **not** full Python Axolotl parity. Candle **0.11**, MSRV **1.96**.
 > Optional `vsa-optim` is **not** a claimed/tested acceleration path in this release.
 > See the capability matrix.
@@ -19,7 +19,7 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 > **Docs:** [CHANGELOG.md](CHANGELOG.md) · [roadmap.md](roadmap.md) · [CUDA_STATUS.md](CUDA_STATUS.md) ·
 > [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) (leaf crate; no reverse deps / no cycles) ·
 > [docs/archive/](docs/archive/) (historical COMPLETE fiction — do not treat as current status)
-## Capability matrix (1.3.0)
+## Capability matrix (1.4.0)
 
 | Capability | Default features | `--features peft` | `--features peft,qlora` | Notes |
 |------------|------------------|-------------------|-------------------------|-------|
