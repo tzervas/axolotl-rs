@@ -21,14 +21,6 @@
 //! cargo test --features peft,qlora,cuda test_gpu_qlora_ -- --ignored
 //! ```
 
-#![allow(
-    dead_code,
-    unused_imports,
-    clippy::all,
-    clippy::style,
-    clippy::pedantic,
-    clippy::restriction
-)]
 #[cfg(all(feature = "peft", feature = "qlora"))]
 mod qlora_tests {
     use candle_core::{DType, Device, Tensor};

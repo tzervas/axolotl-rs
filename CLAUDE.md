@@ -4,7 +4,7 @@
 
 High-level fine-tuning orchestration layer. Rust port of Python Axolotl, providing YAML-driven configuration for LLM training.
 
-**Status**: 1.2.0 - Configuration, CLI, training loop, adapter merging, and checkpoint save/load fully functional.
+**Status**: 1.4.0 - LLaMA-family LoRA/QLoRA trainer & orchestrator with dense HF / PEFT / Ollama / GGUF export. Candle 0.11, MSRV 1.96.
 
 ## Architecture
 
@@ -15,6 +15,7 @@ src/
 ├── cli.rs           # Clap CLI definitions
 ├── config.rs        # YAML configuration parsing
 ├── dataset.rs       # Dataset loaders (Alpaca, ShareGPT, etc.)
+├── export.rs        # Dense HF / PEFT / Ollama / GGUF export
 ├── model.rs         # Model loading and architecture
 ├── lora_llama.rs    # LLaMA with LoRA integration
 ├── llama_common.rs  # Shared LLaMA utilities
@@ -76,8 +77,8 @@ Supports formats:
 - Completion (raw text)
 - Custom with column mapping
 
-### Model Integration (`model.rs`)
-Loads LLaMA-family architectures, sharded/index safetensors, and performs model-adapter fusion (merging).
+### Model & Export (`model.rs`, `export.rs`)
+Loads LLaMA-family architectures, sharded/index safetensors, model-adapter fusion (merging), and exports to PEFT adapter, dense HF, Ollama Modelfile, or llama.cpp GGUF formats.
 
 ## Development Commands
 
@@ -121,6 +122,10 @@ axolotl merge --config config.yaml --adapter checkpoints/ --output merged_model/
 
 # Download weights
 axolotl download TinyLlama/TinyLlama-1.1B-Chat-v1.0 --output ./models
+
+# Export model (formats: peft | hf | ollama-adapter | ollama-merged | gguf)
+axolotl export --format peft --config config.yaml --adapter ./checkpoint --output ./peft-adapter
+axolotl export --format gguf --config config.yaml --merged ./merged-model --output ./gguf --quantize Q4_K_M
 ```
 
 ## Testing Strategy
@@ -130,7 +135,7 @@ axolotl download TinyLlama/TinyLlama-1.1B-Chat-v1.0 --output ./models
 - Integration: End-to-end with real and mock adapters
 - GPU tests: Real training loops (ignored without CUDA)
 
-## 1.2 Checklist
+## 1.4 Checklist
 
 - [x] YAML configuration parsing
 - [x] Dataset loaders (4 formats)
@@ -140,6 +145,8 @@ axolotl download TinyLlama/TinyLlama-1.1B-Chat-v1.0 --output ./models
 - [x] Working training loop (CPU/GPU)
 - [x] Checkpoint save/load
 - [x] Adapter merging
+- [x] Portable export CLI (PEFT / dense HF / Ollama / llama.cpp GGUF)
+- [x] Candle 0.11 upgrade and safetensors 0.8 alignment
 - [x] VSA accelerator support
 - [x] Robust error handling and custom exceptions
 - [x] CI/CD pipeline with GitHub Actions

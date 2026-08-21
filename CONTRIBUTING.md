@@ -10,7 +10,7 @@ axolotl-rs is an experimental orchestrator scaffold. See the [README](README.md)
 
 ### Prerequisites
 
-- Rust 1.92 or later
+- Rust 1.96 or later
 - Git
 - (Optional) CUDA 12.0+ for GPU support
 

@@ -10,7 +10,7 @@ use crate::config::{AdapterType, AxolotlConfig};
 use crate::error::{AxolotlError, Result};
 
 #[cfg(feature = "peft")]
-use peft_rs::{LoraConfig as PeftLoraConfig, LoraLayer, SaveLoad};
+use peft_rs::{insert_module_lora_weights, LoraConfig as PeftLoraConfig, LoraLayer, SaveLoad};
 
 #[cfg(feature = "qlora")]
 use qlora_rs::{QLoraConfig, QuantizedLinear};
@@ -170,54 +170,87 @@ impl LoadedModel {
     /// Returns an error if saving fails or no adapter tensors exist.
     #[cfg(feature = "peft")]
     pub fn save_adapter_weights<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        self.save_adapter_weights_hf(path, None)
+    }
+
+    /// Save a Hub-safe PEFT directory (`save_pretrained_hf` keys, all modules).
+    ///
+    /// Writes `adapter_model.safetensors` with `{base_model.model}.{module}.lora_A.default.weight`
+    /// and a Python-PEFT `adapter_config.json` when `cfg` is provided.
+    ///
+    /// # Errors
+    /// Returns an error if no adapter tensors exist or I/O fails.
+    #[cfg(feature = "peft")]
+    pub fn save_adapter_weights_hf<P: AsRef<Path>>(
+        &self,
+        path: P,
+        cfg: Option<&AxolotlConfig>,
+    ) -> Result<()> {
         let dir = path.as_ref();
         std::fs::create_dir_all(dir)?;
-        let weights_path = dir.join("adapter_model.safetensors");
-
-        if let Some(adapter_layers) = &self.adapter_layers {
-            if !adapter_layers.lora_layers.is_empty() {
-                let mut all_tensors: Vec<(String, Tensor)> = Vec::new();
-                for (name, layer) in &adapter_layers.lora_layers {
-                    let state = layer.state_dict().map_err(|e| {
-                        AxolotlError::Checkpoint(format!(
-                            "Failed to get state dict for {name}: {e}"
-                        ))
-                    })?;
-                    for (key, tensor) in state {
-                        all_tensors.push((format!("{name}.{key}"), tensor));
-                    }
-                }
-                let tensors_ref: Vec<(&str, Tensor)> = all_tensors
-                    .iter()
-                    .map(|(name, tensor)| (name.as_str(), tensor.clone()))
-                    .collect();
-                safetensors::tensor::serialize_to_file(tensors_ref, None, &weights_path).map_err(
-                    |e| AxolotlError::Checkpoint(format!("Failed to save adapter: {e}")),
-                )?;
-                tracing::info!(
-                    "Saved {} adapter layers to {:?}",
-                    adapter_layers.lora_layers.len(),
-                    dir
-                );
-                return Ok(());
-            }
-        }
-
-        // Embedded path: save LoRA A/B (and any other trainable adapter tensors) from VarMap
-        if self.trainable_params.all_vars().is_empty() {
-            return Err(AxolotlError::Model(
-                "No adapter weights to save (empty trainable VarMap and no adapter_layers)".into(),
-            ));
-        }
-        self.trainable_params
-            .save(&weights_path)
-            .map_err(|e| AxolotlError::Checkpoint(format!("Failed to save adapter VarMap: {e}")))?;
+        let modules = self.collect_lora_ab_tensors()?;
+        write_hub_safe_adapter(&modules, dir, cfg)?;
         tracing::info!(
-            "Saved {} trainable adapter tensors from VarMap to {:?}",
-            self.trainable_params.all_vars().len(),
+            "Saved {} LoRA modules (HF lora_A/lora_B keys) to {:?}",
+            modules.len(),
             dir
         );
         Ok(())
+    }
+
+    /// Pair LoRA A/B tensors by original module path (no PEFT wrapper prefix).
+    #[cfg(feature = "peft")]
+    fn collect_lora_ab_tensors(&self) -> Result<HashMap<String, (Tensor, Tensor)>> {
+        let mut paired: HashMap<String, (Option<Tensor>, Option<Tensor>)> = HashMap::new();
+
+        {
+            let data = self
+                .trainable_params
+                .data()
+                .lock()
+                .map_err(|e| AxolotlError::Model(format!("VarMap lock poisoned: {e}")))?;
+            for (name, var) in data.iter() {
+                if let Some((module, is_a)) = parse_lora_ab_key(name) {
+                    let t = var.as_tensor().clone();
+                    let entry = paired.entry(module).or_insert((None, None));
+                    if is_a {
+                        entry.0 = Some(t);
+                    } else {
+                        entry.1 = Some(t);
+                    }
+                }
+            }
+        }
+
+        if let Some(adapter_layers) = &self.adapter_layers {
+            for (module_name, layer) in &adapter_layers.lora_layers {
+                let state = layer.state_dict().map_err(|e| {
+                    AxolotlError::Checkpoint(format!(
+                        "Failed to get state dict for {module_name}: {e}"
+                    ))
+                })?;
+                let a = state.get("lora_a.weight").cloned();
+                let b = state.get("lora_b.weight").cloned();
+                if a.is_some() || b.is_some() {
+                    paired.insert(strip_peft_wrapper(module_name).to_string(), (a, b));
+                }
+            }
+        }
+
+        let mut out = HashMap::new();
+        for (module, (a, b)) in paired {
+            match (a, b) {
+                (Some(a), Some(b)) => {
+                    out.insert(module, (a, b));
+                }
+                _ => {
+                    return Err(AxolotlError::Checkpoint(format!(
+                        "module '{module}' missing paired LoRA A/B"
+                    )));
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// Load adapter weights from safetensors and **apply** them to the model.
@@ -248,18 +281,21 @@ impl LoadedModel {
             ));
         }
 
+        let paired = pair_lora_ab_tensors(&tensors);
+        if paired.is_empty() {
+            return Err(AxolotlError::Checkpoint(
+                "adapter file has no lora_A/lora_B (or lora_a/lora_b) tensors".into(),
+            ));
+        }
+
         if let Some(adapter_layers) = &mut self.adapter_layers {
             if !adapter_layers.lora_layers.is_empty() {
-                // Group flat keys `{module}.lora_a.weight` back into per-layer state dicts
                 for (name, layer) in adapter_layers.lora_layers.iter_mut() {
-                    let prefix = format!("{name}.");
-                    let mut state = HashMap::new();
-                    for (key, tensor) in &tensors {
-                        if let Some(suffix) = key.strip_prefix(&prefix) {
-                            state.insert(suffix.to_string(), tensor.clone());
-                        }
-                    }
-                    if !state.is_empty() {
+                    let key = strip_peft_wrapper(name);
+                    if let Some((Some(a), Some(b))) = paired.get(key) {
+                        let mut state = HashMap::new();
+                        state.insert("lora_a.weight".into(), a.clone());
+                        state.insert("lora_b.weight".into(), b.clone());
                         layer.load_state_dict(state).map_err(|e| {
                             AxolotlError::Checkpoint(format!(
                                 "Failed to apply adapter tensors to {name}: {e}"
@@ -276,13 +312,31 @@ impl LoadedModel {
             }
         }
 
-        // Embedded path: apply into VarMap in-place (only existing keys are updated)
-        self.trainable_params.load(&weights_path).map_err(|e| {
-            AxolotlError::Checkpoint(format!("Failed to apply adapter VarMap: {e}"))
-        })?;
+        // Embedded path: map HF keys back to native VarMap names
+        {
+            let data = self
+                .trainable_params
+                .data()
+                .lock()
+                .map_err(|e| AxolotlError::Checkpoint(format!("VarMap lock poisoned: {e}")))?;
+            for (module, (a_opt, b_opt)) in &paired {
+                if let (Some(a), Some(b)) = (a_opt, b_opt) {
+                    let ka = format!("{module}.lora_a.weight");
+                    let kb = format!("{module}.lora_b.weight");
+                    if let Some(var) = data.get(&ka) {
+                        var.set(a)
+                            .map_err(|e| AxolotlError::Checkpoint(format!("set {ka}: {e}")))?;
+                    }
+                    if let Some(var) = data.get(&kb) {
+                        var.set(b)
+                            .map_err(|e| AxolotlError::Checkpoint(format!("set {kb}: {e}")))?;
+                    }
+                }
+            }
+        }
         tracing::info!(
-            "Applied {} adapter tensors into trainable VarMap from {:?}",
-            tensors.len(),
+            "Applied {} LoRA modules into trainable VarMap from {:?}",
+            paired.len(),
             dir
         );
         Ok(())
@@ -1369,6 +1423,242 @@ impl LlamaWrapper {
     }
 }
 
+/// Strip Hugging Face `PeftModel` wrapper prefixes from a module path.
+fn strip_peft_wrapper(module: &str) -> &str {
+    module
+        .strip_prefix("base_model.model.")
+        .or_else(|| module.strip_prefix("base_model."))
+        .unwrap_or(module)
+}
+
+/// Parse a `LoRA` A/B safetensors key into `(original_module, is_a)`.
+pub(crate) fn parse_lora_ab_key(key: &str) -> Option<(String, bool)> {
+    let (raw_module, is_a) = if let Some(m) = key.strip_suffix(".lora_a.weight") {
+        (m, true)
+    } else if let Some(m) = key.strip_suffix(".lora_A.weight") {
+        (m, true)
+    } else if let Some(m) = key.strip_suffix(".lora_A.default.weight") {
+        (m, true)
+    } else if let Some(m) = key.strip_suffix(".lora_b.weight") {
+        (m, false)
+    } else if let Some(m) = key.strip_suffix(".lora_B.weight") {
+        (m, false)
+    } else if let Some(m) = key.strip_suffix(".lora_B.default.weight") {
+        (m, false)
+    } else {
+        return None;
+    };
+    Some((strip_peft_wrapper(raw_module).to_string(), is_a))
+}
+
+pub(crate) fn pair_lora_ab_tensors(
+    tensors: &HashMap<String, Tensor>,
+) -> HashMap<String, (Option<Tensor>, Option<Tensor>)> {
+    let mut modules: HashMap<String, (Option<Tensor>, Option<Tensor>)> = HashMap::new();
+    for (key, tensor) in tensors {
+        let Some((module, is_a)) = parse_lora_ab_key(key) else {
+            continue;
+        };
+        let entry = modules.entry(module).or_insert((None, None));
+        if is_a {
+            entry.0 = Some(tensor.clone());
+        } else {
+            entry.1 = Some(tensor.clone());
+        }
+    }
+    modules
+}
+
+/// Hugging Face `PeftModel` wrapper prefix used in Hub-safe `LoRA` keys.
+const HF_PEFT_WRAPPER_PREFIX: &str = "base_model.model";
+
+/// Prefix an original module path with [`HF_PEFT_WRAPPER_PREFIX`].
+pub(crate) fn hf_peft_module_path(module: &str) -> String {
+    let stripped = strip_peft_wrapper(module);
+    format!("{HF_PEFT_WRAPPER_PREFIX}.{stripped}")
+}
+
+fn insert_hub_safe_lora_ab(
+    out: &mut HashMap<String, Tensor>,
+    module_prefix: &str,
+    lora_a: &Tensor,
+    lora_b: &Tensor,
+) {
+    #[cfg(feature = "peft")]
+    {
+        insert_module_lora_weights(out, module_prefix, lora_a, lora_b, "default");
+    }
+    #[cfg(not(feature = "peft"))]
+    {
+        out.insert(
+            format!("{module_prefix}.lora_A.default.weight"),
+            lora_a.clone(),
+        );
+        out.insert(
+            format!("{module_prefix}.lora_B.default.weight"),
+            lora_b.clone(),
+        );
+    }
+}
+
+fn adapter_config_value(cfg: &AxolotlConfig) -> serde_json::Value {
+    serde_json::json!({
+        "peft_type": "LORA",
+        "r": cfg.lora.r,
+        "lora_alpha": cfg.lora.alpha,
+        "target_modules": cfg.lora.target_modules,
+        "bias": "none",
+        "task_type": "CAUSAL_LM",
+        "base_model_name_or_path": cfg.base_model,
+        "lora_dropout": cfg.lora.dropout,
+        "inference_mode": false,
+        "use_rslora": false,
+        "use_dora": false,
+    })
+}
+
+fn write_adapter_config_json(dir: &Path, cfg: Option<&AxolotlConfig>) -> Result<()> {
+    let Some(cfg) = cfg else {
+        // Do not serialize placeholder r/α/targets next to Hub-safe tensors.
+        return Ok(());
+    };
+    let value = adapter_config_value(cfg);
+    let path = dir.join("adapter_config.json");
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&value).map_err(|e| {
+            AxolotlError::Checkpoint(format!("Failed to serialize adapter_config.json: {e}"))
+        })?,
+    )?;
+    Ok(())
+}
+
+/// Pack all `LoRA` modules into one Hub-safe PEFT directory.
+///
+/// Keys are `{base_model.model}.{module}.lora_A.default.weight` /
+/// `lora_B.default.weight` (published peft-rs 1.2.1 has no
+/// `save_multi_module_pretrained_hf`; this writer is local).
+pub(crate) fn write_hub_safe_adapter(
+    modules: &HashMap<String, (Tensor, Tensor)>,
+    dir: &Path,
+    cfg: Option<&AxolotlConfig>,
+) -> Result<()> {
+    if modules.is_empty() {
+        return Err(AxolotlError::Model(
+            "No adapter weights to save (empty trainable VarMap and no adapter_layers)".into(),
+        ));
+    }
+    std::fs::create_dir_all(dir)?;
+    let mut hf_dict: HashMap<String, Tensor> = HashMap::new();
+    for (module, (a, b)) in modules {
+        insert_hub_safe_lora_ab(&mut hf_dict, &hf_peft_module_path(module), a, b);
+    }
+    let weights_path = dir.join("adapter_model.safetensors");
+    candle_core::safetensors::save(&hf_dict, &weights_path).map_err(|e| {
+        AxolotlError::Checkpoint(format!("Failed to save Hub-safe PEFT adapter: {e}"))
+    })?;
+    write_adapter_config_json(dir, cfg)?;
+    Ok(())
+}
+
+fn is_weight_sidecar_skip(name: &str) -> bool {
+    if name.eq_ignore_ascii_case("merge_info.json") {
+        return true;
+    }
+    let lower = name.to_ascii_lowercase();
+    if lower.ends_with(".safetensors.index.json") || lower.ends_with(".bin.index.json") {
+        return true;
+    }
+    Path::new(name)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| {
+            ext.eq_ignore_ascii_case("safetensors")
+                || ext.eq_ignore_ascii_case("bin")
+                || ext.eq_ignore_ascii_case("pt")
+                || ext.eq_ignore_ascii_case("pth")
+                || ext.eq_ignore_ascii_case("gguf")
+        })
+}
+
+/// Copy non-weight Hugging Face sidecar files (tokenizer, config, chat template, …).
+fn copy_hf_sidecar_files(src: &Path, dst: &Path) -> Result<()> {
+    let entries = std::fs::read_dir(src)
+        .map_err(|e| AxolotlError::Model(format!("Failed to read {}: {e}", src.display())))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| AxolotlError::Model(format!("readdir: {e}")))?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let name = entry.file_name();
+        let s = name.to_string_lossy();
+        if is_weight_sidecar_skip(&s) {
+            continue;
+        }
+        std::fs::copy(&path, dst.join(&name))
+            .map_err(|e| AxolotlError::Model(format!("Failed to copy {s} to output: {e}")))?;
+    }
+    Ok(())
+}
+
+fn is_dense_float_dtype(dtype: DType) -> bool {
+    matches!(dtype, DType::F16 | DType::BF16 | DType::F32 | DType::F64)
+}
+
+fn reject_packed_or_quantized(tensors: &HashMap<String, Tensor>, origin: &str) -> Result<()> {
+    for (name, tensor) in tensors {
+        let dtype = tensor.dtype();
+        if is_dense_float_dtype(dtype) {
+            continue;
+        }
+        if matches!(dtype, DType::U8 | DType::U32) {
+            return Err(AxolotlError::Model(format!(
+                "Cannot merge: packed/quantized {origin} tensor '{name}' has dtype {dtype:?}. \
+NF4 is a training codec; merge requires dense F16/BF16/F32 weights. Dequantize first."
+            )));
+        }
+        return Err(AxolotlError::Model(format!(
+            "Cannot merge: {origin} tensor '{name}' has non-dense dtype {dtype:?}; \
+expected F16, BF16, or F32"
+        )));
+    }
+    Ok(())
+}
+
+fn lookup_base_weight_key(base_tensors: &HashMap<String, Tensor>, module: &str) -> Result<String> {
+    let k1 = format!("{module}.weight");
+    if base_tensors.contains_key(&k1) {
+        return Ok(k1);
+    }
+    let k2 = format!("model.{module}.weight");
+    if base_tensors.contains_key(&k2) {
+        return Ok(k2);
+    }
+    Err(AxolotlError::Model(format!(
+        "Cannot merge: base weight '{k1}' (or '{k2}') not found in base model. \
+Adapter module prefix may not match base key layout."
+    )))
+}
+
+fn adapter_config_path(adapter_p: &Path) -> PathBuf {
+    if adapter_p.is_dir() {
+        adapter_p.join("adapter_config.json")
+    } else {
+        adapter_p
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("adapter_config.json")
+    }
+}
+
+fn load_adapter_config_json(adapter_p: &Path) -> Option<serde_json::Value> {
+    let cfg_path = adapter_config_path(adapter_p);
+    std::fs::read_to_string(cfg_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+}
+
 /// Merge `LoRA` adapter ΔW into base linear weights and save a merged model directory.
 ///
 /// For each module with adapter keys `{module}.lora_a.weight` / `{module}.lora_b.weight`
@@ -1432,70 +1722,42 @@ pub fn merge_adapter(config: &AxolotlConfig, adapter_path: &str, output_path: &s
         ));
     }
 
+    reject_packed_or_quantized(&base_tensors, "base")?;
+    reject_packed_or_quantized(&adapter_tensors, "adapter")?;
+
     // Scale: prefer adapter_config.json next to weights, else YAML lora settings
-    let (alpha, r) = {
-        let cfg_path = if adapter_p.is_dir() {
-            adapter_p.join("adapter_config.json")
-        } else {
-            adapter_p
-                .parent()
-                .unwrap_or_else(|| Path::new("."))
-                .join("adapter_config.json")
-        };
-        if cfg_path.exists() {
-            let s = std::fs::read_to_string(&cfg_path).map_err(|e| {
-                AxolotlError::Model(format!("Failed to read adapter_config.json: {e}"))
-            })?;
-            let v: serde_json::Value = serde_json::from_str(&s).map_err(|e| {
-                AxolotlError::Model(format!("Failed to parse adapter_config.json: {e}"))
-            })?;
-            let alpha = v
-                .get("lora_alpha")
-                .or_else(|| v.get("alpha"))
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(config.lora.alpha as u64) as usize;
-            let r = v
-                .get("r")
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(config.lora.r as u64) as usize;
-            (alpha, r)
-        } else {
-            (config.lora.alpha, config.lora.r)
-        }
+    let adapter_json = load_adapter_config_json(&adapter_p);
+    let (alpha, r, use_rslora) = if let Some(v) = &adapter_json {
+        let alpha = v
+            .get("lora_alpha")
+            .or_else(|| v.get("alpha"))
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(config.lora.alpha as u64) as usize;
+        let r = v
+            .get("r")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(config.lora.r as u64) as usize;
+        let use_rslora = v
+            .get("use_rslora")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        (alpha, r, use_rslora)
+    } else {
+        (config.lora.alpha, config.lora.r, false)
     };
     if r == 0 {
         return Err(AxolotlError::Model(
             "Cannot merge: LoRA rank r must be > 0".into(),
         ));
     }
-    let scale = alpha as f64 / r as f64;
+    let scale = if use_rslora {
+        alpha as f64 / (r as f64).sqrt()
+    } else {
+        alpha as f64 / r as f64
+    };
 
-    // Pair A/B by module prefix
-    let mut modules: HashMap<String, (Option<Tensor>, Option<Tensor>)> = HashMap::new();
-    for (key, tensor) in &adapter_tensors {
-        let (module, is_a) = if let Some(m) = key.strip_suffix(".lora_a.weight") {
-            (m, true)
-        } else if let Some(m) = key.strip_suffix(".lora_A.weight") {
-            (m, true)
-        } else if let Some(m) = key.strip_suffix(".lora_A.default.weight") {
-            (m, true)
-        } else if let Some(m) = key.strip_suffix(".lora_b.weight") {
-            (m, false)
-        } else if let Some(m) = key.strip_suffix(".lora_B.weight") {
-            (m, false)
-        } else if let Some(m) = key.strip_suffix(".lora_B.default.weight") {
-            (m, false)
-        } else {
-            tracing::debug!("merge: skipping non-LoRA key {key}");
-            continue;
-        };
-        let entry = modules.entry(module.to_string()).or_insert((None, None));
-        if is_a {
-            entry.0 = Some(tensor.clone());
-        } else {
-            entry.1 = Some(tensor.clone());
-        }
-    }
+    // Pair A/B by module prefix (native or HF keys, with or without PeftModel wrapper)
+    let modules = pair_lora_ab_tensors(&adapter_tensors);
 
     if modules.is_empty() {
         return Err(AxolotlError::Model(
@@ -1511,27 +1773,41 @@ pub fn merge_adapter(config: &AxolotlConfig, adapter_path: &str, output_path: &s
                 "Cannot merge module '{module}': missing paired lora_a/lora_b tensor"
             )));
         };
-        let base_key = format!("{module}.weight");
-        let base = base_tensors.get(&base_key).ok_or_else(|| {
-            AxolotlError::Model(format!(
-                "Cannot merge: base weight '{base_key}' not found in base model. Adapter module prefix may not match base key layout."
-            ))
+        let base_key = lookup_base_weight_key(&base_tensors, module)?;
+        let base = base_tensors.get(&base_key).cloned().ok_or_else(|| {
+            AxolotlError::Model(format!("Cannot merge: missing base weight '{base_key}'"))
         })?;
+        let out_dtype = match base.dtype() {
+            DType::F16 | DType::BF16 | DType::F32 => base.dtype(),
+            _ => DType::F32,
+        };
+        let a_f = a
+            .to_dtype(DType::F32)
+            .map_err(|e| AxolotlError::Model(format!("merge dtype A for {module}: {e}")))?;
+        let b_f = b
+            .to_dtype(DType::F32)
+            .map_err(|e| AxolotlError::Model(format!("merge dtype B for {module}: {e}")))?;
+        let w_f = base
+            .to_dtype(DType::F32)
+            .map_err(|e| AxolotlError::Model(format!("merge dtype W for {module}: {e}")))?;
 
         // ΔW = B @ A * scale ; shapes: A [r, in], B [out, r], W [out, in]
-        let delta = b
-            .matmul(a)
+        let delta = b_f
+            .matmul(&a_f)
             .map_err(|e| AxolotlError::Model(format!("merge matmul for {module}: {e}")))?;
         let delta = delta
             .affine(scale, 0.0)
             .map_err(|e| AxolotlError::Model(format!("merge scale for {module}: {e}")))?;
-        let merged = base.broadcast_add(&delta).map_err(|e| {
+        let merged = w_f.broadcast_add(&delta).map_err(|e| {
             AxolotlError::Model(format!(
                 "merge add for {module}: {e} (base={:?}, delta={:?})",
-                base.dims(),
+                w_f.dims(),
                 delta.dims()
             ))
         })?;
+        let merged = merged
+            .to_dtype(out_dtype)
+            .map_err(|e| AxolotlError::Model(format!("merge output dtype for {module}: {e}")))?;
         base_tensors.insert(base_key, merged);
         merged_count += 1;
         tracing::info!("Merged LoRA into {module} (scale={scale:.4})");
@@ -1548,22 +1824,7 @@ pub fn merge_adapter(config: &AxolotlConfig, adapter_path: &str, output_path: &s
         ))
     })?;
 
-    // Copy metadata files when present
-    for name in [
-        "config.json",
-        "tokenizer.json",
-        "tokenizer_config.json",
-        "special_tokens_map.json",
-        "generation_config.json",
-    ] {
-        let src = model_path.join(name);
-        if src.exists() {
-            let dst = out.join(name);
-            std::fs::copy(&src, &dst).map_err(|e| {
-                AxolotlError::Model(format!("Failed to copy {name} to output: {e}"))
-            })?;
-        }
-    }
+    copy_hf_sidecar_files(&model_path, &out)?;
 
     // Record merge metadata
     let meta = serde_json::json!({
@@ -1573,6 +1834,7 @@ pub fn merge_adapter(config: &AxolotlConfig, adapter_path: &str, output_path: &s
         "modules_merged": merged_count,
         "lora_r": r,
         "lora_alpha": alpha,
+        "use_rslora": use_rslora,
         "scale": scale,
     });
     std::fs::write(
@@ -2201,6 +2463,10 @@ mod tests {
         adapter_map.insert(format!("{module}.lora_a.weight"), a.clone());
         adapter_map.insert(format!("{module}.lora_b.weight"), b.clone());
 
+        fs::write(model_dir.join("tokenizer.model"), b"fake-sentencepiece").unwrap();
+        fs::write(model_dir.join("chat_template.jinja"), "{{ bos_token }}").unwrap();
+        fs::write(model_dir.join("added_tokens.json"), r#"{"<pad>": 3}"#).unwrap();
+
         let adapter_dir = temp_dir.path().join("adapter");
         fs::create_dir_all(&adapter_dir).unwrap();
         candle_core::safetensors::save(&adapter_map, adapter_dir.join("adapter_model.safetensors"))
@@ -2248,6 +2514,12 @@ mod tests {
         assert!(out_dir.join("model.safetensors").exists());
         assert!(out_dir.join("config.json").exists());
         assert!(out_dir.join("merge_info.json").exists());
+        assert!(
+            out_dir.join("tokenizer.model").exists(),
+            "merge must copy tokenizer.model sidecar"
+        );
+        assert!(out_dir.join("chat_template.jinja").exists());
+        assert!(out_dir.join("added_tokens.json").exists());
 
         let merged =
             candle_core::safetensors::load(out_dir.join("model.safetensors"), &device).unwrap();
@@ -2296,5 +2568,270 @@ mod tests {
         )
         .expect("local path must resolve");
         assert_eq!(PathBuf::from(&resolved), model_dir);
+    }
+
+    #[test]
+    fn test_parse_lora_ab_key() {
+        assert_eq!(
+            parse_lora_ab_key("model.layers.0.self_attn.q_proj.lora_a.weight"),
+            Some(("model.layers.0.self_attn.q_proj".into(), true))
+        );
+        assert_eq!(
+            parse_lora_ab_key("model.layers.0.self_attn.q_proj.lora_b.weight"),
+            Some(("model.layers.0.self_attn.q_proj".into(), false))
+        );
+        assert_eq!(
+            parse_lora_ab_key("model.layers.0.self_attn.q_proj.lora_A.weight"),
+            Some(("model.layers.0.self_attn.q_proj".into(), true))
+        );
+        assert_eq!(
+            parse_lora_ab_key("model.layers.0.self_attn.q_proj.lora_B.weight"),
+            Some(("model.layers.0.self_attn.q_proj".into(), false))
+        );
+        assert_eq!(
+            parse_lora_ab_key(
+                "base_model.model.model.layers.0.self_attn.q_proj.lora_A.default.weight"
+            ),
+            Some(("model.layers.0.self_attn.q_proj".into(), true))
+        );
+        assert_eq!(
+            parse_lora_ab_key(
+                "base_model.model.model.layers.0.self_attn.q_proj.lora_B.default.weight"
+            ),
+            Some(("model.layers.0.self_attn.q_proj".into(), false))
+        );
+        assert_eq!(
+            parse_lora_ab_key("layers.0.self_attn.q_proj.lora_A.default.weight"),
+            Some(("layers.0.self_attn.q_proj".into(), true))
+        );
+        assert_eq!(
+            parse_lora_ab_key("model.layers.0.self_attn.q_proj.weight"),
+            None
+        );
+        assert_eq!(
+            hf_peft_module_path("model.layers.0.self_attn.q_proj"),
+            "base_model.model.model.layers.0.self_attn.q_proj"
+        );
+    }
+
+    #[test]
+    fn test_merge_adapter_hf_prefixed_keys() {
+        let temp_dir = TempDir::new().unwrap();
+        let model_dir = temp_dir.path().join("base");
+        crate::fixture::write_tiny_llama_fixture(
+            &model_dir,
+            crate::fixture::TinyLlamaSpec {
+                vocab_size: 32,
+                hidden_size: 16,
+                intermediate_size: 32,
+                num_hidden_layers: 1,
+                num_attention_heads: 4,
+                num_key_value_heads: 4,
+                max_position_embeddings: 64,
+            },
+        )
+        .unwrap();
+
+        let device = Device::Cpu;
+        let h = 16usize;
+        let r = 4usize;
+        let alpha = 8usize;
+        let a = Tensor::ones((r, h), DType::F32, &device).unwrap();
+        let b = Tensor::full(0.5f32, (h, r), &device).unwrap();
+        let module = "model.layers.0.self_attn.q_proj";
+        let mut adapter_map = HashMap::new();
+        adapter_map.insert(
+            format!("base_model.model.{module}.lora_A.default.weight"),
+            a,
+        );
+        adapter_map.insert(
+            format!("base_model.model.{module}.lora_B.default.weight"),
+            b,
+        );
+
+        let adapter_dir = temp_dir.path().join("adapter");
+        fs::create_dir_all(&adapter_dir).unwrap();
+        candle_core::safetensors::save(&adapter_map, adapter_dir.join("adapter_model.safetensors"))
+            .unwrap();
+        fs::write(
+            adapter_dir.join("adapter_config.json"),
+            serde_json::json!({"r": r, "lora_alpha": alpha, "peft_type": "LORA"}).to_string(),
+        )
+        .unwrap();
+
+        let config = AxolotlConfig {
+            base_model: model_dir.to_string_lossy().to_string(),
+            adapter: AdapterType::Lora,
+            lora: LoraSettings {
+                r,
+                alpha,
+                dropout: 0.0,
+                target_modules: vec!["q_proj".into()],
+            },
+            quantization: None,
+            dataset: DatasetConfig::default(),
+            training: TrainingConfig::default(),
+            output_dir: temp_dir.path().join("out").to_string_lossy().to_string(),
+            seed: 1,
+        };
+        let out_dir = temp_dir.path().join("merged");
+        merge_adapter(
+            &config,
+            adapter_dir.to_str().unwrap(),
+            out_dir.to_str().unwrap(),
+        )
+        .expect("HF-prefixed keys must merge");
+
+        let merged =
+            candle_core::safetensors::load(out_dir.join("model.safetensors"), &device).unwrap();
+        assert!(merged.contains_key(&format!("{module}.weight")));
+        let info: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(out_dir.join("merge_info.json")).unwrap())
+                .unwrap();
+        assert_eq!(info["modules_merged"].as_u64().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_merge_adapter_refuses_u8_packed_base() {
+        let temp_dir = TempDir::new().unwrap();
+        let model_dir = temp_dir.path().join("base");
+        crate::fixture::write_tiny_llama_fixture(
+            &model_dir,
+            crate::fixture::TinyLlamaSpec {
+                vocab_size: 32,
+                hidden_size: 16,
+                intermediate_size: 32,
+                num_hidden_layers: 1,
+                num_attention_heads: 4,
+                num_key_value_heads: 4,
+                max_position_embeddings: 64,
+            },
+        )
+        .unwrap();
+
+        let device = Device::Cpu;
+        let mut tensors =
+            candle_core::safetensors::load(model_dir.join("model.safetensors"), &device).unwrap();
+        let packed = Tensor::zeros((16, 16), DType::U8, &device).unwrap();
+        tensors.insert("model.layers.0.self_attn.q_proj.weight".into(), packed);
+        candle_core::safetensors::save(&tensors, model_dir.join("model.safetensors")).unwrap();
+
+        let r = 4usize;
+        let a = Tensor::ones((r, 16), DType::F32, &device).unwrap();
+        let b = Tensor::ones((16, r), DType::F32, &device).unwrap();
+        let mut adapter_map: HashMap<String, Tensor> = HashMap::new();
+        adapter_map.insert(
+            "model.layers.0.self_attn.q_proj.lora_a.weight".to_string(),
+            a,
+        );
+        adapter_map.insert(
+            "model.layers.0.self_attn.q_proj.lora_b.weight".to_string(),
+            b,
+        );
+        let adapter_dir = temp_dir.path().join("adapter");
+        fs::create_dir_all(&adapter_dir).unwrap();
+        candle_core::safetensors::save(&adapter_map, adapter_dir.join("adapter_model.safetensors"))
+            .unwrap();
+
+        let config = AxolotlConfig {
+            base_model: model_dir.to_string_lossy().to_string(),
+            adapter: AdapterType::Lora,
+            lora: LoraSettings {
+                r,
+                alpha: 8,
+                dropout: 0.0,
+                target_modules: vec!["q_proj".into()],
+            },
+            quantization: None,
+            dataset: DatasetConfig::default(),
+            training: TrainingConfig::default(),
+            output_dir: temp_dir.path().join("out").to_string_lossy().to_string(),
+            seed: 1,
+        };
+        let err = merge_adapter(
+            &config,
+            adapter_dir.to_str().unwrap(),
+            temp_dir.path().join("merged").to_str().unwrap(),
+        )
+        .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("U8")
+                || msg.to_lowercase().contains("packed")
+                || msg.contains("NF4")
+                || msg.to_lowercase().contains("dequantize"),
+            "unexpected error: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_write_hub_safe_adapter_keys() {
+        let temp_dir = TempDir::new().unwrap();
+        let dir = temp_dir.path().join("peft");
+        let device = Device::Cpu;
+        let a = Tensor::zeros((2, 4), DType::F32, &device).unwrap();
+        let b = Tensor::zeros((4, 2), DType::F32, &device).unwrap();
+        let mut modules: HashMap<String, (Tensor, Tensor)> = HashMap::new();
+        modules.insert("model.layers.0.self_attn.q_proj".to_string(), (a, b));
+        let config = AxolotlConfig {
+            base_model: "/tmp/tiny-llama".into(),
+            adapter: AdapterType::Lora,
+            lora: LoraSettings {
+                r: 2,
+                alpha: 4,
+                dropout: 0.0,
+                target_modules: vec!["q_proj".into()],
+            },
+            quantization: None,
+            dataset: DatasetConfig::default(),
+            training: TrainingConfig::default(),
+            output_dir: temp_dir.path().join("out").to_string_lossy().to_string(),
+            seed: 1,
+        };
+        write_hub_safe_adapter(&modules, &dir, Some(&config)).unwrap();
+
+        let loaded =
+            candle_core::safetensors::load(dir.join("adapter_model.safetensors"), &device).unwrap();
+        assert!(
+            loaded.contains_key(
+                "base_model.model.model.layers.0.self_attn.q_proj.lora_A.default.weight"
+            ),
+            "keys: {:?}",
+            loaded.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            loaded.contains_key(
+                "base_model.model.model.layers.0.self_attn.q_proj.lora_B.default.weight"
+            ),
+            "keys: {:?}",
+            loaded.keys().collect::<Vec<_>>()
+        );
+        assert!(!loaded.keys().any(|k| k.ends_with("lora_a.weight")));
+
+        let cfg: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(dir.join("adapter_config.json")).unwrap())
+                .unwrap();
+        for field in [
+            "peft_type",
+            "r",
+            "lora_alpha",
+            "target_modules",
+            "bias",
+            "task_type",
+            "base_model_name_or_path",
+            "lora_dropout",
+            "inference_mode",
+            "use_rslora",
+            "use_dora",
+        ] {
+            assert!(
+                cfg.get(field).is_some(),
+                "missing adapter_config field {field}"
+            );
+        }
+        assert_eq!(cfg["peft_type"], "LORA");
+        assert_eq!(cfg["r"], 2);
+        assert_eq!(cfg["use_rslora"], false);
+        assert_eq!(cfg["use_dora"], false);
     }
 }
