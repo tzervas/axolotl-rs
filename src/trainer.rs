@@ -988,82 +988,104 @@ fn compute_cross_entropy_loss(logits: &Tensor, labels: &Tensor, device: &Device)
         )));
     }
 
-    // Create mask for valid (non-padding) positions
-    // Labels of -100 are masked out
-    let labels_i64 = labels_flat
-        .to_vec1::<i64>()
-        .map_err(|e| AxolotlError::Training(format!("Failed to read labels: {e}")))?;
-
-    let valid_mask: Vec<f32> = labels_i64
-        .iter()
-        .map(|&l| {
-            if l >= 0 && (l as usize) < vocab_size {
-                1.0
-            } else {
-                0.0
-            }
-        })
-        .collect();
-    let valid_count: f32 = valid_mask.iter().sum();
-
-    if valid_count == 0.0 {
-        // No valid labels, return zero loss
-        return Tensor::new(&[0.0f32], device)
-            .map_err(|e| AxolotlError::Training(format!("Failed to create zero loss: {e}")));
+    #[cfg(feature = "unsloth")]
+    {
+        let _ = (vocab_size, device);
+        let labels_i64 = if labels_flat.dtype() == candle_core::DType::I64 {
+            labels_flat
+        } else {
+            labels_flat
+                .to_dtype(candle_core::DType::I64)
+                .map_err(|e| AxolotlError::Training(format!("CE labels to i64: {e}")))?
+        };
+        return unsloth_rs::kernels::chunked_cross_entropy(
+            &logits_flat,
+            &labels_i64,
+            -100,
+            unsloth_rs::kernels::DEFAULT_CE_CHUNK,
+        )
+        .map_err(|e| AxolotlError::Training(format!("unsloth chunked CE failed: {e}")));
     }
 
-    // Replace invalid labels with 0 (they'll be masked anyway)
-    let safe_labels: Vec<u32> = labels_i64
-        .iter()
-        .map(|&l| {
-            if l >= 0 && (l as usize) < vocab_size {
-                l as u32
-            } else {
-                0
-            }
-        })
-        .collect();
-    let safe_labels_tensor = Tensor::from_vec(safe_labels, num_positions, device)
-        .map_err(|e| AxolotlError::Training(format!("Failed to create safe labels: {e}")))?;
+    #[cfg(not(feature = "unsloth"))]
+    {
+        // Create mask for valid (non-padding) positions
+        // Labels of -100 are masked out
+        let labels_i64 = labels_flat
+            .to_vec1::<i64>()
+            .map_err(|e| AxolotlError::Training(format!("Failed to read labels: {e}")))?;
 
-    // Compute log softmax (this maintains gradients)
-    let log_probs = candle_nn::ops::log_softmax(&logits_flat, 1)
-        .map_err(|e| AxolotlError::Training(format!("Log softmax failed: {e}")))?;
+        let valid_mask: Vec<f32> = labels_i64
+            .iter()
+            .map(|&l| {
+                if l >= 0 && (l as usize) < vocab_size {
+                    1.0
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        let valid_count: f32 = valid_mask.iter().sum();
 
-    // Gather log probs at target indices
-    let target_indices = safe_labels_tensor
-        .unsqueeze(1)
-        .map_err(|e| AxolotlError::Training(format!("Unsqueeze failed: {e}")))?;
-    let gathered = log_probs
-        .gather(&target_indices, 1)
-        .map_err(|e| AxolotlError::Training(format!("Gather failed: {e}")))?
-        .squeeze(1)
-        .map_err(|e| AxolotlError::Training(format!("Squeeze failed: {e}")))?;
+        if valid_count == 0.0 {
+            // No valid labels, return zero loss
+            return Tensor::new(&[0.0f32], device)
+                .map_err(|e| AxolotlError::Training(format!("Failed to create zero loss: {e}")));
+        }
 
-    // Apply mask and compute mean of negative log likelihood
-    let mask_tensor = Tensor::from_vec(valid_mask, num_positions, device)
-        .map_err(|e| AxolotlError::Training(format!("Failed to create mask tensor: {e}")))?;
-    let masked_loss = gathered
-        .neg()
-        .map_err(|e| AxolotlError::Training(format!("Neg failed: {e}")))?
-        .mul(&mask_tensor)
-        .map_err(|e| AxolotlError::Training(format!("Mul failed: {e}")))?;
+        // Replace invalid labels with 0 (they'll be masked anyway)
+        let safe_labels: Vec<u32> = labels_i64
+            .iter()
+            .map(|&l| {
+                if l >= 0 && (l as usize) < vocab_size {
+                    l as u32
+                } else {
+                    0
+                }
+            })
+            .collect();
+        let safe_labels_tensor = Tensor::from_vec(safe_labels, num_positions, device)
+            .map_err(|e| AxolotlError::Training(format!("Failed to create safe labels: {e}")))?;
 
-    // Sum and divide by valid count
-    let total_loss = masked_loss
-        .sum_all()
-        .map_err(|e| AxolotlError::Training(format!("Sum failed: {e}")))?;
+        // Compute log softmax (this maintains gradients)
+        let log_probs = candle_nn::ops::log_softmax(&logits_flat, 1)
+            .map_err(|e| AxolotlError::Training(format!("Log softmax failed: {e}")))?;
 
-    // Create scalar tensor for valid_count and squeeze total_loss to same shape
-    let valid_count_scalar = Tensor::new(valid_count, device)
-        .map_err(|e| AxolotlError::Training(format!("Failed to create count tensor: {e}")))?;
+        // Gather log probs at target indices
+        let target_indices = safe_labels_tensor
+            .unsqueeze(1)
+            .map_err(|e| AxolotlError::Training(format!("Unsqueeze failed: {e}")))?;
+        let gathered = log_probs
+            .gather(&target_indices, 1)
+            .map_err(|e| AxolotlError::Training(format!("Gather failed: {e}")))?
+            .squeeze(1)
+            .map_err(|e| AxolotlError::Training(format!("Squeeze failed: {e}")))?;
 
-    // Both are scalars now, division should work
-    let loss = total_loss
-        .broadcast_div(&valid_count_scalar)
-        .map_err(|e| AxolotlError::Training(format!("Div failed: {e}")))?;
+        // Apply mask and compute mean of negative log likelihood
+        let mask_tensor = Tensor::from_vec(valid_mask, num_positions, device)
+            .map_err(|e| AxolotlError::Training(format!("Failed to create mask tensor: {e}")))?;
+        let masked_loss = gathered
+            .neg()
+            .map_err(|e| AxolotlError::Training(format!("Neg failed: {e}")))?
+            .mul(&mask_tensor)
+            .map_err(|e| AxolotlError::Training(format!("Mul failed: {e}")))?;
 
-    Ok(loss)
+        // Sum and divide by valid count
+        let total_loss = masked_loss
+            .sum_all()
+            .map_err(|e| AxolotlError::Training(format!("Sum failed: {e}")))?;
+
+        // Create scalar tensor for valid_count and squeeze total_loss to same shape
+        let valid_count_scalar = Tensor::new(valid_count, device)
+            .map_err(|e| AxolotlError::Training(format!("Failed to create count tensor: {e}")))?;
+
+        // Both are scalars now, division should work
+        let loss = total_loss
+            .broadcast_div(&valid_count_scalar)
+            .map_err(|e| AxolotlError::Training(format!("Div failed: {e}")))?;
+
+        Ok(loss)
+    }
 }
 
 #[cfg(test)]
