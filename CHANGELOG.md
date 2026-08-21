@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `astral-sh/setup-uv@v9`. Homelab `fleet-security` / OOM snapshot use the
   `rust` work-image label. Kitchen-sink stays `gpu` (not the autodetect caller:
   detect and rustc must not share a runner).
+- Local `gitleaks protect --staged` via `.githooks/pre-commit`
+  (`scripts/install-hooks.sh`). Missing gitleaks fails the commit. CI gitleaks
+  is defense-in-depth; a secret that reached git history must be rotated.
 
 ### Added
 - Hosted CI job `adapter-features`: isolate `cargo check --features peft` /
