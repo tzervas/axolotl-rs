@@ -17,14 +17,6 @@
 //! | SmolLM2-135M | 135M | ~150 MB | Development/CPU |
 //! | TinyLlama-1.1B | 1.1B | ~1.2 GB | GPU validation |
 
-#![allow(
-    dead_code,
-    unused_imports,
-    clippy::all,
-    clippy::style,
-    clippy::pedantic,
-    clippy::restriction
-)]
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;

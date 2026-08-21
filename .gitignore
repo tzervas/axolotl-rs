@@ -1,13 +1,45 @@
+# Build
 /target/
 **/*.rs.bk
 *.pdb
-.DS_Store
-*.swp
-*.swo
 
-# IDE
-.vscode/
-.idea/
+# Secrets / local credentials (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+credentials.json
+hf_token
+.hf_token
+.huggingface/
 
 # Local fleet path overrides (scripts/use-local-path-deps.sh)
 .cargo/config.toml
+*.crate
+Cargo.toml.orig
+
+# Binary crate: Cargo.lock stays tracked (do not add it here)
+
+# Coverage / profiling
+coverage/
+lcov.info
+*.profraw
+tarpaulin-report.html
+
+# Python helpers
+__pycache__/
+*.pyc
+.venv/
+.direnv/
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.code-workspace

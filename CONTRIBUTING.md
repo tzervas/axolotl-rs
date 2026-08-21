@@ -10,7 +10,7 @@ axolotl-rs is an experimental orchestrator scaffold. See the [README](README.md)
 
 ### Prerequisites
 
-- Rust 1.92 or later
+- Rust 1.96 or later
 - Git
 - (Optional) CUDA 12.0+ for GPU support
 
@@ -284,21 +284,6 @@ All submissions require review. Reviewers will check for:
 - Documentation
 - Performance implications
 - Breaking changes
-
-## Versioning and releases
-
-Full rules: **[docs/VERSIONING.md](docs/VERSIONING.md)**. The short version:
-
-- Conventional Commits, enforced by commitizen ([`.cz.toml`](.cz.toml)).
-- `axolotl-rs` is **published on crates.io** at `1.1.1`; this repo is at `1.2.0`, so `v1.2.0` is
-  tagged but not yet published. A GitHub Release is **not** a registry publication.
-- **At 1.x, MAJOR is the breaking position**: `feat!:` takes 1.2.0 → **2.0.0**. That is the
-  opposite of the 0.x repos in this fleet, where MINOR carries breaking changes.
-- **`major_version_zero` is deliberately absent** from `.cz.toml` and must not be added — at 1.x
-  it demotes breaking changes to minor bumps, which for a published crate lands the break
-  silently in every dependent. Reason recorded inline in `.cz.toml`.
-- **No agent may cut or propose a 2.0.0 release.**
-- Never hand-edit a version. `cz bump` moves every file in `version_files` together.
 
 ## License
 
