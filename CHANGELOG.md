@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`--lib --bins --tests`). Default `cargo test` and self-hosted `fleet-ci`
   stay default features (kitchen-sink `candle-transformers`).
 - CPU `LoraLlama` full-model forward test (`test_lora_llama_cpu_forward`).
+- CPU `QLoraLlama` full-model forward test (`test_qlora_llama_cpu_forward`).
 - `tests/unsloth_cpu.rs`: `RmsNormWrapper` on `--features unsloth`; RoPE when
   `peft` is also on (`llama_common` is peft-gated).
 - `compute_cross_entropy_loss` CPU finite-loss test (default and unsloth paths).
