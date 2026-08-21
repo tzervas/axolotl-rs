@@ -45,7 +45,7 @@ jobs:
       rust: ${{ steps.d.outputs.rust }}
       python: ${{ steps.d.outputs.python }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - id: d
@@ -63,7 +63,7 @@ jobs:
     name: self-hosted memory (no kitchen-sink rustc)
     needs: detect
     if: needs.detect.outputs.rust == 'true'
-    runs-on: [self-hosted, linux, x64, podman]
+    runs-on: [self-hosted, linux, x64, podman, rust]
     timeout-minutes: 10
     steps:
       - name: memory snapshot and OOM policy
@@ -87,7 +87,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, podman, gpu]
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@1.96.1
@@ -118,11 +118,11 @@ jobs:
     if: needs.detect.outputs.python == 'true'
     runs-on: [self-hosted, linux, x64, podman]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v9
         with:
           version: "latest"
           enable-cache: true

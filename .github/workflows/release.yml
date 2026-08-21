@@ -33,7 +33,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+          with:
+            persist-credentials: false
 
       - name: Determine version
         id: version
@@ -86,7 +88,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+          with:
+            persist-credentials: false
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@1.96.1
@@ -116,7 +120,7 @@ jobs:
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} artifacts/${{ matrix.asset_name }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset_name }}
           path: artifacts/${{ matrix.asset_name }}
@@ -131,8 +135,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Download all artifacts
