@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--features unsloth`: chunked CE, `rope_custom_op`, and `RmsNormWrapper` on
+  all devices (`docs/UNSLOTH_KERNEL_WIRING.md`). Default tests unchanged.
 - `docs/VERSIONING.md` — live version is `Cargo.toml` / `cz version --project`,
   not a frozen number in docs.
 - BitNet b1.58 QAT recipe at `examples/configs/bitnet_qat_2b4t.yaml` (documentation

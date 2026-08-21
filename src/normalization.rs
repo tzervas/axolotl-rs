@@ -49,14 +49,13 @@ impl RmsNormWrapper {
     pub fn new(hidden_size: usize, eps: f64, device: &Device) -> Result<Self> {
         #[cfg(feature = "unsloth")]
         {
-            let inner = if device.is_cuda() {
-                Some(RmsNorm::new(hidden_size, eps, device).map_err(|e| {
-                    crate::error::AxolotlError::Model(format!("Failed to create RmsNorm: {}", e))
-                })?)
-            } else {
-                None
-            };
-            Ok(Self { inner, eps })
+            let inner = RmsNorm::new(hidden_size, eps, device).map_err(|e| {
+                crate::error::AxolotlError::Model(format!("Failed to create RmsNorm: {e}"))
+            })?;
+            Ok(Self {
+                inner: Some(inner),
+                eps,
+            })
         }
 
         #[cfg(not(feature = "unsloth"))]
