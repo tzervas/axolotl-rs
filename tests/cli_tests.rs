@@ -1,13 +1,5 @@
 //! Integration tests for the axolotl CLI.
 
-#![allow(
-    dead_code,
-    unused_imports,
-    clippy::all,
-    clippy::style,
-    clippy::pedantic,
-    clippy::restriction
-)]
 use assert_cmd::Command;
 use std::fs;
 use std::path::PathBuf;
@@ -186,8 +178,96 @@ fn test_cli_help() {
         .stdout(predicates::str::contains("validate"))
         .stdout(predicates::str::contains("train"))
         .stdout(predicates::str::contains("merge"))
+        .stdout(predicates::str::contains("export"))
         .stdout(predicates::str::contains("download"))
         .stdout(predicates::str::contains("init"));
+}
+
+#[test]
+fn test_export_command_help() {
+    let mut cmd = run_cli(&["export", "--help"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicates::str::contains("--format"))
+        .stdout(predicates::str::contains("peft"))
+        .stdout(predicates::str::contains("hf"))
+        .stdout(predicates::str::contains("ollama-adapter"))
+        .stdout(predicates::str::contains("ollama-merged"))
+        .stdout(predicates::str::contains("gguf"))
+        .stdout(predicates::str::contains("--config"))
+        .stdout(predicates::str::contains("--output"))
+        .stdout(predicates::str::contains("--adapter"))
+        .stdout(predicates::str::contains("--merged"))
+        .stdout(predicates::str::contains("--quantize"));
+}
+
+#[test]
+fn test_export_gguf_missing_tools_exits_2() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let config_path = create_test_config(&temp_dir.path().to_path_buf(), valid_config_yaml());
+    let out = temp_dir.path().join("gguf-out");
+
+    let mut cmd = run_cli(&[
+        "export",
+        "--format",
+        "gguf",
+        "--config",
+        config_path.to_str().unwrap(),
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+    // Isolate from a host that happens to have llama.cpp on PATH.
+    cmd.env("PATH", "/nonexistent-axolotl-export-path");
+
+    cmd.assert()
+        .failure()
+        .code(2)
+        .stderr(predicates::str::contains("convert_hf_to_gguf.py"))
+        .stderr(predicates::str::contains("llama-quantize"))
+        .stderr(predicates::str::contains(
+            "python convert_hf_to_gguf.py ./merged-model --outtype bf16 --outfile model-bf16.gguf",
+        ))
+        .stderr(predicates::str::contains(
+            "llama-quantize model-bf16.gguf model-q4_k_m.gguf Q4_K_M",
+        ));
+}
+
+#[test]
+fn test_export_ollama_adapter_writes_modelfile() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let config_path = create_test_config(&temp_dir.path().to_path_buf(), valid_config_yaml());
+    let adapter = temp_dir.path().join("adapter");
+    fs::create_dir_all(&adapter).unwrap();
+    let out = temp_dir.path().join("ollama-adapter");
+
+    let mut cmd = run_cli(&[
+        "export",
+        "--format",
+        "ollama-adapter",
+        "--config",
+        config_path.to_str().unwrap(),
+        "--adapter",
+        adapter.to_str().unwrap(),
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+
+    cmd.assert().success();
+
+    let modelfile = fs::read_to_string(out.join("Modelfile")).expect("Modelfile");
+    assert!(
+        modelfile.contains("FROM "),
+        "Modelfile missing FROM: {modelfile}"
+    );
+    assert!(
+        modelfile.contains("ADAPTER ./adapter"),
+        "Modelfile should use Modelfile-relative ADAPTER: {modelfile}"
+    );
+    assert!(
+        out.join("adapter").is_dir(),
+        "adapter snapshot must live next to Modelfile"
+    );
 }
 
 #[test]

@@ -5,14 +5,6 @@
 //! cargo test --features peft --test e2e_lora_cpu
 //! ```
 
-#![allow(
-    dead_code,
-    unused_imports,
-    clippy::all,
-    clippy::style,
-    clippy::pedantic,
-    clippy::restriction
-)]
 #![cfg(feature = "peft")]
 
 use std::fs;
@@ -200,6 +192,53 @@ fn test_embedded_lora_checkpoint_roundtrip_ab() {
     let ckpt = output_dir.join(format!("checkpoint-{}", trainer.step()));
     assert!(ckpt.join("adapter_model.safetensors").exists());
     assert!(ckpt.join("adapter_config.json").exists());
+
+    let tensors = candle_core::safetensors::load(
+        ckpt.join("adapter_model.safetensors"),
+        &candle_core::Device::Cpu,
+    )
+    .unwrap();
+    let keys: Vec<String> = tensors.keys().cloned().collect();
+    assert!(
+        keys.iter().any(|k| k.contains("lora_A")),
+        "checkpoint keys must contain lora_A (not only lora_a.weight): {keys:?}"
+    );
+    assert!(
+        keys.iter().any(|k| k.contains("lora_B")),
+        "checkpoint keys must contain lora_B (not only lora_a.weight): {keys:?}"
+    );
+    assert!(
+        keys.iter().any(|k| k.ends_with("lora_A.default.weight")),
+        "expected Hub-safe lora_A.default.weight keys: {keys:?}"
+    );
+    assert!(
+        !keys.iter().all(|k| k.ends_with("lora_a.weight")),
+        "checkpoint must not be native-only lora_a.weight keys: {keys:?}"
+    );
+
+    let adapter_cfg: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(ckpt.join("adapter_config.json")).unwrap())
+            .unwrap();
+    for field in [
+        "peft_type",
+        "r",
+        "lora_alpha",
+        "target_modules",
+        "bias",
+        "task_type",
+        "base_model_name_or_path",
+        "lora_dropout",
+        "inference_mode",
+        "use_rslora",
+        "use_dora",
+    ] {
+        assert!(
+            adapter_cfg.get(field).is_some(),
+            "adapter_config.json missing {field}: {adapter_cfg}"
+        );
+    }
+    assert_eq!(adapter_cfg["r"], 4);
+    assert_eq!(adapter_cfg["peft_type"], "LORA");
 
     // Fresh model, load checkpoint, capture
     let config2 = build_config(&model_dir, &dataset_path, &tmp.path().join("out2"));

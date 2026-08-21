@@ -109,6 +109,10 @@ pub enum AxolotlError {
     #[error("checkpoint error: {0}")]
     Checkpoint(String),
 
+    /// Export error (`axolotl export`).
+    #[error("export error: {0}")]
+    Export(String),
+
     /// IO error.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
@@ -259,12 +263,13 @@ mod tests {
         let error: AxolotlError = io_error.into();
 
         // Test that the error has a source
-        assert!(std::error::Error::source(&error).is_some());
+        use std::error::Error;
+        assert!(error.source().is_some());
     }
 
     #[test]
     fn test_multiple_error_variants() {
-        let errors = [
+        let errors = vec![
             AxolotlError::Config("config".to_string()),
             AxolotlError::Model("model".to_string()),
             AxolotlError::Dataset("dataset".to_string()),
@@ -318,7 +323,7 @@ mod tests {
     #[test]
     fn test_boxed_error_conversion() {
         // Test that various error types can be converted
-        let io_error = std::io::Error::other("test");
+        let io_error = std::io::Error::new(std::io::ErrorKind::Other, "test");
         let axolotl_error: AxolotlError = io_error.into();
         assert!(matches!(axolotl_error, AxolotlError::Io(_)));
     }

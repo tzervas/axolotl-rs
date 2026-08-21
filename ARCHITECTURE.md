@@ -1,7 +1,7 @@
 # Axolotl-RS Architecture
 
-**Version:** 1.2.0
-**Status:** Released (crates.io serves 1.1.1; see docs/VERSIONING.md)
+**Version:** 1.0.0
+**Status:** Initial Release
 
 ---
 
