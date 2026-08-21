@@ -16,11 +16,12 @@
 //! YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs (Candle-based).
 //!
 //! Partial Rust port inspired by Python Axolotl — **not** full product parity.
-//! Version **1.2.0**: default features cover config/datasets/CLI; LoRA/QLoRA need
-//! `--features peft` / `peft,qlora`. Adapter **merge**, local-path load, sharded
-//! safetensors, and Hub **download** (feature `download`) are implemented.
-//! See crate README capability matrix and `docs/DEPENDENCIES.md` (leaf crate; no
-//! reverse deps onto peft/qlora/unsloth).//!
+//! Live version is `Cargo.toml`. Default features cover config/datasets/CLI;
+//! LoRA/QLoRA need `--features peft` / `peft,qlora`. Optional `--features unsloth`
+//! wires CustomOp RMSNorm / RoPE / chunked CE. Adapter **merge**, local-path load,
+//! sharded safetensors, and Hub **download** (feature `download`) are implemented.
+//! See crate README capability matrix and `docs/DEPENDENCIES.md` (leaf crate).
+//!
 //! ## Features
 //!
 //! - **YAML Configuration** - Parse and validate training configs / presets

@@ -19,27 +19,37 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 >
 > **Docs:** [CHANGELOG.md](CHANGELOG.md) · [roadmap.md](roadmap.md) · [CUDA_STATUS.md](CUDA_STATUS.md) ·
 > [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) (leaf crate; no reverse deps / no cycles) ·
+> [docs/VERSIONING.md](docs/VERSIONING.md) ·
+> [docs/UNSLOTH_KERNEL_WIRING.md](docs/UNSLOTH_KERNEL_WIRING.md) ·
 > [docs/archive/](docs/archive/) (historical COMPLETE fiction — do not treat as current status)
-## Capability matrix (1.4.0)
 
-| Capability | Default features | `--features peft` | `--features peft,qlora` | Notes |
-|------------|------------------|-------------------|-------------------------|-------|
-| YAML parse / validate / presets | ✅ | ✅ | ✅ | Real |
-| Dataset loaders (Alpaca, ShareGPT, completion, custom) | ✅ | ✅ | ✅ | Local JSONL only |
-| CLI `validate` / `init` / `train` | ✅ | ✅ | ✅ | `train` needs local model files |
-| CLI `merge` | ✅ | ✅ | ✅ | Fuses LoRA A/B into dense `W` (`W + scale·B@A`); copies HF sidecars; rejects U8/NF4 packed tensors |
-| CLI `export` | ✅ | ✅ | ✅ | `--format peft\|hf\|ollama-adapter\|ollama-merged\|gguf` — never writes custom NF4 GGUF |
-| CLI `download` | ✅ local resolve | ✅ | ✅ | Local path first-class; Hub pull via `reqwest` when `download` feature on |
-| LoRA training path (`LoraLlama`) | ❌ not linked | ✅ | ✅ | Needs peft-rs + local weights |
-| QLoRA training path (`QLoraLlama`) | ❌ | ❌ | ✅ | Needs peft+qlora; NF4 is a **training** codec |
-| Checkpoint save/load LoRA A/B | ❌ | ✅ | ✅ | Hub-safe `lora_A.default.weight` / `lora_B.default.weight` in one `adapter_model.safetensors` |
-| Sharded safetensors | ✅ | ✅ | ✅ | Loads index+shards or hard-errors if shard missing |
-| Architecture gate | ✅ | ✅ | ✅ | Non-LLaMA → clear `Unsupported` (no 10×10 stub) |
-| Grad accumulation / LR schedule / warmup / grad clip | ✅ | ✅ | ✅ | From YAML |
-| Real grad/param norms | ✅ | ✅ | ✅ | Not placeholder constants |
-| Multi-GPU / packing / DPO | ❌ | ❌ | ❌ | Out of scope |
-| GPU E2E | ⚠️ | ⚠️ | ⚠️ | Often blocked by Candle CUDA RMSNorm — see [CUDA_STATUS.md](CUDA_STATUS.md) |
-| BitNet b1.58 QAT (`adapter: bitnet`) | ❌ not wired | ❌ | ❌ | Recipe only. axolotl-rs is candle **0.11**; `bitnet-quantize` v0.5.1 is candle **0.9**. **No cargo dep.** AbsMean PTQ is forbidden. |
+## Capability matrix
+
+Live version is [`Cargo.toml`](Cargo.toml) / `cz version --project` ([docs/VERSIONING.md](docs/VERSIONING.md)).
+
+Hosted CI `cargo test` is **default features**. Adapter/unsloth paths are gated in the
+`adapter-features` job (`peft`, `unsloth` isolate-check, then `peft,qlora,unsloth` tests).
+Self-hosted `fleet-ci` stays default-features (kitchen-sink `candle-transformers`).
+
+| Capability | Default features | `--features peft` | `--features peft,qlora` | `--features unsloth` | Notes |
+|------------|------------------|-------------------|-------------------------|----------------------|-------|
+| YAML parse / validate / presets | ✅ | ✅ | ✅ | ✅ | Real |
+| Dataset loaders (Alpaca, ShareGPT, completion, custom) | ✅ | ✅ | ✅ | ✅ | Local JSONL only |
+| CLI `validate` / `init` / `train` | ✅ | ✅ | ✅ | ✅ | `train` needs local model files |
+| CLI `merge` | ✅ | ✅ | ✅ | ✅ | Fuses LoRA A/B into dense `W` (`W + scale·B@A`); copies HF sidecars; rejects U8/NF4 packed tensors |
+| CLI `export` | ✅ | ✅ | ✅ | ✅ | `--format peft\|hf\|ollama-adapter\|ollama-merged\|gguf` — never writes custom NF4 GGUF |
+| CLI `download` | ✅ local resolve | ✅ | ✅ | ✅ | Local path first-class; Hub pull via `reqwest` when `download` feature on |
+| LoRA training path (`LoraLlama`) | ❌ not linked | ✅ | ✅ | ❌ not linked | Needs `--features peft` + local weights. Combine with `unsloth` for CustomOp kernels. |
+| QLoRA training path (`QLoraLlama`) | ❌ | ❌ | ✅ | ❌ | Needs `--features peft,qlora`; NF4 is a **training** codec |
+| Checkpoint save/load LoRA A/B | ❌ | ✅ | ✅ | ❌ | Hub-safe `lora_A.default.weight` / `lora_B.default.weight` in one `adapter_model.safetensors` |
+| Sharded safetensors | ✅ | ✅ | ✅ | ✅ | Loads index+shards or hard-errors if shard missing |
+| Architecture gate | ✅ | ✅ | ✅ | ✅ | Non-LLaMA → clear `Unsupported` (no 10×10 stub) |
+| Grad accumulation / LR schedule / warmup / grad clip | ✅ | ✅ | ✅ | ✅ | From YAML |
+| Real grad/param norms | ✅ | ✅ | ✅ | ✅ | Not placeholder constants |
+| Unsloth RoPE / chunked CE | ❌ | ❌ | ❌ | ✅ | CustomOp on `LoraAttention` + trainer CE. `RmsNormWrapper` exists but **is not** on the LoRA train graph (`candle_nn::RmsNorm` + `forward_diff`). See [docs/UNSLOTH_KERNEL_WIRING.md](docs/UNSLOTH_KERNEL_WIRING.md). Combine with `peft` / `qlora`. |
+| Multi-GPU / packing / DPO | ❌ | ❌ | ❌ | ❌ | Out of scope |
+| GPU E2E | ⚠️ | ⚠️ | ⚠️ | ⚠️ | Often blocked by Candle CUDA RMSNorm — see [CUDA_STATUS.md](CUDA_STATUS.md) |
+| BitNet b1.58 QAT (`adapter: bitnet`) | ❌ not wired | ❌ | ❌ | ❌ | Recipe only. axolotl-rs is candle **0.11**; `bitnet-quantize` v0.5.1 is candle **0.9**. **No cargo dep.** AbsMean PTQ is forbidden. |
 
 ### BitNet QAT (not wired)
 

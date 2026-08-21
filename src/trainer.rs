@@ -1715,4 +1715,16 @@ mod tests {
         let opt_steps = microbatches.div_ceil(accum);
         assert_eq!(opt_steps, 2); // 10/8 -> 2
     }
+
+    #[test]
+    fn test_cross_entropy_loss_cpu_finite() {
+        use candle_core::DType;
+        let device = Device::Cpu;
+        let logits = Tensor::randn(0f32, 1f32, (2, 4, 16), &device).unwrap();
+        let labels = Tensor::zeros(&[2, 4], DType::I64, &device).unwrap();
+        let loss = compute_cross_entropy_loss(&logits, &labels, &device).expect("CE");
+        let v = loss.to_scalar::<f32>().unwrap();
+        assert!(v.is_finite(), "CE loss must be finite, got {v}");
+        assert!(v >= 0.0, "CE loss must be non-negative, got {v}");
+    }
 }

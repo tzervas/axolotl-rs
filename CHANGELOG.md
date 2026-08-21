@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Hosted CI job `adapter-features`: isolate `cargo check --features peft` /
+  `--features unsloth`, then `cargo test --features peft,qlora,unsloth`
+  (`--lib --bins --tests`). Default `cargo test` and self-hosted `fleet-ci`
+  stay default features (kitchen-sink `candle-transformers`).
+- CPU `LoraLlama` full-model forward test (`test_lora_llama_cpu_forward`).
+- `tests/unsloth_cpu.rs`: `RmsNormWrapper` on `--features unsloth`; RoPE when
+  `peft` is also on (`llama_common` is peft-gated).
+- `compute_cross_entropy_loss` CPU finite-loss test (default and unsloth paths).
 - `--features unsloth`: chunked CE, `rope_custom_op`, and `RmsNormWrapper` on
   all devices (`docs/UNSLOTH_KERNEL_WIRING.md`). Default tests unchanged.
 - `docs/VERSIONING.md` — live version is `Cargo.toml` / `cz version --project`,
@@ -31,6 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.gitignore` covers env/key files, `.cargo/config.toml`, and crate artifacts
   (`Cargo.lock` remains tracked). `fleet-security.yml` gitleaks now requires
   `.gitleaks.toml` (`--config`).
+- README capability matrix includes `--features unsloth`. Crate docs no longer
+  freeze a version number. Hosted MSRV job matches `rust-version` **1.96**.
+  Unsloth RMSNorm wrapper is documented as **not** on the LoRA train graph
+  (`candle_nn::RmsNorm` + `forward_diff` keeps adapter grads).
+- `LoadedModel::forward_with_adapters` documents real per-layer `LoraLlama`
+  inject (it already delegated to `Module::forward`; the old “base only” note
+  was stale).
 
 ## [1.4.0] - 2026-08-20
 

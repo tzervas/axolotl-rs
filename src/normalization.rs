@@ -32,10 +32,11 @@ use candle_core::{Device, Tensor};
 #[cfg(feature = "unsloth")]
 use unsloth_rs::kernels::RmsNorm;
 
-/// RMS Normalization with automatic GPU/CPU fallback.
+/// RMS Normalization wrapper.
 ///
-/// When running on GPU, we use unsloth-rs's optimized implementation.
-/// For CPU or when unsloth is unavailable, we fall back to standard operations.
+/// With `--features unsloth`, forwards through `unsloth_rs::kernels::RmsNorm`
+/// (CustomOp) on **every** device. Without that feature, uses a ones-init CPU
+/// RMS on the host tensors.
 pub struct RmsNormWrapper {
     #[cfg(feature = "unsloth")]
     inner: Option<RmsNorm>,
