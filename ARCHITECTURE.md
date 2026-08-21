@@ -1,7 +1,10 @@
 # Axolotl-RS Architecture
 
-**Version:** 1.0.0
-**Status:** Initial Release
+> **Not SoT.** Live version and capability: [`Cargo.toml`](Cargo.toml) / [README.md](README.md).
+> This file is historical structure notes (the “1.0.0 / stubs” wording is outdated).
+
+**Version:** see `Cargo.toml`
+**Status:** working LLaMA-family LoRA trainer/orchestrator — not Python Axolotl parity
 
 ---
 

@@ -6,7 +6,7 @@ Applied from the workstation pack under `plans/fleet-standards/pack/`.
 
 | Workflow | When | Runner |
 |----------|------|--------|
-| `fleet-ci.yml` | push/PR to main|dev | self-hosted linux x64 podman |
+| `fleet-ci.yml` | push/PR to main|dev | detect + memory snapshot on self-hosted; **kitchen-sink `cargo check/test` on `ubuntu-latest`** |
 | `fleet-security.yml` | push/PR + weekly | same |
 | `close-issues-on-main.yml` | PR closed→main | same |
 | `reopen-issues-closed-off-main.yml` | PR merged off-main with Closes | same |
@@ -33,29 +33,25 @@ Automatic Copilot code reviews are **disabled** for fleet-managed repos. Do not 
 
 ## Self-hosted rustc memory (fleet-ci)
 
-`fleet-ci` `cargo check/test` runs on the podman runner. SIGKILL (signal 9) on
-`rustc` compiling `candle-transformers` is **OOM**, not a flake.
+SIGKILL (signal 9) on `rustc` compiling `candle-transformers` 0.11 on the
+homelab podman runner is **OOM**, not a flake. CGU=1 / `CARGO_BUILD_JOBS=1`
+did not save it (2026-08-21, PR #83).
 
-axolotl-rs is the fleet crate that depends on `candle-transformers` 0.11. That
-crate has **no per-model features** (~49k LOC, every architecture) while this
-repo only uses LLaMA (`models::llama` + `utils::repeat_kv`). Compiling it is
-the RSS peak of this job.
+axolotl-rs depends on `candle-transformers` 0.11 with **no per-model features**
+(~49k LOC). This repo only uses LLaMA. That crate is the RSS peak.
 
 `fleet-ci.yml` therefore:
 
-- Uses a **repo-wide** concurrency group (`axolotl-rs-fleet-ci`) with
-  `cancel-in-progress: false` so a PR and a `main` push cannot compile that
-  crate at the same time (per-ref groups allowed that; both rustc processes
-  died together).
-- Caps rustc with `CARGO_BUILD_JOBS=1`, `CARGO_INCREMENTAL=0`,
-  `CARGO_PROFILE_{DEV,TEST}_{DEBUG,CODEGEN_UNITS}` = `0` / `1`, and
-  `RUSTFLAGS=-C codegen-units=1 -C debuginfo=0` (profile.dev defaults to 256
-  codegen-units even with `CARGO_BUILD_JOBS=1`).
-- Checks/tests **lib + bins + tests** only. Benches (`criterion` / plotters)
-  stay on GitHub-hosted `ci.yml`.
-- Snapshots `free -h` before cargo so a future OOM is diagnosable.
+- **Does not rustc `candle-transformers` on self-hosted.** Job
+  `self-hosted memory (no kitchen-sink rustc)` snapshots `free -h` and prints
+  `HONEST_CI class=OOM_SKIP`.
+- Runs `cargo check/test` (`--lib --bins --tests`) on **GitHub-hosted**
+  `ubuntu-latest` (the same graph hosted `ci.yml` already compiles).
+- Keeps repo-wide concurrency `axolotl-rs-fleet-ci` (`cancel-in-progress: false`).
+- Benches stay on GitHub-hosted `ci.yml`.
 
-GitHub-hosted `ci.yml` (Test Suite) remains the full coverage gate.
+Product feature coverage (`peft` / `qlora` / `unsloth`) is hosted
+`ci.yml` `adapter-features`.
 
 ## Permissions
 

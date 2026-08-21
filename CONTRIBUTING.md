@@ -191,8 +191,8 @@ axolotl-rs/
 │   ├── lib.rs           # Library exports
 │   ├── config.rs        # YAML configuration parsing
 │   ├── dataset.rs       # Dataset loading (4 formats)
-│   ├── model.rs         # Model operations (stubs)
-│   ├── trainer.rs       # Training loop (stubs)
+│   ├── model.rs         # Weight load, merge, LoadedModel forward
+│   ├── trainer.rs       # Training loop (LoRA/QLoRA when features on)
 │   ├── error.rs         # Error types
 │   ├── cli.rs           # CLI command routing
 │   └── mocks/           # Mock implementations

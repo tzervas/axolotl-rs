@@ -9,7 +9,7 @@
 //! - `LoRA` layers injected at gate, up, down projections in MLP
 //! - `LoRA` forward returns base + delta for proper gradient flow
 //!
-//! Based on candle-transformers 0.9.1 Llama implementation.
+//! Based on candle-transformers 0.11 Llama implementation.
 
 use candle_core::{DType, Device, Result as CandleResult, Tensor, D};
 use candle_nn::{Embedding, Linear, Module, RmsNorm, VarBuilder, VarMap};

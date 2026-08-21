@@ -231,6 +231,53 @@ mod qlora_tests {
         );
     }
 
+    #[test]
+    fn test_qlora_llama_cpu_forward() {
+        use axolotl_rs::qlora_llama::QLoraLlama;
+        use candle_transformers::models::llama::LlamaEosToks;
+
+        let device = Device::Cpu;
+        let llama_config = candle_transformers::models::llama::Config {
+            hidden_size: 64,
+            intermediate_size: 128,
+            vocab_size: 128,
+            num_hidden_layers: 1,
+            num_attention_heads: 4,
+            num_key_value_heads: 4,
+            rms_norm_eps: 1e-6,
+            rope_theta: 10_000.0,
+            max_position_embeddings: 32,
+            use_flash_attn: false,
+            bos_token_id: Some(1),
+            eos_token_id: Some(LlamaEosToks::Single(2)),
+            rope_scaling: None,
+            tie_word_embeddings: false,
+        };
+        let mut qlora_config = QLoraConfig::preset_qv_bf16(4, 8);
+        qlora_config.quantization.compute_dtype = qlora_rs::ComputeDType::F32;
+        qlora_config.quantization.double_quant = false;
+
+        let base_varmap = VarMap::new();
+        let base_vb = candle_nn::VarBuilder::from_varmap(&base_varmap, DType::F32, &device);
+        let lora_varmap = VarMap::new();
+
+        let model = QLoraLlama::new_with_qlora(&llama_config, base_vb, &qlora_config, &lora_varmap)
+            .expect("QLoraLlama CPU construction");
+
+        let input_ids = Tensor::zeros(&[1, 4], DType::U32, &device).unwrap();
+        let output = Module::forward(&model, &input_ids).expect("QLoraLlama CPU forward");
+        assert_eq!(output.dims(), &[1, 4, llama_config.vocab_size]);
+        let flat = output.flatten_all().unwrap().to_vec1::<f32>().unwrap();
+        assert!(
+            flat.iter().all(|v| v.is_finite()),
+            "QLoraLlama logits must be finite on CPU"
+        );
+        assert!(
+            !lora_varmap.all_vars().is_empty(),
+            "QLoRA A/B must be tracked"
+        );
+    }
+
     // ==========================================================================
     // GPU Integration Tests (ignored by default)
     // ==========================================================================

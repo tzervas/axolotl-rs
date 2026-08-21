@@ -434,6 +434,39 @@ mod lora_llama_tests {
     }
 
     // ==========================================================================
+    // Full LoraLlama CPU forward (product path used by LoadedModel)
+    // ==========================================================================
+
+    #[test]
+    fn test_lora_llama_cpu_forward() {
+        use axolotl_rs::lora_llama::LoraLlama;
+
+        let device = Device::Cpu;
+        let llama_config = create_test_llama_config();
+        let lora_config = create_test_lora_config();
+
+        let base_varmap = VarMap::new();
+        let base_vb = candle_nn::VarBuilder::from_varmap(&base_varmap, DType::F32, &device);
+        let lora_varmap = VarMap::new();
+
+        let model = LoraLlama::new_with_lora(&llama_config, base_vb, &lora_config, &lora_varmap)
+            .expect("LoraLlama CPU construction");
+
+        let input_ids = Tensor::zeros(&[2, 8], DType::U32, &device).unwrap();
+        let output = Module::forward(&model, &input_ids).expect("LoraLlama CPU forward");
+        assert_eq!(output.dims(), &[2, 8, llama_config.vocab_size]);
+        let flat = output.flatten_all().unwrap().to_vec1::<f32>().unwrap();
+        assert!(
+            flat.iter().all(|v| v.is_finite()),
+            "LoraLlama logits must be finite on CPU"
+        );
+        assert!(
+            !lora_varmap.all_vars().is_empty(),
+            "LoRA A/B must be tracked in the adapter VarMap"
+        );
+    }
+
+    // ==========================================================================
     // GPU Integration Tests (ignored by default)
     // ==========================================================================
 
