@@ -1213,7 +1213,7 @@ fn load_llama_model(
         num_hidden_layers: llama_config.num_hidden_layers,
         num_attention_heads: llama_config.num_attention_heads,
         num_key_value_heads: llama_config.num_key_value_heads(),
-        use_flash_attn: false, // TODO: make configurable
+        use_flash_attn: false, // not a YAML knob; flash-attn is not implemented
         rms_norm_eps: llama_config.rms_norm_eps,
         rope_theta: llama_config.rope_theta,
         bos_token_id: llama_config.bos_token_id,
@@ -1310,7 +1310,7 @@ fn load_qlora_model(
         num_hidden_layers: llama_config.num_hidden_layers,
         num_attention_heads: llama_config.num_attention_heads,
         num_key_value_heads: llama_config.num_key_value_heads(),
-        use_flash_attn: false,
+        use_flash_attn: false, // not a YAML knob; flash-attn is not implemented
         rms_norm_eps: llama_config.rms_norm_eps,
         rope_theta: llama_config.rope_theta,
         bos_token_id: llama_config.bos_token_id,
@@ -1352,24 +1352,6 @@ fn load_qlora_model(
     );
 
     Ok(Box::new(model))
-}
-
-/// Simple stub model for unsupported architectures.
-struct SimpleModel {
-    layer: candle_nn::Linear,
-}
-
-impl SimpleModel {
-    fn new(vb: VarBuilder) -> Result<Self> {
-        let layer = candle_nn::linear(10, 10, vb)?;
-        Ok(Self { layer })
-    }
-}
-
-impl Module for SimpleModel {
-    fn forward(&self, xs: &Tensor) -> candle_core::Result<Tensor> {
-        self.layer.forward(xs)
-    }
 }
 
 /// Wrapper for `LLaMA` model that implements the Module trait.

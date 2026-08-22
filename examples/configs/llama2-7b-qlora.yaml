@@ -40,8 +40,9 @@ training:
   max_grad_norm: 1.0
   save_steps: 500
   logging_steps: 10
-  gradient_checkpointing: true
-  mixed_precision: true
+  # unimplemented: true is rejected (fail-closed)
+  gradient_checkpointing: false
+  mixed_precision: false
 
 output_dir: ./outputs/llama2-7b-qlora
 seed: 42

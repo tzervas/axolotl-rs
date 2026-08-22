@@ -190,6 +190,8 @@ impl Trainer {
     /// - Training encounters an error
     /// - Checkpoint saving fails
     pub fn train(&mut self) -> Result<()> {
+        self.config.training.reject_unimplemented_knobs()?;
+
         tracing::info!("Starting training");
         tracing::info!("  Base model: {}", self.config.base_model);
         tracing::info!("  Adapter: {:?}", self.config.adapter);
@@ -238,14 +240,6 @@ impl Trainer {
         std::fs::create_dir_all(&self.config.output_dir)?;
 
         let accum_steps = self.config.training.gradient_accumulation_steps.max(1);
-        if self.config.training.gradient_checkpointing {
-            tracing::warn!("training.gradient_checkpointing is set but not implemented; ignoring");
-        }
-        if self.config.training.mixed_precision {
-            tracing::warn!(
-                "training.mixed_precision is set but compute is forced to F32; ignoring"
-            );
-        }
 
         // Optimizer steps = ceil(microbatches / accum); microbatch size = batch_size
         let microbatches_per_epoch = dataset
@@ -1164,6 +1158,74 @@ mod tests {
 
         let result = Trainer::new(config);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_trainer_new_rejects_mixed_precision() {
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("outputs");
+        let mut config = create_test_config(output_path.to_str().unwrap());
+        config.training.mixed_precision = true;
+
+        match Trainer::new(config) {
+            Err(e) => {
+                let msg = e.to_string();
+                assert!(
+                    msg.contains("mixed_precision"),
+                    "expected mixed_precision fail-closed error, got {msg}"
+                );
+            }
+            Ok(_) => panic!("expected mixed_precision fail-closed error"),
+        }
+    }
+
+    #[test]
+    fn test_trainer_new_rejects_gradient_checkpointing() {
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("outputs");
+        let mut config = create_test_config(output_path.to_str().unwrap());
+        config.training.gradient_checkpointing = true;
+
+        match Trainer::new(config) {
+            Err(e) => {
+                let msg = e.to_string();
+                assert!(
+                    msg.contains("gradient_checkpointing"),
+                    "expected gradient_checkpointing fail-closed error, got {msg}"
+                );
+            }
+            Ok(_) => panic!("expected gradient_checkpointing fail-closed error"),
+        }
+    }
+
+    #[test]
+    fn test_train_rejects_mixed_precision_before_model_load() {
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("outputs");
+        let mut trainer = Trainer::new(create_test_config(output_path.to_str().unwrap())).unwrap();
+        trainer.config.training.mixed_precision = true;
+
+        let err = trainer.train().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("mixed_precision"),
+            "expected mixed_precision fail-closed error, got {msg}"
+        );
+    }
+
+    #[test]
+    fn test_train_rejects_gradient_checkpointing_before_model_load() {
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("outputs");
+        let mut trainer = Trainer::new(create_test_config(output_path.to_str().unwrap())).unwrap();
+        trainer.config.training.gradient_checkpointing = true;
+
+        let err = trainer.train().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("gradient_checkpointing"),
+            "expected gradient_checkpointing fail-closed error, got {msg}"
+        );
     }
 
     // ========================================================================

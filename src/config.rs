@@ -377,11 +377,16 @@ pub struct TrainingConfig {
     pub logging_steps: usize,
 
     /// Use gradient checkpointing.
+    ///
+    /// Not implemented. Defaults to `false`. YAML `true` is rejected (fail-closed).
     #[serde(default)]
     pub gradient_checkpointing: bool,
 
     /// Use mixed precision training.
-    #[serde(default = "default_true")]
+    ///
+    /// Not implemented (compute is F32). Defaults to `false`. YAML `true` is
+    /// rejected (fail-closed), not warned-and-ignored.
+    #[serde(default)]
     pub mixed_precision: bool,
 }
 
@@ -424,7 +429,7 @@ impl Default for TrainingConfig {
             save_steps: default_save_steps(),
             logging_steps: default_log_steps(),
             gradient_checkpointing: false,
-            mixed_precision: true,
+            mixed_precision: false,
         }
     }
 }
@@ -647,6 +652,30 @@ impl AxolotlConfig {
             ));
         }
 
+        self.training.reject_unimplemented_knobs()?;
+
+        Ok(())
+    }
+}
+
+impl TrainingConfig {
+    /// Reject unimplemented training YAML knobs.
+    ///
+    /// `gradient_checkpointing` and `mixed_precision` default to `false`.
+    /// `true` is a hard error (fail-closed), not warn-and-ignore.
+    pub fn reject_unimplemented_knobs(&self) -> Result<()> {
+        if self.gradient_checkpointing {
+            return Err(AxolotlError::Config(
+                "training.gradient_checkpointing is not implemented; set it to false (fail-closed)"
+                    .into(),
+            ));
+        }
+        if self.mixed_precision {
+            return Err(AxolotlError::Config(
+                "training.mixed_precision is not implemented (compute is F32); set it to false (fail-closed)"
+                    .into(),
+            ));
+        }
         Ok(())
     }
 }
@@ -1107,5 +1136,74 @@ mod tests {
 
         let yaml_err = serde_yaml::from_str::<AxolotlConfig>(BITNET_QAT_RECIPE).unwrap_err();
         assert!(yaml_err.to_string().contains("bitnet"));
+    }
+
+    #[test]
+    fn mixed_precision_and_gradient_checkpointing_default_false() {
+        let training = TrainingConfig::default();
+        assert!(!training.mixed_precision);
+        assert!(!training.gradient_checkpointing);
+        training.reject_unimplemented_knobs().unwrap();
+
+        let yaml = r#"
+base_model: meta-llama/Llama-2-7b-hf
+adapter: lora
+dataset:
+  path: ./data/train.jsonl
+training:
+  epochs: 1
+"#;
+        let config: AxolotlConfig = serde_yaml::from_str(yaml).unwrap();
+        assert!(!config.training.mixed_precision);
+        assert!(!config.training.gradient_checkpointing);
+        config.validate().unwrap();
+    }
+
+    #[test]
+    fn mixed_precision_true_is_rejected() {
+        let yaml = r#"
+base_model: meta-llama/Llama-2-7b-hf
+adapter: lora
+dataset:
+  path: ./data/train.jsonl
+training:
+  mixed_precision: true
+"#;
+        let config: AxolotlConfig = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.training.mixed_precision);
+        let err = config.validate().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("mixed_precision") && msg.contains("fail-closed"),
+            "expected fail-closed mixed_precision error, got {msg}"
+        );
+
+        let mut preset = AxolotlConfig::llama2_7b_preset();
+        preset.training.mixed_precision = true;
+        assert!(preset.validate().is_err());
+    }
+
+    #[test]
+    fn gradient_checkpointing_true_is_rejected() {
+        let yaml = r#"
+base_model: meta-llama/Llama-2-7b-hf
+adapter: lora
+dataset:
+  path: ./data/train.jsonl
+training:
+  gradient_checkpointing: true
+"#;
+        let config: AxolotlConfig = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.training.gradient_checkpointing);
+        let err = config.validate().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("gradient_checkpointing") && msg.contains("fail-closed"),
+            "expected fail-closed gradient_checkpointing error, got {msg}"
+        );
+
+        let mut preset = AxolotlConfig::llama2_7b_preset();
+        preset.training.gradient_checkpointing = true;
+        assert!(preset.validate().is_err());
     }
 }

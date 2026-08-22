@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `CUDA_STATUS.md`: this host is CUDA **13.1** (`nvcc` V13.1.115) with
+  `sm_120` in `nvcc --list-gpu-code`; candle-nn **0.11** has rms-norm
+  `cuda_fwd`. Stale “nvcc max 90 / Candle 0.9 / no cuda rms-norm” claims
+  removed. Remaining gap is train-graph `forward_diff` because candle
+  `rms_norm` uses `apply_op_no_bwd`. GPU E2E is still not
+  production-complete (10-step smoke later).
+- `docs/UNSLOTH_KERNEL_WIRING.md`: `RmsNormOp::bwd` exists in unsloth-rs
+  `src/kernels/custom_op/rmsnorm.rs`. Remaining gap is `LoraLlama` /
+  `QLoraLlama` still on `candle_nn::RmsNorm` + `forward_diff`.
+- `TrainingConfig.mixed_precision` default is `false` (was `true`). YAML
+  `mixed_precision: true` and `gradient_checkpointing: true` are
+  fail-closed errors, not warn-and-ignore. Flash-attn is not a YAML knob
+  (`use_flash_attn` stays hardcoded `false`).
+- `publish.yml` publish job `runs-on: ubuntu-latest` (do not rustc
+  kitchen-sink on homelab). Kitchen-sink stays `gpu` + `scribe-cpu-build`.
+- `roadmap.md` matches README: CPU E2E LoRA, merge, and Hub download are
+  shipped (duplicate unchecked boxes removed).
+
+### Removed
+- Unused `SimpleModel` stub in `src/model.rs`.
+- No-op `upcast_rms_norm` helper (clone-only, no callers).
+
 ### Added
 - `NOTICE` (Candle MIT OR Apache-2.0, elect MIT; safetensors/tokenizers
   Apache-2.0; Axolotl is Apache-2.0 inspiration, not vendored).
