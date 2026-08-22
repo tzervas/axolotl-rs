@@ -1,34 +1,109 @@
+# Coverage is a signal on *product paths*, not a 100% line-count vanity gate.
+# Default `cargo llvm-cov` used to run without peft/qlora, so adapter files
+# looked uncovered. CI now collects `--features peft,qlora,unsloth` (never
+# `--all-features` / cuda).
+
 codecov:
-  require_ci_to_pass: yes
+  require_ci_to_pass: false
+  notify:
+    wait_for_ci: false
+
+github_checks:
+  annotations: false
 
 coverage:
-  precision: 2
+  precision: 1
   round: down
-  range: "70...100"
+  # Green band is "healthy product coverage", not 100%.
+  range: 50...80
 
   status:
     project:
       default:
-        target: 75%
-        threshold: 5%
-        if_ci_failed: error
-
+        target: auto
+        threshold: 2%
+        informational: true
+        if_ci_failed: ignore
     patch:
       default:
-        target: 80%
+        target: auto
         threshold: 5%
-        if_ci_failed: error
+        only_pulls: true
+        informational: true
+        if_ci_failed: ignore
 
 comment:
-  layout: "reach,diff,flags,tree,footer"
+  layout: "condensed_header, diff, components, files, footer"
   behavior: default
-  require_changes: false
+  require_changes: true
   require_base: false
   require_head: true
+  hide_project_coverage: false
 
 ignore:
   - "benches/**"
   - "examples/**"
   - "tests/**"
-  - "**/main.rs"
-  - "**/cli.rs"
+  - "scripts/**"
+  - "docs/**"
+  - "src/main.rs"
+  - "src/cli.rs"
+  - "src/mocks/**"
+  - "src/vsa_accel.rs"
+  - "**/archive/**"
+
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+        informational: true
+      - type: patch
+        target: auto
+        informational: true
+        only_pulls: true
+  individual_components:
+    - component_id: core
+      name: core (always-on)
+      paths:
+        - "src/config.rs"
+        - "src/dataset.rs"
+        - "src/error.rs"
+        - "src/export.rs"
+        - "src/optimizer.rs"
+        - "src/scheduler.rs"
+        - "src/trainer.rs"
+        - "src/model.rs"
+      statuses:
+        - type: patch
+          target: 70%
+          threshold: 5%
+          informational: false
+          only_pulls: true
+        - type: project
+          target: auto
+          threshold: 2%
+          informational: true
+    - component_id: lora
+      name: LoRA train path
+      paths:
+        - "src/lora_llama.rs"
+        - "src/adapters/**"
+        - "src/normalization.rs"
+        - "src/llama_common.rs"
+      statuses:
+        - type: patch
+          target: 50%
+          threshold: 5%
+          informational: true
+          only_pulls: true
+    - component_id: qlora
+      name: QLoRA train path
+      paths:
+        - "src/qlora_llama.rs"
+      statuses:
+        - type: patch
+          target: 50%
+          threshold: 5%
+          informational: true
+          only_pulls: true

@@ -157,8 +157,11 @@ git commit -m "fix: correct quantization bit handling"
 
 - Unit tests in module files (`#[cfg(test)] mod tests { ... }`)
 - Integration tests in `tests/` directory
-- Target: 80% code coverage
-- See [TEST_COVERAGE_PLAN.md](TEST_COVERAGE_PLAN.md) for details
+- Coverage is a *product-path* signal, not a 100% line-count gate.
+  See [`.codecov.yml`](.codecov.yml): core `src/` patch 70%; LoRA/QLoRA
+  informational; benches/examples/CLI ignored. Collect with
+  `--features peft,qlora,unsloth` (never `--all-features`).
+- See [TEST_COVERAGE_PLAN.md](TEST_COVERAGE_PLAN.md) for historical expansion notes.
 
 ### Documentation
 
