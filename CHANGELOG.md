@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `NOTICE` (Candle Apache-2.0; Axolotl is inspiration, not vendored).
+- `NOTICE` (Candle MIT OR Apache-2.0, elect MIT; safetensors/tokenizers
+  Apache-2.0; Axolotl is Apache-2.0 inspiration, not vendored).
 - Hosted `cargo deny licenses` in `fleet-security.yml`. Canonical `LICENSE`.
 
 ### Changed
