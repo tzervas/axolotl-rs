@@ -1,0 +1,20 @@
+axolotl-rs
+Copyright (c) 2026 Tyler Zervas
+SPDX-License-Identifier: MIT
+
+This repository's source is MIT (see LICENSE).
+
+Third-party Rust crates stay under their own licenses. The resolved graph is
+permissive (MIT and/or Apache-2.0, plus BSD/ISC/Zlib/Unicode/Unlicense/BSL/CDLA
+as listed by `cargo deny list`). Notable:
+
+  candle-core, candle-nn, candle-transformers — Apache-2.0
+  https://github.com/huggingface/candle
+  peft-rs, qlora-rs, unsloth-rs — MIT
+  https://github.com/tzervas/peft-rs
+  https://github.com/tzervas/qlora-rs
+  https://github.com/tzervas/unsloth-rs
+
+This crate is an independent LLaMA LoRA/QLoRA orchestrator on Candle. It does
+not redistribute Axolotl (Apache-2.0):
+  https://github.com/axolotl-ai-cloud/axolotl
