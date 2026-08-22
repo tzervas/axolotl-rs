@@ -50,7 +50,7 @@ routing, not CUDA) plus this hosted `ci.yml`.
 | Real grad/param norms | ✅ | ✅ | ✅ | ✅ | Not placeholder constants |
 | Unsloth RoPE / chunked CE | ❌ | ❌ | ❌ | ✅ | CustomOp on `LoraAttention` + trainer CE. `RmsNormWrapper` exists but **is not** on the LoRA train graph (`candle_nn::RmsNorm` + `forward_diff`). See [docs/UNSLOTH_KERNEL_WIRING.md](docs/UNSLOTH_KERNEL_WIRING.md). Combine with `peft` / `qlora`. |
 | Multi-GPU / packing / DPO | ❌ | ❌ | ❌ | ❌ | Out of scope |
-| GPU E2E | ⚠️ | ⚠️ | ⚠️ | ⚠️ | Often blocked by Candle CUDA RMSNorm — see [CUDA_STATUS.md](CUDA_STATUS.md) |
+| GPU E2E | ⚠️ | ⚠️ | ⚠️ | ⚠️ | Not production-complete (10-step smoke later). Host nvcc 13.1 lists `sm_120`; candle-nn 0.11 has rms-norm `cuda_fwd`. Train still uses `forward_diff`. See [CUDA_STATUS.md](CUDA_STATUS.md) |
 | BitNet b1.58 QAT (`adapter: bitnet`) | ❌ not wired | ❌ | ❌ | ❌ | Recipe only. axolotl-rs is candle **0.11**; `bitnet-quantize` v0.5.1 is candle **0.9**. **No cargo dep.** AbsMean PTQ is forbidden. |
 
 ### BitNet QAT (not wired)
@@ -184,7 +184,7 @@ training:
   warmup_ratio: 0.03
   max_grad_norm: 1.0
   save_steps: 500
-  # gradient_checkpointing / mixed_precision: parsed but not implemented (warned)
+  # gradient_checkpointing / mixed_precision: must stay false (true is rejected)
 
 output_dir: ./outputs/my-model
 seed: 42

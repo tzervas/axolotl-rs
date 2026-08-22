@@ -16,11 +16,17 @@ kernel tree.
 
 `apply_rotary_emb_ids` (packed positions) is feature-gated.
 
+`RmsNormOp::bwd` **exists** in unsloth-rs `src/kernels/custom_op/rmsnorm.rs`.
+The remaining RMS gap is wiring: `LoraLlama` / `QLoraLlama` still use
+`candle_nn::RmsNorm` + `forward_diff`; the wrapper is not on the train graph.
+
 ## Not in this pass
 
-- Replacing `candle_nn::RmsNorm` on the LoRA train graph (CustomOp has no `bwd`; train uses `forward_diff`).
+- Putting CustomOp RMS on the LoRA **train graph** (`RmsNormOp::bwd` is
+  implemented; `LoraLlama` / `QLoraLlama` are not switched over).
 - MLP SwiGLU inside candle-transformers.
 - Fused linear+CE (would skip materializing `[N,V]` logits).
+- Attention kernels.
 - No 2× / VRAM claims.
 
 ## Check

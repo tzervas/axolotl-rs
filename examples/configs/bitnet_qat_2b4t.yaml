@@ -77,5 +77,9 @@ training:
   max_grad_norm: 1.0
   save_steps: 500
   logging_steps: 10
+  # Recipe-only sketch (this file does not parse as AxolotlConfig:
+  # adapter: bitnet is rejected). On a real axolotl-rs training YAML,
+  # true is fail-closed — mixed_precision / gradient_checkpointing are
+  # not implemented.
   gradient_checkpointing: true
   mixed_precision: true

@@ -22,7 +22,9 @@ env:
 jobs:
   publish:
     name: Publish to crates.io
-    runs-on: [self-hosted, linux, x64, podman]
+    # GitHub-hosted: do not rustc the crate on homelab CPU (kitchen-sink is
+    # gpu + scribe-cpu-build on akula-prime; `gpu` is host routing, not CUDA).
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
