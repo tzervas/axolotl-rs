@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hosted `cargo deny licenses` in `fleet-security.yml`. Canonical `LICENSE`.
 
 ### Changed
+- Codecov: collect `--features peft,qlora,unsloth` (never `--all-features`).
+  Project/patch default statuses are informational; core `src/` patch is 70%.
+  No GitHub Checks line annotations. Ignore benches/examples/tests/CLI/vsa.
 - `deny.toml` license allow-list drops unused MPL-2.0 / OpenSSL (permissive only).
 - CI pins match fleet `ap-workflows` `pins/actions.yml`: `actions/checkout@v7`
   (`persist-credentials: false`), `actions/upload-artifact@v7`,
