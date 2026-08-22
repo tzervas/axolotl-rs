@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `NOTICE` (Candle MIT OR Apache-2.0, elect MIT; safetensors/tokenizers
+  Apache-2.0; Axolotl is Apache-2.0 inspiration, not vendored).
+- Hosted `cargo deny licenses` in `fleet-security.yml`. Canonical `LICENSE`.
+
 ### Changed
+- `deny.toml` license allow-list drops unused MPL-2.0 / OpenSSL (permissive only).
 - CI pins match fleet `ap-workflows` `pins/actions.yml`: `actions/checkout@v7`
   (`persist-credentials: false`), `actions/upload-artifact@v7`,
   `astral-sh/setup-uv@v9`. Homelab `fleet-security` uses the `rust` work-image

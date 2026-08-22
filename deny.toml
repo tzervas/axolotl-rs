@@ -18,6 +18,7 @@ ignore = [
 [licenses]
 version = 2
 confidence-threshold = 0.8
+# Permissive / MIT-compatible only. No GPL, AGPL, or MPL.
 allow = [
     "MIT",
     "Apache-2.0",
@@ -25,16 +26,13 @@ allow = [
     "BSD-2-Clause",
     "BSD-3-Clause",
     "ISC",
-    "Unicode-DFS-2016",
     "Unicode-3.0",
     "Unlicense",
     "Zlib",
-    "MPL-2.0",
-    "CC0-1.0",
     "BSL-1.0",
-    "OpenSSL",
-    "CDLA-Permissive-2.0",
     "0BSD",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
 ]
 
 [[licenses.clarify]]

@@ -13,6 +13,12 @@ Applied from the workstation pack under `plans/fleet-standards/pack/`.
 
 Action pins follow `tzervas/ap-workflows` `pins/actions.yml` (`actions/checkout@v7`, `actions/upload-artifact@v7`, `astral-sh/setup-uv@v9`). Do **not** `--all-features` (pulls `cuda`).
 
+## License
+
+MIT (`LICENSE`). Third-party crates and non-vendored inspirations: `NOTICE`.
+`fleet-security.yml` job `cargo deny licenses` (GitHub-hosted) is fail-closed.
+Allow-list is permissive only (no GPL / AGPL / MPL).
+
 ## Issue close policy
 
 - **`dev` / feature merges:** `Refs #n` only — issues stay open

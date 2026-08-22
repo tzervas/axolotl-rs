@@ -287,7 +287,7 @@ All submissions require review. Reviewers will check for:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License. See [LICENSE-MIT](LICENSE-MIT) for details.
+By contributing, you agree that your contributions will be licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Questions?
 

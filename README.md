@@ -9,7 +9,7 @@ YAML-driven fine-tuning **orchestrator** for LLaMA-family LLMs in Rust (inspired
 
 [![Crates.io](https://img.shields.io/crates/v/axolotl-rs.svg)](https://crates.io/crates/axolotl-rs)
 [![Documentation](https://docs.rs/axolotl-rs/badge.svg)](https://docs.rs/axolotl-rs)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > **Status honesty:** Version **1.4.0** is a working LLaMA-family LoRA trainer/orchestrator on local
 > weights — **not** full Python Axolotl parity. Candle **0.11**, MSRV **1.96**.
@@ -333,4 +333,4 @@ cargo check --features peft,qlora
 
 ## License
 
-MIT — see [LICENSE-MIT](LICENSE-MIT).
+MIT — see [LICENSE](LICENSE). Third-party crates and inspirations: [NOTICE](NOTICE).

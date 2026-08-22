@@ -1,0 +1,51 @@
+axolotl-rs
+Copyright (c) 2026 Tyler Zervas
+SPDX-License-Identifier: MIT
+
+This repository's original source is MIT (see LICENSE). That license covers
+only this crate's own source. Third-party works keep their own licenses and
+copyrights. This tree does not vendor those sources; `cargo` fetches them at
+build time. Anyone who redistributes a binary that links them must preserve
+their notices. The live graph is `cargo deny list`. Dual-licensed crates are
+used under MIT where that option exists.
+
+---------------------------------------------------------------------------
+Runtime crates (fetched at build; not copied into this tree)
+
+Hugging Face Candle — candle-core, candle-nn, candle-transformers
+  SPDX: MIT OR Apache-2.0 (this crate elects MIT)
+  https://github.com/huggingface/candle
+  LICENSE-MIT and LICENSE-APACHE in that repository
+
+Hugging Face safetensors
+  SPDX: Apache-2.0
+  Copyright The Hugging Face Team
+  https://github.com/huggingface/safetensors
+
+Hugging Face tokenizers
+  SPDX: Apache-2.0
+  Authors: Anthony MOI, Nicolas Patry / Hugging Face
+  https://github.com/huggingface/tokenizers
+  Transitive Apache-2.0-only: esaxx-rs, spm_precompiled
+
+Sister MIT crates (optional features): peft-rs, qlora-rs, unsloth-rs
+  SPDX: MIT
+  Copyright (c) 2026 Tyler Zervas
+  https://github.com/tzervas/peft-rs
+  https://github.com/tzervas/qlora-rs
+  https://github.com/tzervas/unsloth-rs
+
+Default `download` feature (reqwest + rustls):
+  ring — Apache-2.0 AND ISC (Google Inc. / ring authors)
+  rustls-webpki — ISC
+  untrusted — ISC
+  webpki-roots — CDLA-Permissive-2.0
+  sync_wrapper — Apache-2.0
+
+---------------------------------------------------------------------------
+Inspirations — not copied, not linked, not redistributed
+
+Axolotl (Python)
+  SPDX: Apache-2.0
+  https://github.com/axolotl-ai-cloud/axolotl
+  This crate is an independent LLaMA LoRA/QLoRA orchestrator on Candle.
